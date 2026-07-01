@@ -25,7 +25,7 @@ export function ConstraintsStep() {
             <Plus className="size-4" />
             Add Filters
           </Button>
-          <Button variant="ghost" size="sm" className="gap-1.5 text-info-600">
+          <Button variant="ghost" size="sm" className="gap-1.5 text-brand-600">
             <Eye className="size-4" />
             View historical data
           </Button>
@@ -133,7 +133,7 @@ export function ConstraintsStep() {
                     </span>
                   )}
                 </td>
-                <td className="border-r border-slate-100 px-4 py-3 font-medium text-info-600">
+                <td className="border-r border-slate-100 px-4 py-3 font-medium text-brand-600">
                   {row.goalValue}
                 </td>
                 <td className="border-r border-slate-100 px-2 py-3 text-center text-slate-700">

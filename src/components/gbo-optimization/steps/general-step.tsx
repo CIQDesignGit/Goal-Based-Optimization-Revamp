@@ -1,19 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { X } from "lucide-react";
 
+import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
-import { BUDGET_GRANULARITIES } from "@/lib/gbo-optimization/setup-data";
+  BUDGET_GRANULARITIES,
+  LEVEL_1_OPTIONS,
+  LEVEL_2_OPTIONS,
+  PREFILL_METRIC_OPTIONS,
+} from "@/lib/gbo-optimization/setup-data";
 import { cn } from "@/lib/utils";
 
 type BudgetType = "retailer" | "internal";
+
+const SETUP_SELECT_TRIGGER_CLASS =
+  "w-full border-slate-200 bg-white text-slate-700 shadow-none";
 
 const BUDGET_TYPE_OPTIONS: {
   value: BudgetType;
@@ -39,11 +42,11 @@ function RadioIndicator({ selected }: { selected: boolean }) {
     <span
       className={cn(
         "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border-2",
-        selected ? "border-info-600" : "border-slate-300",
+        selected ? "border-brand-600" : "border-slate-300",
       )}
       aria-hidden
     >
-      {selected ? <span className="size-2 rounded-full bg-info-600" /> : null}
+      {selected ? <span className="size-2 rounded-full bg-brand-600" /> : null}
     </span>
   );
 }
@@ -55,58 +58,59 @@ export function GeneralStep() {
   const [level2, setLevel2] = useState("na");
   const [prefillMetric, setPrefillMetric] = useState<string>("roas");
 
-  const metricLabel =
-    prefillMetric === "roas"
-      ? "ROAS"
-      : prefillMetric === "acos"
-        ? "ACOS"
-        : "";
-
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 py-6">
+    <div className="mx-auto flex max-w-4xl flex-col gap-6 py-8">
       {/* Card 1 — Budget granularity */}
-      <Card className="shadow-sm">
-        <CardContent className="space-y-5">
-          <div className="space-y-1">
-            <h2 className="text-base font-semibold text-slate-900">
-              How do you want to plan your budget?{" "}
-              <span className="text-slate-900">*</span>
-            </h2>
-            <p className="text-sm text-slate-500">Budget granularity</p>
-          </div>
+      <div className="relative">
+        <Card className="border border-slate-200 shadow-none">
+          <CardContent className="relative space-y-5">
+            <Badge
+              variant="secondary"
+              className="absolute top-4 right-4 border border-slate-200 bg-slate-100 font-normal text-slate-600"
+            >
+              General Configuration
+            </Badge>
+            <div className="space-y-1">
+              <h2 className="text-base font-semibold text-slate-900">
+                How do you want to plan your budget?{" "}
+                <span className="text-slate-900">*</span>
+              </h2>
+              <p className="text-sm text-slate-500">Budget granularity</p>
+            </div>
 
-          <div
-            className="grid grid-cols-4 gap-1 rounded-lg bg-slate-100 p-1"
-            role="tablist"
-            aria-label="Budget granularity"
-          >
-            {BUDGET_GRANULARITIES.map((option) => {
-              const isSelected = granularity === option;
+            <div
+              className="grid grid-cols-4 gap-1 rounded-lg bg-slate-100 p-1"
+              role="tablist"
+              aria-label="Budget granularity"
+            >
+              {BUDGET_GRANULARITIES.map((option) => {
+                const isSelected = granularity === option;
 
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  role="tab"
-                  aria-selected={isSelected}
-                  onClick={() => setGranularity(option)}
-                  className={cn(
-                    "rounded-md px-2 py-2.5 text-center text-sm transition-colors",
-                    isSelected
-                      ? "border border-info-600 bg-white font-semibold text-slate-900"
-                      : "border border-transparent bg-transparent font-normal text-slate-500 hover:text-slate-700",
-                  )}
-                >
-                  {option}
-                </button>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    role="tab"
+                    aria-selected={isSelected}
+                    onClick={() => setGranularity(option)}
+                    className={cn(
+                      "rounded-md px-2 py-2.5 text-center text-sm transition-colors",
+                      isSelected
+                        ? "border border-brand-600 bg-white font-semibold text-brand-600"
+                        : "border border-transparent bg-transparent font-normal text-slate-500 hover:text-slate-700",
+                    )}
+                  >
+                    {option}
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Card 2 — Budget definition */}
-      <Card className="shadow-sm">
+      <Card className="border border-slate-200 shadow-none">
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <h2 className="text-base font-semibold text-slate-900">
@@ -131,8 +135,8 @@ export function GeneralStep() {
                   className={cn(
                     "flex gap-3 rounded-lg border p-4 text-left transition-colors",
                     isSelected
-                      ? "border-info-600 bg-info-50"
-                      : "border-transparent bg-white hover:bg-slate-50",
+                      ? "border-brand-600 bg-brand-50"
+                      : "border-slate-200 bg-white hover:bg-slate-50",
                   )}
                 >
                   <RadioIndicator selected={isSelected} />
@@ -149,32 +153,32 @@ export function GeneralStep() {
             })}
           </div>
 
-          <div className="rounded-lg bg-slate-100 p-4">
+          <div className="rounded-md bg-slate-100 p-4">
             <div className="grid gap-3 sm:grid-cols-2">
-              <Select value={level1} onValueChange={(value) => setLevel1(value ?? "portfolio")}>
-                <SelectTrigger className="h-10 w-full border-slate-200 bg-white shadow-none">
-                  <span className="text-sm text-slate-700">Level 1 : Portfolio</span>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="portfolio">Level 1 : Portfolio</SelectItem>
-                </SelectContent>
-              </Select>
+              <SetupInlineSelect
+                label="Level 1"
+                value={level1}
+                options={LEVEL_1_OPTIONS}
+                placeholder="Select portfolio"
+                onValueChange={setLevel1}
+                triggerClassName={SETUP_SELECT_TRIGGER_CLASS}
+              />
 
-              <Select value={level2} onValueChange={(value) => setLevel2(value ?? "na")}>
-                <SelectTrigger className="h-10 w-full border-slate-200 bg-white shadow-none">
-                  <span className="text-sm text-slate-700">Level 2 : NA</span>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="na">Level 2 : NA</SelectItem>
-                </SelectContent>
-              </Select>
+              <SetupInlineSelect
+                label="Level 2"
+                value={level2}
+                options={LEVEL_2_OPTIONS}
+                placeholder="Select category"
+                onValueChange={setLevel2}
+                triggerClassName={SETUP_SELECT_TRIGGER_CLASS}
+              />
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Card 3 — Pre-fill goals */}
-      <Card className="shadow-sm">
+      <Card className="border border-slate-200 shadow-none">
         <CardContent className="space-y-4">
           <div className="space-y-1">
             <h2 className="text-base font-semibold text-slate-900">
@@ -186,44 +190,16 @@ export function GeneralStep() {
             </p>
           </div>
 
-          <div className="rounded-lg bg-slate-100 p-4">
-            <div className="relative">
-              <Select
-                value={prefillMetric}
-                onValueChange={(value) => setPrefillMetric(value ?? "")}
-              >
-                <SelectTrigger
-                  className={cn(
-                    "h-10 w-full border-slate-200 bg-white shadow-none",
-                    prefillMetric && "pr-16",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "text-sm",
-                      metricLabel ? "text-slate-700" : "text-slate-400",
-                    )}
-                  >
-                    {metricLabel || "Select a metric to prefill"}
-                  </span>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="roas">ROAS</SelectItem>
-                  <SelectItem value="acos">ACOS</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {prefillMetric ? (
-                <button
-                  type="button"
-                  onClick={() => setPrefillMetric("")}
-                  className="absolute top-1/2 right-9 z-10 -translate-y-1/2 rounded-sm p-0.5 text-slate-400 transition-colors hover:text-slate-600"
-                  aria-label="Clear metric selection"
-                >
-                  <X className="size-4" />
-                </button>
-              ) : null}
-            </div>
+          <div className="rounded-md bg-slate-100 p-4">
+            <SetupInlineSelect
+              label="Metric to pre-fill"
+              value={prefillMetric || null}
+              options={PREFILL_METRIC_OPTIONS}
+              placeholder="Select a metric to prefill"
+              onValueChange={setPrefillMetric}
+              onClear={() => setPrefillMetric("")}
+              triggerClassName={SETUP_SELECT_TRIGGER_CLASS}
+            />
           </div>
         </CardContent>
       </Card>

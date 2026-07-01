@@ -4,7 +4,8 @@
 - Use Lucide React only. Import: `import { Bell, Home } from "lucide-react"`
 
 ## Colors
-- Use Tailwind palette classes only (e.g. `violet-600`, `slate-100`).
+- Use Tailwind palette classes only (e.g. `brand-600`, `blue-600`, `slate-100`).
+- Brand color is Tailwind blue — prefer `brand-*` tokens (e.g. `bg-brand-600`, `text-brand-700`).
 - No raw hex in components — use semantic tokens (`bg-background`, `text-foreground`, `text-muted-foreground`).
 - Slate is the neutral color — use `slate-*` for grays. Do NOT use `zinc-*`.
 

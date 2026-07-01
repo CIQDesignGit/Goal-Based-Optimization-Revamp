@@ -46,7 +46,7 @@ export function OptimizerStep() {
                   <InfoLabel label="Mode" />
                   <button
                     type="button"
-                    className="inline-flex items-center gap-1 text-info-600"
+                    className="inline-flex items-center gap-1 text-brand-600"
                   >
                     <Code2 className="size-3.5" />
                     Expand
@@ -77,7 +77,7 @@ export function OptimizerStep() {
                 <td className="border-r border-slate-100 px-4 py-3 text-slate-700">
                   {"goal" in row ? row.goal : ""}
                 </td>
-                <td className="border-r border-slate-100 px-4 py-3 font-medium text-info-600">
+                <td className="border-r border-slate-100 px-4 py-3 font-medium text-brand-600">
                   {"value" in row ? row.value : ""}
                 </td>
                 <td className="px-4 py-3">

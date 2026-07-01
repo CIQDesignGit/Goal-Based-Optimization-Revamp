@@ -43,7 +43,7 @@ function StepIcon({
   if (status === "current") {
     return (
       <span
-        className="flex size-6 shrink-0 items-center justify-center rounded-full bg-info-600 text-xs font-semibold text-white"
+        className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-semibold text-white"
         aria-hidden
       >
         {stepNumber}
@@ -61,14 +61,23 @@ function StepIcon({
   );
 }
 
-function StepLabel({ status, label }: { status: StepStatus; label: string }) {
+function StepLabel({
+  status,
+  label,
+  className,
+}: {
+  status: StepStatus;
+  label: string;
+  className?: string;
+}) {
   return (
     <span
       className={cn(
-        "whitespace-nowrap text-sm font-medium",
-        status === "current" && "text-info-600",
+        "hidden whitespace-nowrap text-sm font-medium lg:inline",
+        status === "current" && "text-brand-600",
         status === "completed" && "text-slate-800",
         status === "upcoming" && "text-slate-600",
+        className,
       )}
     >
       {label}
@@ -80,7 +89,7 @@ function StepConnector({ isComplete }: { isComplete: boolean }) {
   return (
     <div
       className={cn(
-        "mx-3 h-px min-w-4 flex-1 self-center",
+        "mx-3 h-px w-10 shrink-0 self-center sm:w-16",
         isComplete ? "bg-emerald-400" : "bg-slate-200",
       )}
       aria-hidden
@@ -94,7 +103,7 @@ export function SetupStepper({ currentStep, className }: SetupStepperProps) {
   return (
     <nav
       aria-label="Setup progress"
-      className={cn("flex w-full max-w-4xl items-center", className)}
+      className={cn("flex shrink-0 items-center", className)}
     >
       {SETUP_STEPS.map((step, index) => {
         const status = getStepStatus(index, currentIndex);
@@ -117,7 +126,7 @@ export function SetupStepper({ currentStep, className }: SetupStepperProps) {
 
               {status === "current" && (
                 <span
-                  className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-info-600"
+                  className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-brand-600"
                   aria-hidden
                 />
               )}

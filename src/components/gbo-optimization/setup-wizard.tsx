@@ -38,13 +38,13 @@ export function SetupWizard() {
   };
 
   return (
-    <div className="-m-6 flex min-h-[calc(100vh-3.5rem)] flex-col bg-slate-100">
+    <div className="flex min-h-full flex-col bg-slate-100">
       <SetupHeader
         currentStep={currentStep}
         onBack={handleBack}
         onNext={handleNext}
       />
-      <div className="flex-1 overflow-y-auto px-6">
+      <div className="flex-1 overflow-y-auto px-6 pb-8">
         <StepComponent />
       </div>
     </div>

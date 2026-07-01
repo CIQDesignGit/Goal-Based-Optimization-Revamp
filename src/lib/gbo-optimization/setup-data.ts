@@ -34,6 +34,17 @@ export const BUDGET_GRANULARITIES = [
   "Yearly",
 ] as const;
 
+export const LEVEL_1_OPTIONS = [
+  { value: "portfolio", label: "Portfolio" },
+] as const;
+
+export const LEVEL_2_OPTIONS = [{ value: "na", label: "NA" }] as const;
+
+export const PREFILL_METRIC_OPTIONS = [
+  { value: "roas", label: "ROAS" },
+  { value: "acos", label: "ACOS" },
+] as const;
+
 export const BUDGET_MONTHS = [
   "Jan '26",
   "Feb '26",

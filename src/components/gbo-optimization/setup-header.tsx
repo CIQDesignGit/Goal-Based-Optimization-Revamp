@@ -35,28 +35,26 @@ export function SetupHeader({
 
   return (
     <div className="border-b border-slate-200 bg-white">
-      <div className="flex items-center justify-between gap-4 px-6 py-4">
-        <div className="flex min-w-0 items-center gap-2 text-sm text-slate-600">
+      <div className="flex items-center gap-4 px-6 py-4">
+        <div className="flex min-w-0 flex-1 basis-0 items-center gap-2 text-sm text-slate-600">
           <Cloud className="size-4 shrink-0 text-slate-500" />
-          <span>Optimization</span>
-          <span className="text-slate-400">&gt;</span>
+          <span className="shrink-0">Optimization</span>
+          <span className="shrink-0 text-slate-400">&gt;</span>
           <button
             type="button"
-            className="flex items-center gap-1 font-medium text-slate-900 underline decoration-dashed underline-offset-4"
+            className="flex min-w-0 items-center gap-1 truncate font-medium text-brand-600 underline decoration-dashed underline-offset-4"
           >
-            Setup for Amazon Retail
-            <ChevronDown className="size-4" />
+            <span className="truncate">Setup for Amazon Retail</span>
+            <ChevronDown className="size-4 shrink-0" />
           </button>
         </div>
 
-        <div className="hidden flex-1 justify-center lg:flex">
-          <SetupStepper currentStep={currentStep} />
-        </div>
+        <SetupStepper currentStep={currentStep} />
 
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
           <Button
-            variant="ghost"
-            className="text-slate-600"
+            variant="link"
+            className="hidden h-auto shrink-0 px-0 text-brand-600 hover:text-brand-700 sm:inline-flex"
             render={<Link href="/" />}
           >
             Exit Setup
@@ -65,18 +63,15 @@ export function SetupHeader({
             onClick={onNext}
             disabled={isLastStep}
             className={cn(
-              "gap-1.5",
-              !isLastStep && "bg-info-600 text-white hover:bg-info-700",
+              "shrink-0 gap-1.5",
+              !isLastStep && "bg-brand-600 text-white hover:bg-brand-700",
             )}
           >
-            Next: {stepConfig.nextLabel}
+            <span className="hidden sm:inline">Next: {stepConfig.nextLabel}</span>
+            <span className="sm:hidden">{stepConfig.nextLabel}</span>
             <ArrowRight className="size-4" />
           </Button>
         </div>
-      </div>
-
-      <div className="flex justify-center border-t border-slate-100 px-6 py-3 lg:hidden">
-        <SetupStepper currentStep={currentStep} />
       </div>
 
       {!isFirstStep && (
