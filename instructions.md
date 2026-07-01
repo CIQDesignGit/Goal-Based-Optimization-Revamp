@@ -18,6 +18,7 @@
 
 ## Styling
 - Tailwind CSS 4 utility classes only.
+- **Buttons:** 4px corner radius everywhere. Set in `src/components/ui/button.tsx` — do not override with larger radii on `Button` components.
 - prompt-kit pattern for chat/AI UI (PromptInput, Message, Loader, etc.).
 
 ## Layout
