@@ -1,40 +1,75 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { SetupHeader } from "@/components/gbo-optimization/setup-header";
+import {
+  SetupProvider,
+  useSetupContext,
+} from "@/components/gbo-optimization/setup-context";
 import { ConstraintsStep } from "@/components/gbo-optimization/steps/constraints-step";
 import { GeneralStep } from "@/components/gbo-optimization/steps/general-step";
 import { GoalsBudgetsStep } from "@/components/gbo-optimization/steps/goals-budgets-step";
 import { OptimizerStep } from "@/components/gbo-optimization/steps/optimizer-step";
-import {
-  SETUP_STEPS,
-  type SetupStepKey,
-} from "@/lib/gbo-optimization/setup-data";
+import { SeasonalityStep } from "@/components/gbo-optimization/steps/seasonality-step";
+import { SummaryStep } from "@/components/gbo-optimization/steps/summary-step";
+import type { SetupStepKey } from "@/lib/gbo-optimization/setup-data";
 
 const STEP_COMPONENTS: Record<SetupStepKey, React.ComponentType> = {
   general: GeneralStep,
   "goals-budgets": GoalsBudgetsStep,
   constraints: ConstraintsStep,
+  seasonality: SeasonalityStep,
   optimizer: OptimizerStep,
+  summary: SummaryStep,
 };
 
-export function SetupWizard() {
+/** When the optimizer changes, keep the user on a valid step in the new flow. */
+function resolveStepAfterOptimizerChange(
+  currentStep: SetupStepKey,
+  stepKeys: SetupStepKey[],
+): SetupStepKey {
+  if (stepKeys.includes(currentStep)) {
+    return currentStep;
+  }
+
+  if (stepKeys.includes("goals-budgets")) {
+    return "goals-budgets";
+  }
+
+  return stepKeys[0] ?? "general";
+}
+
+function SetupWizardContent() {
+  const { optimizerType, steps } = useSetupContext();
   const [currentStep, setCurrentStep] = useState<SetupStepKey>("general");
   const StepComponent = STEP_COMPONENTS[currentStep];
 
-  const currentIndex = SETUP_STEPS.findIndex((step) => step.key === currentStep);
+  const currentIndex = steps.findIndex((step) => step.key === currentStep);
+  const stepKeys = steps.map((step) => step.key);
+
+  useEffect(() => {
+    const resolved = resolveStepAfterOptimizerChange(currentStep, stepKeys);
+    if (resolved !== currentStep) {
+      setCurrentStep(resolved);
+    }
+  }, [optimizerType, stepKeys, currentStep]);
 
   const handleBack = () => {
     if (currentIndex > 0) {
-      setCurrentStep(SETUP_STEPS[currentIndex - 1].key);
+      setCurrentStep(steps[currentIndex - 1].key);
     }
   };
 
   const handleNext = () => {
-    if (currentIndex < SETUP_STEPS.length - 1) {
-      setCurrentStep(SETUP_STEPS[currentIndex + 1].key);
+    if (currentIndex < steps.length - 1) {
+      setCurrentStep(steps[currentIndex + 1].key);
     }
+  };
+
+  const handleComplete = () => {
+    // FR-025 — loader while changes apply will hook in here later.
+    window.alert("Save & Launch — changes would commit after approval.");
   };
 
   return (
@@ -43,10 +78,19 @@ export function SetupWizard() {
         currentStep={currentStep}
         onBack={handleBack}
         onNext={handleNext}
+        onComplete={handleComplete}
       />
       <div className="flex-1 overflow-y-auto px-6 pb-8">
         <StepComponent />
       </div>
     </div>
+  );
+}
+
+export function SetupWizard() {
+  return (
+    <SetupProvider>
+      <SetupWizardContent />
+    </SetupProvider>
   );
 }

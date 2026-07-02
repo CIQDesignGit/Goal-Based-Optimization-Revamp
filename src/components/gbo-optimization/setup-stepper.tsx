@@ -3,10 +3,8 @@
 import { Check } from "lucide-react";
 import { Fragment } from "react";
 
-import {
-  SETUP_STEPS,
-  type SetupStepKey,
-} from "@/lib/gbo-optimization/setup-data";
+import { useSetupContext } from "@/components/gbo-optimization/setup-context";
+import type { SetupStepKey } from "@/lib/gbo-optimization/setup-data";
 import { cn } from "@/lib/utils";
 
 type SetupStepperProps = {
@@ -89,7 +87,7 @@ function StepConnector({ isComplete }: { isComplete: boolean }) {
   return (
     <div
       className={cn(
-        "mx-3 h-px w-10 shrink-0 self-center sm:w-16",
+        "mx-1 h-px min-w-2 max-w-[60px] flex-1 self-center sm:mx-2",
         isComplete ? "bg-emerald-400" : "bg-slate-200",
       )}
       aria-hidden
@@ -98,14 +96,15 @@ function StepConnector({ isComplete }: { isComplete: boolean }) {
 }
 
 export function SetupStepper({ currentStep, className }: SetupStepperProps) {
-  const currentIndex = SETUP_STEPS.findIndex((step) => step.key === currentStep);
+  const { steps } = useSetupContext();
+  const currentIndex = steps.findIndex((step) => step.key === currentStep);
 
   return (
     <nav
       aria-label="Setup progress"
-      className={cn("flex shrink-0 items-center", className)}
+      className={cn("flex w-full min-w-0 items-center", className)}
     >
-      {SETUP_STEPS.map((step, index) => {
+      {steps.map((step, index) => {
         const status = getStepStatus(index, currentIndex);
         const stepNumber = step.id;
 

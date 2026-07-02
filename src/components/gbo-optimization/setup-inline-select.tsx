@@ -19,6 +19,7 @@ type SetupInlineSelectProps = {
   onValueChange: (value: string) => void;
   triggerClassName?: string;
   onClear?: () => void;
+  hideLabel?: boolean;
 };
 
 const INLINE_SELECT_TRIGGER_BASE =
@@ -32,6 +33,7 @@ export function SetupInlineSelect({
   onValueChange,
   triggerClassName,
   onClear,
+  hideLabel = false,
 }: SetupInlineSelectProps) {
   const [listOpen, setListOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -56,10 +58,12 @@ export function SetupInlineSelect({
   }, [listOpen]);
 
   return (
-    <div ref={rootRef} className="space-y-1.5">
-      <Label id={labelId} htmlFor={triggerId} className="text-sm font-normal text-slate-500">
-        {label}
-      </Label>
+    <div ref={rootRef} className={cn(!hideLabel && "space-y-1.5")}>
+      {!hideLabel ? (
+        <Label id={labelId} htmlFor={triggerId} className="text-sm font-normal text-slate-500">
+          {label}
+        </Label>
+      ) : null}
 
       <div className="relative">
         <button
@@ -69,7 +73,8 @@ export function SetupInlineSelect({
           aria-expanded={listOpen}
           aria-controls={listOpen ? listId : undefined}
           aria-haspopup="listbox"
-          aria-labelledby={labelId}
+          aria-labelledby={hideLabel ? undefined : labelId}
+          aria-label={hideLabel ? label : undefined}
           className={cn(INLINE_SELECT_TRIGGER_BASE, triggerClassName)}
           onClick={() => setListOpen((current) => !current)}
         >

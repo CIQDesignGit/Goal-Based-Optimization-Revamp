@@ -1,31 +1,123 @@
-export const SETUP_STEPS = [
+export type OptimizerType = "ally-ai" | "rule-based";
+
+export type SetupStepKey =
+  | "general"
+  | "goals-budgets"
+  | "constraints"
+  | "seasonality"
+  | "optimizer"
+  | "summary";
+
+export type SetupStepConfig = {
+  id: number;
+  key: SetupStepKey;
+  label: string;
+  nextLabel: string;
+};
+
+export const OPTIMIZER_OPTIONS = [
   {
-    id: 1,
-    key: "general",
-    label: "General",
-    nextLabel: "Goals & Budgets",
+    value: "ally-ai" as const,
+    label: "Ally AI",
+    description:
+      "Recommended — allocates spend and manages constraints automatically. No manual rules required.",
+    recommended: true,
   },
   {
-    id: 2,
-    key: "goals-budgets",
-    label: "Goals & Budgets",
-    nextLabel: "Set Constraints",
-  },
-  {
-    id: 3,
-    key: "constraints",
-    label: "Constraints",
-    nextLabel: "Set Optimizer",
-  },
-  {
-    id: 4,
-    key: "optimizer",
-    label: "Optimizer",
-    nextLabel: "Complete Setup",
+    value: "rule-based" as const,
+    label: "Rule-based",
+    description:
+      "Define explicit strategies and rules manually. Constraints and seasonality do not apply (except floor/ceiling).",
+    recommended: false,
   },
 ] as const;
 
-export type SetupStepKey = (typeof SETUP_STEPS)[number]["key"];
+type StepDefinition = {
+  key: SetupStepKey;
+  label: string;
+  nextLabel: string;
+};
+
+const ALLY_AI_FLOW: StepDefinition[] = [
+  { key: "general", label: "General", nextLabel: "Goals & Budgets" },
+  {
+    key: "goals-budgets",
+    label: "Goals & Budgets",
+    nextLabel: "Constraints",
+  },
+  { key: "constraints", label: "Constraints", nextLabel: "Seasonality" },
+  { key: "seasonality", label: "Seasonality", nextLabel: "Summary" },
+  { key: "summary", label: "Summary", nextLabel: "Save & Launch" },
+];
+
+const RULE_BASED_FLOW: StepDefinition[] = [
+  { key: "general", label: "General", nextLabel: "Goals" },
+  { key: "goals-budgets", label: "Goals", nextLabel: "Constraints" },
+  { key: "constraints", label: "Constraints", nextLabel: "Optimizer" },
+  { key: "optimizer", label: "Optimizer", nextLabel: "Summary" },
+  { key: "summary", label: "Summary", nextLabel: "Save & Launch" },
+];
+
+/** Returns the wizard steps for the selected optimizer (FR-005). */
+export function getSetupSteps(optimizer: OptimizerType): SetupStepConfig[] {
+  const flow = optimizer === "ally-ai" ? ALLY_AI_FLOW : RULE_BASED_FLOW;
+
+  return flow.map((step, index) => ({
+    id: index + 1,
+    key: step.key,
+    label: step.label,
+    nextLabel: step.nextLabel,
+  }));
+}
+
+/** Default Ally AI flow per PRD recommendation. */
+export const SETUP_STEPS = getSetupSteps("ally-ai");
+
+export type SeasonalityChartPoint = {
+  date: string;
+  value: number;
+};
+
+/** Sample daily budget curve for the seasonality chart prototype. */
+export const SEASONALITY_CHART_DATA: SeasonalityChartPoint[] = [
+  { date: "1 Jan", value: 2600 },
+  { date: "7 Jan", value: 2750 },
+  { date: "14 Jan", value: 2400 },
+  { date: "21 Jan", value: 2800 },
+  { date: "28 Jan", value: 2200 },
+  { date: "7 Feb", value: 2500 },
+  { date: "14 Feb", value: 2100 },
+  { date: "21 Feb", value: 2700 },
+  { date: "28 Feb", value: 2300 },
+  { date: "7 Mar", value: 2000 },
+  { date: "16 Mar", value: 2400 },
+  { date: "23 Mar", value: 1800 },
+  { date: "30 Mar", value: 2100 },
+  { date: "7 Apr", value: 1900 },
+  { date: "22 Apr", value: 2200 },
+  { date: "29 Apr", value: 1700 },
+  { date: "7 May", value: 2000 },
+  { date: "29 May", value: 1600 },
+  { date: "5 Jun", value: 1800 },
+  { date: "19 Jun", value: 1500 },
+  { date: "5 Jul", value: 1700 },
+  { date: "19 Jul", value: 1400 },
+  { date: "2 Aug", value: 1600 },
+  { date: "16 Aug", value: 1450 },
+  { date: "30 Aug", value: 1500 },
+  { date: "13 Sep", value: 1400 },
+  { date: "27 Sep", value: 1550 },
+  { date: "11 Oct", value: 1450 },
+  { date: "25 Oct", value: 1500 },
+  { date: "8 Nov", value: 1400 },
+  { date: "30 Nov", value: 1450 },
+];
+
+export const SEASONALITY_SCOPE_OPTIONS = [
+  { value: "entire-business", label: "Entire Business" },
+  { value: "portfolio", label: "Portfolio" },
+  { value: "category", label: "Category" },
+] as const;
 
 export const BUDGET_GRANULARITIES = [
   "Monthly",
@@ -54,7 +146,29 @@ export const BUDGET_MONTHS = [
   "Jun '26",
   "Jul '26",
   "Aug '26",
+  "Sep '26",
+  "Oct '26",
+  "Nov '26",
+  "Dec '26",
 ] as const;
+
+/** Months shown before the anchor month in the default budget window (FR-009). */
+export const BUDGET_MONTH_VISIBLE_RECENT = 4;
+
+/** Future months shown after the recent window (may be blank). */
+export const BUDGET_MONTH_VISIBLE_FUTURE = 2;
+
+export const BUDGET_MONTH_VISIBLE_COUNT =
+  BUDGET_MONTH_VISIBLE_RECENT + BUDGET_MONTH_VISIBLE_FUTURE;
+
+/** Prototype anchor month — July 2026. */
+export const BUDGET_CURRENT_MONTH_INDEX = 6;
+
+export function getDefaultBudgetWindowStart(
+  currentMonthIndex: number = BUDGET_CURRENT_MONTH_INDEX,
+): number {
+  return Math.max(0, currentMonthIndex - (BUDGET_MONTH_VISIBLE_RECENT - 1));
+}
 
 export type ScopeRow = {
   id: string;
@@ -73,9 +187,9 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
     id: "entire-business",
     name: "Entire Business",
     expandable: true,
-    goalMetric: "",
-    goalValue: "",
-    last30Days: "",
+    goalMetric: "ROAS",
+    goalValue: "14.8",
+    last30Days: "14.6",
     monthlyBudgets: [
       "$22,809",
       "$22,809",
@@ -93,10 +207,9 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
     name: "JBC Fresh",
     indent: true,
     goalMetric: "ROAS",
-    goalValue: "",
+    goalValue: "17.5",
     last30Days: "18.48",
     monthlyBudgets: [
-      "$13,808",
       "$13,808",
       "$13,808",
       "$13,808",
@@ -112,7 +225,7 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
     name: "JBC Frozen Prepared",
     indent: true,
     goalMetric: "ROAS",
-    goalValue: "",
+    goalValue: "15.0",
     last30Days: "16.21",
     monthlyBudgets: [
       "$3,000",
@@ -131,26 +244,26 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
     name: "Ocean Adventures",
     indent: true,
     goalMetric: "ROAS",
-    goalValue: "",
+    goalValue: "12.8",
     last30Days: "12.34",
     monthlyBudgets: [
       "$2,500",
       "$2,500",
       "$2,500",
       "$2,500",
-      "$2,500",
-      "$2,500",
-      "$2,500",
-      "$2,500",
+      "",
+      "",
+      "",
+      "",
     ],
-    fyTotal: "$37,500",
+    fyTotal: "$10,000",
   },
   {
     id: "pilgrims",
     name: "Pilgrims",
     indent: true,
     goalMetric: "ROAS",
-    goalValue: "",
+    goalValue: "14.2",
     last30Days: "14.56",
     monthlyBudgets: [
       "$3,501",
@@ -163,6 +276,120 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
       "$3,501",
     ],
     fyTotal: "$52,515",
+  },
+  {
+    id: "harvest-gold",
+    name: "Harvest Gold",
+    indent: true,
+    goalMetric: "ROAS",
+    goalValue: "15.5",
+    last30Days: "15.02",
+    monthlyBudgets: [
+      "$4,200",
+      "$4,200",
+      "$4,200",
+      "$4,200",
+      "$4,200",
+      "$4,200",
+      "$4,200",
+      "$4,200",
+    ],
+    fyTotal: "$50,400",
+  },
+  {
+    id: "natures-best",
+    name: "Nature's Best",
+    indent: true,
+    goalMetric: "ROAS",
+    goalValue: "11.5",
+    last30Days: "11.87",
+    monthlyBudgets: [
+      "$1,850",
+      "$1,850",
+      "$1,850",
+      "$1,850",
+      "$1,850",
+      "$1,850",
+      "$1,850",
+      "$1,850",
+    ],
+    fyTotal: "$22,200",
+  },
+  {
+    id: "coastal-select",
+    name: "Coastal Select",
+    indent: true,
+    goalMetric: "ROAS",
+    goalValue: "13.2",
+    last30Days: "13.44",
+    monthlyBudgets: [
+      "$2,100",
+      "$2,100",
+      "$2,100",
+      "$2,100",
+      "$2,100",
+      "$2,100",
+      "",
+      "",
+    ],
+    fyTotal: "$12,600",
+  },
+  {
+    id: "premium-pet",
+    name: "Premium Pet Care",
+    indent: true,
+    goalMetric: "ROAS",
+    goalValue: "10.5",
+    last30Days: "10.92",
+    monthlyBudgets: [
+      "$980",
+      "$980",
+      "$980",
+      "$980",
+      "$980",
+      "$980",
+      "$980",
+      "$980",
+    ],
+    fyTotal: "$11,760",
+  },
+  {
+    id: "sunrise-dairy",
+    name: "Sunrise Dairy",
+    indent: true,
+    goalMetric: "ROAS",
+    goalValue: "16.8",
+    last30Days: "17.33",
+    monthlyBudgets: [
+      "$5,600",
+      "$5,600",
+      "$5,600",
+      "$5,600",
+      "$5,600",
+      "$5,600",
+      "$5,600",
+      "$5,600",
+    ],
+    fyTotal: "$67,200",
+  },
+  {
+    id: "valley-organics",
+    name: "Valley Organics",
+    indent: true,
+    goalMetric: "ROAS",
+    goalValue: "9.5",
+    last30Days: "9.78",
+    monthlyBudgets: [
+      "$1,200",
+      "$1,200",
+      "$1,200",
+      "$1,200",
+      "$1,200",
+      "$1,200",
+      "$1,200",
+      "$1,200",
+    ],
+    fyTotal: "$14,400",
   },
 ];
 

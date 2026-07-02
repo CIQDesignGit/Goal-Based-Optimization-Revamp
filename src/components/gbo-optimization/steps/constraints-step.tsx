@@ -2,6 +2,7 @@
 
 import { ChevronDown, CircleHelp, Eye, Plus, Search, TrendingUp } from "lucide-react";
 
+import { useSetupContext } from "@/components/gbo-optimization/setup-context";
 import { InfoLabel } from "@/components/gbo-optimization/info-label";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +11,17 @@ import { CONSTRAINTS_SCOPE_ROWS } from "@/lib/gbo-optimization/setup-data";
 import { cn } from "@/lib/utils";
 
 export function ConstraintsStep() {
+  const { optimizerType } = useSetupContext();
+  const isRuleBased = optimizerType === "rule-based";
+
   return (
     <div className="flex flex-col gap-4 py-4">
+      {isRuleBased && (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Rule-based mode — only floor and ceiling constraints apply. Other
+          constraint types are used with Ally AI only (FR-015).
+        </p>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-4 px-2">
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative w-72">

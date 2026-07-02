@@ -3,13 +3,16 @@
 import { useState } from "react";
 
 import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
+import { useSetupContext } from "@/components/gbo-optimization/setup-context";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   BUDGET_GRANULARITIES,
   LEVEL_1_OPTIONS,
   LEVEL_2_OPTIONS,
+  OPTIMIZER_OPTIONS,
   PREFILL_METRIC_OPTIONS,
+  type OptimizerType,
 } from "@/lib/gbo-optimization/setup-data";
 import { cn } from "@/lib/utils";
 
@@ -52,14 +55,81 @@ function RadioIndicator({ selected }: { selected: boolean }) {
 }
 
 export function GeneralStep() {
+  const { optimizerType, setOptimizerType } = useSetupContext();
   const [granularity, setGranularity] = useState<string>("Monthly");
   const [budgetType, setBudgetType] = useState<BudgetType>("retailer");
   const [level1, setLevel1] = useState("portfolio");
   const [level2, setLevel2] = useState("na");
   const [prefillMetric, setPrefillMetric] = useState<string>("roas");
 
+  const handleOptimizerChange = (value: OptimizerType) => {
+    if (value === "rule-based") {
+      const switchToAlly = window.confirm(
+        "Ally AI is recommended — it handles spend and constraints automatically. Switch everything to Ally AI instead?",
+      );
+      if (switchToAlly) {
+        setOptimizerType("ally-ai");
+        return;
+      }
+    }
+    setOptimizerType(value);
+  };
+
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 py-8">
+      {/* Card 0 — Optimizer selection (FR-002, FR-003) */}
+      <Card className="border border-slate-200 shadow-none">
+        <CardContent className="space-y-4">
+          <div className="space-y-1">
+            <h2 className="text-base font-semibold text-slate-900">
+              How do you want to optimize?{" "}
+              <span className="text-slate-900">*</span>
+            </h2>
+            <p className="text-sm text-slate-500">
+              Applies across all brands in the portfolio. You can also override
+              per brand later.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {OPTIMIZER_OPTIONS.map((option) => {
+              const isSelected = optimizerType === option.value;
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => handleOptimizerChange(option.value)}
+                  className={cn(
+                    "flex gap-3 rounded-lg border p-4 text-left transition-colors",
+                    isSelected
+                      ? "border-brand-600 bg-brand-50"
+                      : "border-slate-200 bg-white hover:bg-slate-50",
+                  )}
+                >
+                  <RadioIndicator selected={isSelected} />
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {option.label}
+                      </p>
+                      {option.recommended && (
+                        <Badge className="bg-brand-100 text-brand-700 hover:bg-brand-100">
+                          Recommended
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm leading-relaxed text-slate-500">
+                      {option.description}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Card 1 — Budget granularity */}
       <div className="relative">
         <Card className="border border-slate-200 shadow-none">
