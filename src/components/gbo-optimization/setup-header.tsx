@@ -19,6 +19,7 @@ type SetupHeaderProps = {
   onBack: () => void;
   onNext: () => void;
   onComplete: () => void;
+  onStepSelect: (step: SetupStepKey) => void;
 };
 
 export function SetupHeader({
@@ -26,6 +27,7 @@ export function SetupHeader({
   onBack,
   onNext,
   onComplete,
+  onStepSelect,
 }: SetupHeaderProps) {
   const { steps } = useSetupContext();
   const currentIndex = steps.findIndex((step) => step.key === currentStep);
@@ -49,7 +51,11 @@ export function SetupHeader({
           </button>
         </div>
 
-        <SetupStepper currentStep={currentStep} className="w-full max-w-3xl" />
+        <SetupStepper
+          currentStep={currentStep}
+          onStepSelect={onStepSelect}
+          className="w-full max-w-3xl"
+        />
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-3">

@@ -35,42 +35,72 @@ export const OPTIMIZER_OPTIONS = [
 type StepDefinition = {
   key: SetupStepKey;
   label: string;
-  nextLabel: string;
+  nextLabel?: string;
 };
 
-const ALLY_AI_FLOW: StepDefinition[] = [
-  { key: "general", label: "General", nextLabel: "Goals & Budgets" },
-  {
-    key: "goals-budgets",
-    label: "Goals & Budgets",
-    nextLabel: "Constraints",
-  },
-  { key: "constraints", label: "Constraints", nextLabel: "Seasonality" },
-  { key: "seasonality", label: "Seasonality", nextLabel: "Summary" },
-  { key: "summary", label: "Summary", nextLabel: "Save & Launch" },
-];
-
-const RULE_BASED_FLOW: StepDefinition[] = [
-  { key: "general", label: "General", nextLabel: "Goals" },
-  { key: "goals-budgets", label: "Goals", nextLabel: "Constraints" },
-  { key: "constraints", label: "Constraints", nextLabel: "Optimizer" },
-  { key: "optimizer", label: "Optimizer", nextLabel: "Summary" },
-  { key: "summary", label: "Summary", nextLabel: "Save & Launch" },
-];
-
-/** Returns the wizard steps for the selected optimizer (FR-005). */
-export function getSetupSteps(optimizer: OptimizerType): SetupStepConfig[] {
-  const flow = optimizer === "ally-ai" ? ALLY_AI_FLOW : RULE_BASED_FLOW;
-
-  return flow.map((step, index) => ({
-    id: index + 1,
-    key: step.key,
-    label: step.label,
-    nextLabel: step.nextLabel,
-  }));
+function withStepIds(flow: StepDefinition[]): SetupStepConfig[] {
+  return flow.map((step, index) => {
+    const nextStep = flow[index + 1];
+    return {
+      id: index + 1,
+      key: step.key,
+      label: step.label,
+      nextLabel: step.nextLabel ?? nextStep?.label ?? "Save & Launch",
+    };
+  });
 }
 
-/** Default Ally AI flow per PRD recommendation. */
+function buildAllyAiFlow(
+  includeSeasonality: boolean,
+  includeConstraints: boolean,
+): StepDefinition[] {
+  const flow: StepDefinition[] = [
+    { key: "general", label: "General" },
+    { key: "goals-budgets", label: "Goals & Budgets" },
+  ];
+
+  if (includeSeasonality) {
+    flow.push({ key: "seasonality", label: "Seasonality" });
+  }
+
+  if (includeConstraints) {
+    flow.push({ key: "constraints", label: "Constraints" });
+  }
+
+  flow.push({ key: "optimizer", label: "Optimizer" });
+  flow.push({ key: "summary", label: "Summary", nextLabel: "Save & Launch" });
+
+  return flow;
+}
+
+const RULE_BASED_FLOW: StepDefinition[] = [
+  { key: "general", label: "General" },
+  { key: "goals-budgets", label: "Goals" },
+  { key: "constraints", label: "Constraints" },
+  { key: "optimizer", label: "Optimizer" },
+  { key: "summary", label: "Summary", nextLabel: "Save & Launch" },
+];
+
+export type SetupFlowOptions = {
+  includeSeasonality?: boolean;
+  includeConstraints?: boolean;
+};
+
+/** Returns wizard steps for the selected optimizer and optional step toggles (FR-005). */
+export function getSetupSteps(
+  optimizer: OptimizerType,
+  options: SetupFlowOptions = {},
+): SetupStepConfig[] {
+  const { includeSeasonality = false, includeConstraints = false } = options;
+
+  if (optimizer === "ally-ai") {
+    return withStepIds(buildAllyAiFlow(includeSeasonality, includeConstraints));
+  }
+
+  return withStepIds(RULE_BASED_FLOW);
+}
+
+/** Default Ally AI flow — optional steps off, optimizer before summary. */
 export const SETUP_STEPS = getSetupSteps("ally-ai");
 
 export type SeasonalityChartPoint = {
@@ -460,20 +490,33 @@ export const CONSTRAINTS_SCOPE_ROWS: ConstraintRow[] = [
 
 export const OPTIMIZER_SCOPE_ROWS = [
   { id: "entire-business", name: "Entire Business", expandable: true },
-  { id: "jbc-fresh", name: "JBC Fresh", indent: true, goal: "ROAS", value: "$12" },
+  {
+    id: "jbc-fresh",
+    name: "JBC Fresh",
+    indent: true,
+    goal: "Brands tROAS",
+    value: "$25",
+    allyMode: true,
+  },
   {
     id: "jbc-frozen",
     name: "JBC Frozen Prepared",
     indent: true,
-    goal: "ROAS",
-    value: "$1,232",
+    goal: "Brands tROAS",
+    value: "$7",
+    allyMode: true,
+  },
+  {
+    id: "pilgrims",
+    name: "Pilgrims",
+    indent: true,
+    goal: "Brands tROAS",
+    value: "$2",
+    allyMode: true,
   },
   {
     id: "ocean-adventures",
     name: "Ocean Adventures",
     indent: true,
-    goal: "ROAS",
-    value: "$1,234",
   },
-  { id: "pilgrims", name: "Pilgrims", indent: true, goal: "ROAS", value: "$23,432" },
 ] as const;

@@ -7,6 +7,7 @@ import { useSetupContext } from "@/components/gbo-optimization/setup-context";
 import { InfoLabel } from "@/components/gbo-optimization/info-label";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   BUDGET_CURRENT_MONTH_INDEX,
   BUDGET_MONTHS,
@@ -31,8 +32,8 @@ const EDITABLE_INPUT_CLASS =
   "h-8 w-full min-w-0 border-transparent bg-transparent px-1.5 text-right text-sm tabular-nums shadow-none hover:border-slate-200 focus-visible:border-brand-300 focus-visible:bg-white";
 const BUDGET_INPUT_CLASS =
   "h-8 w-full min-w-[4.75rem] border-transparent bg-transparent px-1.5 text-right text-sm tabular-nums shadow-none hover:border-slate-200 focus-visible:border-brand-300 focus-visible:bg-white";
-const SCOPE_COLUMN_MIN_WIDTH = 150;
-const SCOPE_COLUMN_DEFAULT_WIDTH = 180;
+const SCOPE_COLUMN_MIN_WIDTH = 200;
+const SCOPE_COLUMN_DEFAULT_WIDTH = 220;
 
 type EditableRowState = {
   goalValue: string;
@@ -150,7 +151,13 @@ function ScopeColumnHeader({ width, onResizeStart }: ScopeColumnHeaderProps) {
 }
 
 export function GoalsBudgetsStep() {
-  const { optimizerType } = useSetupContext();
+  const {
+    optimizerType,
+    includeSeasonality,
+    setIncludeSeasonality,
+    includeConstraints,
+    setIncludeConstraints,
+  } = useSetupContext();
   const isRuleBased = optimizerType === "rule-based";
   const [rowState, setRowState] = useState(createInitialRowState);
   const [monthWindowStart, setMonthWindowStart] = useState(() =>
@@ -179,14 +186,6 @@ export function GoalsBudgetsStep() {
   const canShowPreviousMonths = monthWindowStart > 0;
   const canShowFutureMonths =
     monthWindowStart + BUDGET_MONTH_VISIBLE_COUNT < BUDGET_MONTHS.length;
-
-  const budgetRangeLabel = useMemo(() => {
-    if (visibleMonthIndices.length === 0) return "";
-
-    const first = BUDGET_MONTHS[visibleMonthIndices[0]];
-    const last = BUDGET_MONTHS[visibleMonthIndices[visibleMonthIndices.length - 1]];
-    return `${first} – ${last}`;
-  }, [visibleMonthIndices]);
 
   const updateGoalValue = (rowId: string, value: string) => {
     setRowState((current) => ({
@@ -252,9 +251,10 @@ export function GoalsBudgetsStep() {
       if (!row) return current;
 
       const monthlyBudgets = [...row.monthlyBudgets];
-      monthlyBudgets[monthIndex] = formatCurrency(
-        parseCurrency(monthlyBudgets[monthIndex] ?? ""),
-      );
+      const raw = monthlyBudgets[monthIndex]?.trim() ?? "";
+
+      monthlyBudgets[monthIndex] =
+        raw === "" ? "" : formatCurrency(parseCurrency(raw));
 
       return {
         ...current,
@@ -301,39 +301,21 @@ export function GoalsBudgetsStep() {
         </div>
 
         {!isRuleBased && (
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-9 gap-1.5"
-              disabled={!canShowPreviousMonths}
-              onClick={() => setMonthWindowStart((start) => Math.max(0, start - 1))}
-            >
-              <ChevronLeft className="size-4" />
-              Previous months
-            </Button>
-            <span className="hidden text-xs text-slate-500 sm:inline">
-              {budgetRangeLabel}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-9 gap-1.5"
-              disabled={!canShowFutureMonths}
-              onClick={() =>
-                setMonthWindowStart((start) =>
-                  Math.min(
-                    BUDGET_MONTHS.length - BUDGET_MONTH_VISIBLE_COUNT,
-                    start + 1,
-                  ),
-                )
-              }
-            >
-              Future months
-              <ChevronRight className="size-4" />
-            </Button>
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <Switch
+                checked={includeSeasonality}
+                onCheckedChange={setIncludeSeasonality}
+              />
+              <span>Seasonality</span>
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <Switch
+                checked={includeConstraints}
+                onCheckedChange={setIncludeConstraints}
+              />
+              <span>Constraints</span>
+            </label>
           </div>
         )}
       </div>
@@ -358,9 +340,44 @@ export function GoalsBudgetsStep() {
               {!isRuleBased && (
                 <th
                   colSpan={visibleMonthIndices.length + 1}
-                  className="px-4 py-2 text-center font-medium"
+                  className="px-4 py-2 font-medium"
                 >
-                  <InfoLabel label="Budget FY2026" />
+                  <div className="flex items-center justify-between gap-3">
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      disabled={!canShowPreviousMonths}
+                      onClick={() =>
+                        setMonthWindowStart((start) => Math.max(0, start - 1))
+                      }
+                      className="h-auto shrink-0 gap-1 px-0 text-brand-600 hover:text-brand-700"
+                    >
+                      <ChevronLeft className="size-4" />
+                      Previous months
+                    </Button>
+                    <span className="text-center text-xs font-medium text-slate-600">
+                      <InfoLabel label="Budget FY2026" />
+                    </span>
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      disabled={!canShowFutureMonths}
+                      onClick={() =>
+                        setMonthWindowStart((start) =>
+                          Math.min(
+                            BUDGET_MONTHS.length - BUDGET_MONTH_VISIBLE_COUNT,
+                            start + 1,
+                          ),
+                        )
+                      }
+                      className="h-auto shrink-0 gap-1 px-0 text-brand-600 hover:text-brand-700"
+                    >
+                      Future months
+                      <ChevronRight className="size-4" />
+                    </Button>
+                  </div>
                 </th>
               )}
             </tr>
@@ -468,9 +485,11 @@ export function GoalsBudgetsStep() {
                             )
                           }
                           onBlur={() => formatMonthlyBudget(row.id, monthIndex)}
-                          placeholder="$0"
                           aria-label={`${BUDGET_MONTHS[monthIndex]} budget for ${row.name}`}
-                          className={cn(BUDGET_INPUT_CLASS, "text-slate-700")}
+                          className={cn(
+                            BUDGET_INPUT_CLASS,
+                            "text-slate-700 placeholder:text-transparent",
+                          )}
                         />
                       </td>
                     ))}

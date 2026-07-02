@@ -24,8 +24,8 @@ const STEP_COMPONENTS: Record<SetupStepKey, React.ComponentType> = {
   summary: SummaryStep,
 };
 
-/** When the optimizer changes, keep the user on a valid step in the new flow. */
-function resolveStepAfterOptimizerChange(
+/** When the flow changes, keep the user on a valid step. */
+function resolveStepAfterFlowChange(
   currentStep: SetupStepKey,
   stepKeys: SetupStepKey[],
 ): SetupStepKey {
@@ -33,15 +33,37 @@ function resolveStepAfterOptimizerChange(
     return currentStep;
   }
 
-  if (stepKeys.includes("goals-budgets")) {
-    return "goals-budgets";
+  const canonicalOrder: SetupStepKey[] = [
+    "general",
+    "goals-budgets",
+    "seasonality",
+    "constraints",
+    "optimizer",
+    "summary",
+  ];
+
+  const currentIndex = canonicalOrder.indexOf(currentStep);
+
+  for (let index = currentIndex; index < canonicalOrder.length; index++) {
+    const key = canonicalOrder[index];
+    if (stepKeys.includes(key)) {
+      return key;
+    }
+  }
+
+  for (let index = currentIndex - 1; index >= 0; index--) {
+    const key = canonicalOrder[index];
+    if (stepKeys.includes(key)) {
+      return key;
+    }
   }
 
   return stepKeys[0] ?? "general";
 }
 
 function SetupWizardContent() {
-  const { optimizerType, steps } = useSetupContext();
+  const { optimizerType, includeSeasonality, includeConstraints, steps } =
+    useSetupContext();
   const [currentStep, setCurrentStep] = useState<SetupStepKey>("general");
   const StepComponent = STEP_COMPONENTS[currentStep];
 
@@ -49,11 +71,17 @@ function SetupWizardContent() {
   const stepKeys = steps.map((step) => step.key);
 
   useEffect(() => {
-    const resolved = resolveStepAfterOptimizerChange(currentStep, stepKeys);
+    const resolved = resolveStepAfterFlowChange(currentStep, stepKeys);
     if (resolved !== currentStep) {
       setCurrentStep(resolved);
     }
-  }, [optimizerType, stepKeys, currentStep]);
+  }, [
+    optimizerType,
+    includeSeasonality,
+    includeConstraints,
+    stepKeys,
+    currentStep,
+  ]);
 
   const handleBack = () => {
     if (currentIndex > 0) {
@@ -79,6 +107,7 @@ function SetupWizardContent() {
         onBack={handleBack}
         onNext={handleNext}
         onComplete={handleComplete}
+        onStepSelect={setCurrentStep}
       />
       <div className="flex-1 overflow-y-auto px-6 pb-8">
         <StepComponent />

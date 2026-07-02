@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 
 type SetupStepperProps = {
   currentStep: SetupStepKey;
+  onStepSelect: (step: SetupStepKey) => void;
   className?: string;
 };
 
@@ -95,7 +96,11 @@ function StepConnector({ isComplete }: { isComplete: boolean }) {
   );
 }
 
-export function SetupStepper({ currentStep, className }: SetupStepperProps) {
+export function SetupStepper({
+  currentStep,
+  onStepSelect,
+  className,
+}: SetupStepperProps) {
   const { steps } = useSetupContext();
   const currentIndex = steps.findIndex((step) => step.key === currentStep);
 
@@ -107,6 +112,7 @@ export function SetupStepper({ currentStep, className }: SetupStepperProps) {
       {steps.map((step, index) => {
         const status = getStepStatus(index, currentIndex);
         const stepNumber = step.id;
+        const isCurrent = status === "current";
 
         return (
           <Fragment key={step.key}>
@@ -114,18 +120,24 @@ export function SetupStepper({ currentStep, className }: SetupStepperProps) {
               <StepConnector isComplete={index <= currentIndex} />
             )}
 
-            <div className="relative flex shrink-0 items-center gap-2 pb-2.5">
-              <div
-                className="flex items-center gap-2"
-                aria-current={status === "current" ? "step" : undefined}
+            <div className="relative shrink-0 pb-2.5">
+              <button
+                type="button"
+                onClick={() => onStepSelect(step.key)}
+                aria-current={isCurrent ? "step" : undefined}
+                className={cn(
+                  "flex items-center gap-2 rounded-md px-1 py-0.5 transition-colors",
+                  "hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40",
+                  isCurrent && "hover:bg-transparent",
+                )}
               >
                 <StepIcon status={status} stepNumber={stepNumber} />
                 <StepLabel status={status} label={step.label} />
-              </div>
+              </button>
 
-              {status === "current" && (
+              {isCurrent && (
                 <span
-                  className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-brand-600"
+                  className="absolute inset-x-1 bottom-0 h-0.5 rounded-full bg-brand-600"
                   aria-hidden
                 />
               )}
