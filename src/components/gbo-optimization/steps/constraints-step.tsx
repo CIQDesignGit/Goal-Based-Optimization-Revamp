@@ -13,7 +13,17 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, CircleHelp, Eye, History, Plus, Search, TrendingUp, X } from "lucide-react";
+import {
+  ChevronDown,
+  CircleHelp,
+  Eye,
+  EyeOff,
+  History,
+  Plus,
+  Search,
+  TrendingUp,
+  X,
+} from "lucide-react";
 
 import { useSetupContext } from "@/components/gbo-optimization/setup-context";
 import { InfoLabel } from "@/components/gbo-optimization/info-label";
@@ -51,6 +61,7 @@ const CAMPAIGN_CONSTRAINT_COL_COUNT = 8;
 const CAMPAIGN_TOTAL_COL_INDEX = 3;
 const SCOPE_COL_WIDTH = 200;
 const DATA_COL_WIDTH = 100;
+const HISTORY_DATA_COL_WIDTH = 128;
 const SPEND_TOTAL_COL_WIDTH = 132;
 const PERCENT_TOTAL_TARGET = 100;
 
@@ -59,6 +70,8 @@ const scopeStickyClass =
 const scopeStickyHeaderClass =
   "sticky left-0 z-30 border-r border-slate-200 bg-slate-50";
 const dataColClass = "w-[100px] min-w-[100px] max-w-[100px] px-2";
+const dataColClassExpanded =
+  "w-[128px] min-w-[128px] max-w-[128px] px-2";
 const spendTotalColClass =
   "w-[132px] min-w-[132px] max-w-[132px] px-2 whitespace-nowrap";
 const totalColClass = "text-right";
@@ -397,16 +410,45 @@ function cellInputVisualClass(
   );
 }
 
+function getHistoricDisplayValue(
+  state: ConstraintRowState,
+  field: ConstraintValueField,
+): string {
+  if (isPercentField(field)) {
+    return formatPercentNumber(state.historicPercents[field]);
+  }
+
+  const historic = state.historicValues[field].trim();
+  return historic || "—";
+}
+
+function HistoricValueLabel({ value }: { value: string }) {
+  return (
+    <span
+      className="block text-[0.65rem] leading-tight text-slate-400 tabular-nums"
+      aria-hidden
+    >
+      {value}
+    </span>
+  );
+}
+
 function ConstraintDataColgroup({
   showCampaignConstraints,
+  showHistoricalData,
 }: {
   showCampaignConstraints: boolean;
+  showHistoricalData: boolean;
 }) {
+  const dataWidth = showHistoricalData
+    ? HISTORY_DATA_COL_WIDTH
+    : DATA_COL_WIDTH;
+
   return (
     <colgroup>
       <col style={{ width: SCOPE_COL_WIDTH }} />
-      <col style={{ width: DATA_COL_WIDTH }} />
-      <col style={{ width: DATA_COL_WIDTH }} />
+      <col style={{ width: dataWidth }} />
+      <col style={{ width: dataWidth }} />
       {Array.from({ length: SPEND_CONSTRAINT_COL_COUNT }).map((_, index) => (
         <col
           key={`spend-${index}`}
@@ -414,7 +456,7 @@ function ConstraintDataColgroup({
             width:
               index === SPEND_CONSTRAINT_COL_COUNT - 1
                 ? SPEND_TOTAL_COL_WIDTH
-                : DATA_COL_WIDTH,
+                : dataWidth,
           }}
         />
       ))}
@@ -426,7 +468,7 @@ function ConstraintDataColgroup({
               width:
                 index === CAMPAIGN_TOTAL_COL_INDEX
                   ? SPEND_TOTAL_COL_WIDTH
-                  : DATA_COL_WIDTH,
+                  : dataWidth,
             }}
           />
         ))}
@@ -441,6 +483,8 @@ type PercentConstraintCellProps = {
   state: ConstraintRowState;
   ariaLabel: string;
   title?: string;
+  showHistoricalData?: boolean;
+  historicDisplay?: string;
   pendingWarning: PendingPercentWarning | null;
   blockAlert: InlineBlockAlert | null;
   onChange: (value: string) => void;
@@ -457,6 +501,8 @@ function PercentConstraintCell({
   state,
   ariaLabel,
   title,
+  showHistoricalData = false,
+  historicDisplay,
   pendingWarning,
   blockAlert,
   onChange,
@@ -480,30 +526,35 @@ function PercentConstraintCell({
       )}
       data-constraint-cell={`${rowId}:${field}`}
     >
-      <Input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        onFocus={(event) => handleConstraintInputFocus(event, onFocus)}
-        onClick={(event) => selectEditablePortion(event.currentTarget)}
-        onKeyDown={(event) =>
-          handleConstraintInputKeyDown(event, {
-            showConfirm,
-            onConfirm: onConfirmPending,
-          })
-        }
-        onBlur={onBlur}
-        aria-label={ariaLabel}
-        aria-invalid={showBlock && !showConfirm}
-        title={title}
-        className={cn(
-          cellInputVisualClass(state, field),
-          showConfirm &&
-            "!border-amber-400 bg-amber-50/50 !ring-2 !ring-amber-200 hover:!border-amber-400 hover:bg-amber-50/50 focus-visible:!border-amber-500 focus-visible:!ring-amber-200 focus-visible:bg-white",
-          showBlock &&
-            !showConfirm &&
-            "!border-destructive bg-white !ring-2 !ring-destructive/25 hover:!border-destructive focus-visible:!border-destructive focus-visible:!ring-destructive/25",
-        )}
-      />
+      <div className="flex flex-col items-center gap-0.5">
+        <Input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onFocus={(event) => handleConstraintInputFocus(event, onFocus)}
+          onClick={(event) => selectEditablePortion(event.currentTarget)}
+          onKeyDown={(event) =>
+            handleConstraintInputKeyDown(event, {
+              showConfirm,
+              onConfirm: onConfirmPending,
+            })
+          }
+          onBlur={onBlur}
+          aria-label={ariaLabel}
+          aria-invalid={showBlock && !showConfirm}
+          title={title}
+          className={cn(
+            cellInputVisualClass(state, field),
+            showConfirm &&
+              "!border-amber-400 bg-amber-50/50 !ring-2 !ring-amber-200 hover:!border-amber-400 hover:bg-amber-50/50 focus-visible:!border-amber-500 focus-visible:!ring-amber-200 focus-visible:bg-white",
+            showBlock &&
+              !showConfirm &&
+              "!border-destructive bg-white !ring-2 !ring-destructive/25 hover:!border-destructive focus-visible:!border-destructive focus-visible:!ring-destructive/25",
+          )}
+        />
+        {showHistoricalData && historicDisplay ? (
+          <HistoricValueLabel value={historicDisplay} />
+        ) : null}
+      </div>
       {showConfirm && pendingWarning && (
         <FloatingCellAlert
           anchorRef={anchorRef}
@@ -564,6 +615,8 @@ type EditableConstraintCellProps = {
   ariaLabel: string;
   className?: string;
   title?: string;
+  showHistoricalData?: boolean;
+  historicDisplay?: string;
 };
 
 function EditableConstraintCell({
@@ -574,19 +627,26 @@ function EditableConstraintCell({
   ariaLabel,
   className,
   title,
+  showHistoricalData = false,
+  historicDisplay,
 }: EditableConstraintCellProps) {
   return (
-    <Input
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      onFocus={(event) => handleConstraintInputFocus(event, onFocus)}
-      onClick={(event) => selectEditablePortion(event.currentTarget)}
-      onKeyDown={(event) => handleConstraintInputKeyDown(event)}
-      onBlur={onBlur}
-      aria-label={ariaLabel}
-      title={title}
-      className={className}
-    />
+    <div className="flex flex-col items-center gap-0.5">
+      <Input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onFocus={(event) => handleConstraintInputFocus(event, onFocus)}
+        onClick={(event) => selectEditablePortion(event.currentTarget)}
+        onKeyDown={(event) => handleConstraintInputKeyDown(event)}
+        onBlur={onBlur}
+        aria-label={ariaLabel}
+        title={title}
+        className={className}
+      />
+      {showHistoricalData && historicDisplay ? (
+        <HistoricValueLabel value={historicDisplay} />
+      ) : null}
+    </div>
   );
 }
 
@@ -600,6 +660,7 @@ export function ConstraintsStep() {
     useState<PendingPercentWarning | null>(null);
   const [blockAlert, setBlockAlert] = useState<InlineBlockAlert | null>(null);
   const [historicHintDismissed, setHistoricHintDismissed] = useState(false);
+  const [showHistoricalData, setShowHistoricalData] = useState(false);
 
   const constraintsStepValid = useMemo(() => {
     if (pendingWarning || blockAlert) return false;
@@ -948,6 +1009,13 @@ export function ConstraintsStep() {
     [],
   );
 
+  const dataColWidth = showHistoricalData
+    ? HISTORY_DATA_COL_WIDTH
+    : DATA_COL_WIDTH;
+  const activeDataColClass = showHistoricalData
+    ? dataColClassExpanded
+    : dataColClass;
+
   return (
     <div className="flex min-h-full flex-col gap-4 py-4">
       {isRuleBased && (
@@ -970,9 +1038,26 @@ export function ConstraintsStep() {
             <Plus className="size-4" />
             Add Filters
           </Button>
-          <Button variant="ghost" size="sm" className="gap-1.5 text-brand-600">
-            <Eye className="size-4" />
-            View historical data
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "gap-1.5",
+              showHistoricalData
+                ? "bg-muted text-foreground"
+                : "text-brand-600",
+            )}
+            aria-pressed={showHistoricalData}
+            onClick={() => setShowHistoricalData((current) => !current)}
+          >
+            {showHistoricalData ? (
+              <EyeOff className="size-4" />
+            ) : (
+              <Eye className="size-4" />
+            )}
+            {showHistoricalData
+              ? "Hide historical data"
+              : "View historical data"}
           </Button>
         </div>
 
@@ -992,17 +1077,18 @@ export function ConstraintsStep() {
           style={{
             minWidth:
               SCOPE_COL_WIDTH +
-              DATA_COL_WIDTH * 2 +
-              DATA_COL_WIDTH * (SPEND_CONSTRAINT_COL_COUNT - 1) +
+              dataColWidth * 2 +
+              dataColWidth * (SPEND_CONSTRAINT_COL_COUNT - 1) +
               SPEND_TOTAL_COL_WIDTH +
               (showCampaignConstraints
-                ? DATA_COL_WIDTH * (CAMPAIGN_CONSTRAINT_COL_COUNT - 1) +
+                ? dataColWidth * (CAMPAIGN_CONSTRAINT_COL_COUNT - 1) +
                   SPEND_TOTAL_COL_WIDTH
                 : 0),
           }}
         >
           <ConstraintDataColgroup
             showCampaignConstraints={showCampaignConstraints}
+            showHistoricalData={showHistoricalData}
           />
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-600">
@@ -1018,7 +1104,7 @@ export function ConstraintsStep() {
               <th
                 rowSpan={3}
                 className={cn(
-                  dataColClass,
+                  activeDataColClass,
                   "border-r border-slate-200 py-3 text-center font-medium",
                 )}
               >
@@ -1027,7 +1113,7 @@ export function ConstraintsStep() {
               <th
                 rowSpan={3}
                 className={cn(
-                  dataColClass,
+                  activeDataColClass,
                   "border-r border-slate-200 py-3 text-center font-medium",
                 )}
               >
@@ -1049,10 +1135,10 @@ export function ConstraintsStep() {
               )}
             </tr>
             <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-600">
-              <th className={cn(dataColClass, "border-r border-slate-200 py-2 text-center")}>
+              <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}>
                 Generic
               </th>
-              <th className={cn(dataColClass, "border-r border-slate-200 py-2 text-center")}>
+              <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}>
                 Client Branded
               </th>
               <th
@@ -1063,13 +1149,13 @@ export function ConstraintsStep() {
               </th>
               <th
                 rowSpan={2}
-                className={cn(dataColClass, "border-r border-slate-200 py-2 text-center")}
+                className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}
               >
                 Auto
               </th>
               <th
                 rowSpan={2}
-                className={cn(dataColClass, "border-r border-slate-200 py-2 text-center")}
+                className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}
               >
                 Others
               </th>
@@ -1102,27 +1188,27 @@ export function ConstraintsStep() {
               )}
             </tr>
             <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500">
-              <th className={cn(dataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+              <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
                 Keyword Targeting
               </th>
-              <th className={cn(dataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+              <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
                 Keyword Targeting
               </th>
-              <th className={cn(dataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+              <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
                 Keyword Targeting
               </th>
-              <th className={cn(dataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+              <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
                 Product Targeting
               </th>
               {showCampaignConstraints && (
                 <>
-                  <th className={cn(dataColClass, "border-r border-l border-slate-200 py-2 text-center font-normal")}>
+                  <th className={cn(activeDataColClass, "border-r border-l border-slate-200 py-2 text-center font-normal")}>
                     SP
                   </th>
-                  <th className={cn(dataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                  <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
                     SB
                   </th>
-                  <th className={cn(dataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                  <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
                     SD
                   </th>
                   <th
@@ -1134,16 +1220,16 @@ export function ConstraintsStep() {
                   >
                     Total
                   </th>
-                  <th className={cn(dataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                  <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
                     Floor
                   </th>
-                  <th className={cn(dataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                  <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
                     Ceiling
                   </th>
-                  <th className={cn(dataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                  <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
                     Floor
                   </th>
-                  <th className={cn(dataColClass, "py-2 text-center font-normal")}>
+                  <th className={cn(activeDataColClass, "py-2 text-center font-normal")}>
                     Ceiling
                   </th>
                 </>
@@ -1179,7 +1265,7 @@ export function ConstraintsStep() {
                       <span className="truncate">{row.name}</span>
                     </span>
                   </td>
-                  <td className={cn(dataColClass, "border-r border-slate-100 py-3 text-center")}>
+                  <td className={cn(activeDataColClass, "border-r border-slate-100 py-3 text-center")}>
                     {row.indent && (
                       <span className="inline-flex items-center justify-center gap-1 text-slate-700">
                         <TrendingUp className="size-4 text-success-500" />
@@ -1187,7 +1273,7 @@ export function ConstraintsStep() {
                       </span>
                     )}
                   </td>
-                  <td className={cn(dataColClass, "border-r border-slate-100 p-1 text-center")}>
+                  <td className={cn(activeDataColClass, "border-r border-slate-100 p-1 text-center")}>
                     {isEditableRow && state ? (
                       <EditableConstraintCell
                         value={state.values.goalValue}
@@ -1203,13 +1289,15 @@ export function ConstraintsStep() {
                             : undefined
                         }
                         className={cellInputVisualClass(state, "goalValue", "text-brand-600")}
+                        showHistoricalData={showHistoricalData}
+                        historicDisplay={getHistoricDisplayValue(state, "goalValue")}
                       />
                     ) : null}
                   </td>
                   {SPEND_PERCENT_FIELDS.map((field) => (
                     <td
                       key={field}
-                      className={cn(dataColClass, "border-r border-slate-100 p-1 text-center")}
+                      className={cn(activeDataColClass, "border-r border-slate-100 p-1 text-center")}
                     >
                       {isEditableRow && state ? (
                         <PercentConstraintCell
@@ -1234,6 +1322,8 @@ export function ConstraintsStep() {
                                 ? "Auto-adjusted to keep the total at 100%"
                                 : undefined
                           }
+                          showHistoricalData={showHistoricalData}
+                          historicDisplay={getHistoricDisplayValue(state, field)}
                         />
                       ) : null}
                     </td>
@@ -1262,7 +1352,7 @@ export function ConstraintsStep() {
                         <td
                           key={field}
                           className={cn(
-                            dataColClass,
+                            activeDataColClass,
                             "border-r border-slate-100 p-1 text-center",
                             field === "campaignSp" && "border-l",
                           )}
@@ -1290,6 +1380,8 @@ export function ConstraintsStep() {
                                     ? "Auto-adjusted to keep the total at 100%"
                                     : undefined
                               }
+                              showHistoricalData={showHistoricalData}
+                              historicDisplay={getHistoricDisplayValue(state, field)}
                             />
                           ) : null}
                         </td>
@@ -1325,7 +1417,7 @@ export function ConstraintsStep() {
                         <td
                           key={field}
                           className={cn(
-                            dataColClass,
+                            activeDataColClass,
                             "border-r border-slate-100 p-1 text-center",
                             field === "budgetCeiling" && "border-r-0",
                           )}
@@ -1345,6 +1437,8 @@ export function ConstraintsStep() {
                                   : undefined
                               }
                               className={cellInputVisualClass(state, field)}
+                              showHistoricalData={showHistoricalData}
+                              historicDisplay={getHistoricDisplayValue(state, field)}
                             />
                           ) : null}
                         </td>
