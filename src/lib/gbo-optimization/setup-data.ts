@@ -423,68 +423,87 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
   },
 ];
 
-export type ConstraintRow = {
-  id: string;
-  name: string;
-  indent?: boolean;
-  goalValue: string;
+export type ConstraintLast30Days = {
+  goalValue?: string;
   genericKeyword?: string;
   clientBrandedKeyword?: string;
-  clientBrandedProduct?: string;
   competitorKeyword?: string;
   competitorProduct?: string;
   auto?: string;
   others?: string;
-  total?: string;
-  sp?: string;
-  sb?: string;
+  campaignSp?: string;
+  campaignSb?: string;
+  campaignSd?: string;
+  bidFloor?: string;
+  bidCeiling?: string;
+  budgetFloor?: string;
+  budgetCeiling?: string;
+};
+
+export type ConstraintRow = {
+  id: string;
+  name: string;
+  indent?: boolean;
+  /** Prefill source — last 30 days of performance (shown until the user edits). */
+  last30Days?: ConstraintLast30Days;
 };
 
 export const CONSTRAINTS_SCOPE_ROWS: ConstraintRow[] = [
   {
     id: "entire-business",
     name: "Entire Business",
-    goalValue: "",
   },
   {
     id: "jbc-fresh",
     name: "JBC Fresh",
     indent: true,
-    goalValue: "$12",
-    genericKeyword: "70%",
-    competitorKeyword: "30%",
-    total: "100% / 100%",
-    sb: "15%",
+    last30Days: {
+      goalValue: "$28",
+      genericKeyword: "70%",
+      competitorKeyword: "30%",
+      campaignSp: "45%",
+      campaignSb: "15%",
+      campaignSd: "40%",
+    },
   },
   {
     id: "jbc-frozen",
     name: "JBC Frozen Prepared",
     indent: true,
-    goalValue: "$1,232",
-    genericKeyword: "70%",
-    competitorKeyword: "8%",
-    competitorProduct: "20%",
-    auto: "2%",
-    total: "100% / 100%",
-    sb: "15%",
+    last30Days: {
+      goalValue: "$35",
+      genericKeyword: "70%",
+      competitorKeyword: "8%",
+      competitorProduct: "20%",
+      auto: "2%",
+      campaignSp: "45%",
+      campaignSb: "15%",
+      campaignSd: "40%",
+    },
   },
   {
     id: "ocean-adventures",
     name: "Ocean Adventures",
     indent: true,
-    goalValue: "$1,234",
-    total: "0% / 100%",
+    last30Days: {
+      goalValue: "$22",
+      genericKeyword: "55%",
+      clientBrandedKeyword: "15%",
+      competitorKeyword: "20%",
+      competitorProduct: "10%",
+    },
   },
   {
     id: "pilgrims",
     name: "Pilgrims",
     indent: true,
-    goalValue: "$23,432",
-    genericKeyword: "62%",
-    competitorKeyword: "10%",
-    competitorProduct: "20%",
-    auto: "8%",
-    total: "100% / 100%",
+    last30Days: {
+      goalValue: "$40",
+      genericKeyword: "62%",
+      competitorKeyword: "10%",
+      competitorProduct: "20%",
+      auto: "8%",
+    },
   },
 ];
 
