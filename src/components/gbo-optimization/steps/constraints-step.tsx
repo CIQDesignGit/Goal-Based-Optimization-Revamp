@@ -55,7 +55,7 @@ const SPEND_TOTAL_COL_WIDTH = 132;
 const PERCENT_TOTAL_TARGET = 100;
 
 const scopeStickyClass =
-  "sticky left-0 z-20 border-r border-slate-200 bg-white group-hover:bg-slate-50/50";
+  "sticky left-0 z-20 border-r border-slate-200 bg-white group-hover:bg-slate-50";
 const scopeStickyHeaderClass =
   "sticky left-0 z-30 border-r border-slate-200 bg-slate-50";
 const dataColClass = "w-[100px] min-w-[100px] max-w-[100px] px-2";
