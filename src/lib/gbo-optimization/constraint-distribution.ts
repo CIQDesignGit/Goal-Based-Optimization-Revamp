@@ -1,3 +1,10 @@
+/**
+ * Constraint percent distribution helpers.
+ *
+ * Product rules (see also instructions.md — Constraints step):
+ * - Manual edits lock; prefilled columns rebalance by historic weight to 100%.
+ * - Error only when locked sum > 100 or all columns are manual and sum ≠ 100.
+ */
 export const SPEND_PERCENT_FIELDS = [
   "genericKeyword",
   "clientBrandedKeyword",
@@ -40,6 +47,64 @@ export function parsePercent(value: string): number {
 export function formatPercentNumber(value: number): string {
   const rounded = Math.round(value);
   return `${rounded}%`;
+}
+
+export function sumPercentFields(
+  values: Record<string, string>,
+  fields: readonly PercentField[],
+): number {
+  return fields.reduce(
+    (total, field) => total + parsePercent(values[field] ?? ""),
+    0,
+  );
+}
+
+/** Total column label: sum of row percent fields over 100. */
+export function formatPercentTotalDisplay(
+  values: Record<string, string>,
+  fields: readonly PercentField[],
+): string {
+  return `${Math.round(sumPercentFields(values, fields))}% / 100%`;
+}
+
+export function isPercentGroupValid(
+  values: Record<string, string>,
+  fields: readonly PercentField[],
+): boolean {
+  return Math.round(sumPercentFields(values, fields)) === MAX_PERCENT_VALUE;
+}
+
+/** Lock every manually edited field in the group plus the field being committed. */
+export function buildManualLockedPercents(
+  fields: readonly PercentField[],
+  values: Record<string, string>,
+  historic: Record<PercentField, number>,
+  currentField: PercentField,
+  currentValue: number,
+  manualFields: Partial<Record<PercentField, boolean>>,
+): Partial<Record<PercentField, number>> {
+  const locked: Partial<Record<PercentField, number>> = {};
+
+  for (const field of fields) {
+    const value =
+      field === currentField ? currentValue : parsePercent(values[field] ?? "");
+    const isCurrentField = field === currentField;
+    const isFlaggedManual = Boolean(manualFields[field]);
+
+    if (value !== historic[field] && (isCurrentField || isFlaggedManual)) {
+      locked[field] = value;
+    }
+  }
+
+  return locked;
+}
+
+export function sumLockedPercents(
+  locked: Partial<Record<PercentField, number>>,
+): number {
+  return Math.round(
+    Object.values(locked).reduce((total, value) => total + value, 0),
+  );
 }
 
 export function formatPercentInput(value: string): string {
@@ -96,7 +161,7 @@ export function validatePercentEdit(
   return { ok: true, value: attempted };
 }
 
-/** Split `remaining` across fields using historic weights; integers always sum to `remaining`. */
+/** Split `remaining` across unlocked fields using historic weights; integers sum to `remaining`. */
 export function redistributePercentFields(
   fields: readonly PercentField[],
   historic: Record<PercentField, number>,

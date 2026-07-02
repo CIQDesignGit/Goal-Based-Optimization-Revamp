@@ -29,11 +29,13 @@ export function SetupHeader({
   onComplete,
   onStepSelect,
 }: SetupHeaderProps) {
-  const { steps } = useSetupContext();
+  const { steps, constraintsStepValid } = useSetupContext();
   const currentIndex = steps.findIndex((step) => step.key === currentStep);
   const stepConfig = steps[currentIndex];
   const isFirstStep = currentIndex === 0;
   const isSummaryStep = currentStep === "summary";
+  const isNextDisabled =
+    currentStep === "constraints" && !constraintsStepValid;
 
   return (
     <div className="border-b border-slate-200 bg-white px-6 py-4">
@@ -83,7 +85,8 @@ export function SetupHeader({
           </Button>
           <Button
             onClick={isSummaryStep ? onComplete : onNext}
-            className="shrink-0 gap-1.5 bg-brand-600 text-white hover:bg-brand-700"
+            disabled={isNextDisabled}
+            className="shrink-0 gap-1.5 bg-brand-600 text-white hover:bg-brand-700 disabled:pointer-events-none disabled:opacity-50"
           >
             {isSummaryStep ? (
               <>

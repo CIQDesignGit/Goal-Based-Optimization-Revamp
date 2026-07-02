@@ -22,6 +22,8 @@ type SetupContextValue = {
   setIncludeSeasonality: (value: boolean) => void;
   includeConstraints: boolean;
   setIncludeConstraints: (value: boolean) => void;
+  constraintsStepValid: boolean;
+  setConstraintsStepValid: (value: boolean) => void;
   steps: SetupStepConfig[];
 };
 
@@ -32,6 +34,7 @@ export function SetupProvider({ children }: { children: ReactNode }) {
     useState<OptimizerType>("ally-ai");
   const [includeSeasonality, setIncludeSeasonalityState] = useState(false);
   const [includeConstraints, setIncludeConstraintsState] = useState(false);
+  const [constraintsStepValid, setConstraintsStepValidState] = useState(true);
 
   const steps = useMemo(
     () =>
@@ -54,6 +57,10 @@ export function SetupProvider({ children }: { children: ReactNode }) {
     setIncludeConstraintsState(value);
   }, []);
 
+  const setConstraintsStepValid = useCallback((value: boolean) => {
+    setConstraintsStepValidState(value);
+  }, []);
+
   return (
     <SetupContext.Provider
       value={{
@@ -63,6 +70,8 @@ export function SetupProvider({ children }: { children: ReactNode }) {
         setIncludeSeasonality,
         includeConstraints,
         setIncludeConstraints,
+        constraintsStepValid,
+        setConstraintsStepValid,
         steps,
       }}
     >

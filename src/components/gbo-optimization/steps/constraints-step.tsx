@@ -1,6 +1,18 @@
 "use client";
 
-import { type FocusEvent, type KeyboardEvent, useMemo, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  type FocusEvent,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, CircleHelp, Eye, History, Plus, Search, TrendingUp, X } from "lucide-react";
 
 import { useSetupContext } from "@/components/gbo-optimization/setup-context";
@@ -10,12 +22,17 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
   CAMPAIGN_PERCENT_FIELDS,
+  buildManualLockedPercents,
   formatPercentNumber,
+  formatPercentTotalDisplay,
+  isPercentGroupValid,
   MAX_PERCENT_VALUE,
   parsePercent,
   PERCENT_DEVIATION_THRESHOLD,
   redistributePercentFields,
   SPEND_PERCENT_FIELDS,
+  sumLockedPercents,
+  sumPercentFields,
   validatePercentEdit,
   type CampaignPercentField,
   type PercentField,
@@ -31,10 +48,11 @@ import { cn } from "@/lib/utils";
 
 const SPEND_CONSTRAINT_COL_COUNT = 7;
 const CAMPAIGN_CONSTRAINT_COL_COUNT = 8;
+const CAMPAIGN_TOTAL_COL_INDEX = 3;
 const SCOPE_COL_WIDTH = 200;
 const DATA_COL_WIDTH = 100;
 const SPEND_TOTAL_COL_WIDTH = 132;
-const SPEND_TOTAL_DISPLAY = "100% / 100%";
+const PERCENT_TOTAL_TARGET = 100;
 
 const scopeStickyClass =
   "sticky left-0 z-20 border-r border-slate-200 bg-white group-hover:bg-slate-50/50";
@@ -45,7 +63,7 @@ const spendTotalColClass =
   "w-[132px] min-w-[132px] max-w-[132px] px-2 whitespace-nowrap";
 const totalColClass = "text-right";
 const cellInputClass =
-  "h-8 w-full min-w-0 border-transparent px-1 text-center text-sm tabular-nums shadow-none hover:border-slate-200 focus-visible:border-brand-300 focus-visible:bg-white";
+  "h-8 w-full min-w-0 px-1 text-center text-sm tabular-nums shadow-none border border-transparent hover:border-slate-200 focus-visible:border-brand-300 focus-visible:bg-white";
 
 /** Select numeric portion on focus — keeps $ prefix and % suffix out of selection. */
 function selectEditablePortion(input: HTMLInputElement) {
@@ -85,6 +103,62 @@ function handleConstraintInputKeyDown(
   event.currentTarget.blur();
 }
 
+/** Renders alert content fixed below the cell — no row height change, no scroll clipping. */
+function FloatingCellAlert({
+  anchorRef,
+  active,
+  children,
+  className,
+}: {
+  anchorRef: RefObject<HTMLElement | null>;
+  active: boolean;
+  children: ReactNode;
+  className?: string;
+}) {
+  const [style, setStyle] = useState<CSSProperties | null>(null);
+
+  useLayoutEffect(() => {
+    if (!active) {
+      setStyle(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const anchor = anchorRef.current;
+      if (!anchor) return;
+
+      const rect = anchor.getBoundingClientRect();
+      setStyle({
+        position: "fixed",
+        top: rect.bottom + 4,
+        left: rect.left,
+        minWidth: rect.width,
+        width: "max-content",
+        maxWidth: 220,
+        zIndex: 50,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [active, anchorRef]);
+
+  if (!active || !style || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div role="alert" className={className} style={style}>
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
 type ConstraintValues = {
   goalValue: string;
   genericKeyword: string;
@@ -122,6 +196,7 @@ type InlineBlockAlert = {
   rowId: string;
   field: ConstraintValueField;
   message: string;
+  previousValue: string;
 };
 
 function inlineBlockMessage(
@@ -136,6 +211,7 @@ function inlineBlockMessage(
 type ConstraintRowState = {
   values: ConstraintValues;
   historicPercents: Record<PercentField, number>;
+  historicValues: ConstraintValues;
   overridden: Partial<Record<ConstraintValueField, boolean>>;
 };
 
@@ -222,6 +298,7 @@ function buildRowStateFromHistoric(last30Days: ConstraintLast30Days = {}): Const
       ...campaignDistributed,
     },
     historicPercents,
+    historicValues: values,
     overridden: {},
   };
 }
@@ -235,33 +312,72 @@ function createInitialRowState(): Record<string, ConstraintRowState> {
   );
 }
 
-function getLockedPercents(
-  fields: readonly PercentField[],
-  values: ConstraintValues,
-  overridden: Partial<Record<ConstraintValueField, boolean>>,
-): Partial<Record<PercentField, number>> {
-  const locked: Partial<Record<PercentField, number>> = {};
-
-  for (const field of fields) {
-    if (overridden[field]) {
-      locked[field] = parsePercent(values[field]);
-    }
-  }
-
-  return locked;
+function isPercentField(field: ConstraintValueField): field is PercentField {
+  return (
+    SPEND_PERCENT_FIELDS.includes(field as SpendPercentField) ||
+    CAMPAIGN_PERCENT_FIELDS.includes(field as CampaignPercentField)
+  );
 }
 
-function rowHasOverrides(state: ConstraintRowState): boolean {
-  return Object.keys(state.overridden).length > 0;
+function normalizeCurrencyDisplay(value: string): string {
+  const raw = value.trim();
+  if (!raw) return "";
+  return formatCurrency(parseCurrency(raw));
+}
+
+function fieldMatchesHistoric(
+  state: ConstraintRowState,
+  field: ConstraintValueField,
+): boolean {
+  if (isPercentField(field)) {
+    return parsePercent(state.values[field]) === state.historicPercents[field];
+  }
+
+  return (
+    normalizeCurrencyDisplay(state.values[field]) ===
+    normalizeCurrencyDisplay(state.historicValues[field])
+  );
+}
+
+function rowHasManualEditsOnOtherFields(
+  state: ConstraintRowState,
+  excludeField: ConstraintValueField,
+): boolean {
+  for (const field of Object.keys(state.overridden) as ConstraintValueField[]) {
+    if (field === excludeField || !state.overridden[field]) continue;
+    if (!fieldMatchesHistoric(state, field)) return true;
+  }
+
+  return false;
 }
 
 function getCellVisualState(
   state: ConstraintRowState,
   field: ConstraintValueField,
 ): "historic" | "adjusted" | "edited" {
-  if (state.overridden[field]) return "edited";
-  if (rowHasOverrides(state)) return "adjusted";
+  const matchesHistoric = fieldMatchesHistoric(state, field);
+
+  if (state.overridden[field] && !matchesHistoric) {
+    return "edited";
+  }
+
+  if (!matchesHistoric && rowHasManualEditsOnOtherFields(state, field)) {
+    return "adjusted";
+  }
+
   return "historic";
+}
+
+function percentTotalClassName(
+  values: ConstraintValues,
+  fields: readonly PercentField[],
+): string {
+  const sum = Math.round(sumPercentFields(values, fields));
+
+  return cn(
+    "font-medium",
+    sum === PERCENT_TOTAL_TARGET ? "text-slate-700" : "text-destructive",
+  );
 }
 
 function cellInputVisualClass(
@@ -304,7 +420,15 @@ function ConstraintDataColgroup({
       ))}
       {showCampaignConstraints &&
         Array.from({ length: CAMPAIGN_CONSTRAINT_COL_COUNT }).map((_, index) => (
-          <col key={`campaign-${index}`} style={{ width: DATA_COL_WIDTH }} />
+          <col
+            key={`campaign-${index}`}
+            style={{
+              width:
+                index === CAMPAIGN_TOTAL_COL_INDEX
+                  ? SPEND_TOTAL_COL_WIDTH
+                  : DATA_COL_WIDTH,
+            }}
+          />
         ))}
     </colgroup>
   );
@@ -341,12 +465,21 @@ function PercentConstraintCell({
   onConfirmPending,
   onDismissPending,
 }: PercentConstraintCellProps) {
+  const anchorRef = useRef<HTMLDivElement>(null);
   const showConfirm =
     pendingWarning?.rowId === rowId && pendingWarning.field === field;
   const showBlock = blockAlert?.rowId === rowId && blockAlert.field === field;
 
   return (
-    <div className="py-0.5">
+    <div
+      ref={anchorRef}
+      className={cn(
+        "py-0.5",
+        showConfirm && "rounded-lg ring-2 ring-amber-300/80",
+        showBlock && !showConfirm && "rounded-lg ring-2 ring-destructive/40",
+      )}
+      data-constraint-cell={`${rowId}:${field}`}
+    >
       <Input
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -360,27 +493,30 @@ function PercentConstraintCell({
         }
         onBlur={onBlur}
         aria-label={ariaLabel}
-        aria-invalid={showConfirm || showBlock}
+        aria-invalid={showBlock && !showConfirm}
         title={title}
         className={cn(
           cellInputVisualClass(state, field),
           showConfirm &&
-            "border-amber-400 bg-amber-50/80 ring-1 ring-amber-200 focus-visible:border-amber-400",
+            "!border-amber-400 bg-amber-50/50 !ring-2 !ring-amber-200 hover:!border-amber-400 hover:bg-amber-50/50 focus-visible:!border-amber-500 focus-visible:!ring-amber-200 focus-visible:bg-white",
           showBlock &&
             !showConfirm &&
-            "border-amber-500 ring-1 ring-amber-200 focus-visible:border-amber-500",
+            "!border-destructive bg-white !ring-2 !ring-destructive/25 hover:!border-destructive focus-visible:!border-destructive focus-visible:!ring-destructive/25",
         )}
       />
       {showConfirm && pendingWarning && (
-        <div
-          role="alert"
-          className="mt-1 rounded border border-amber-200 bg-amber-50/90 px-1.5 py-1 text-left"
+        <FloatingCellAlert
+          anchorRef={anchorRef}
+          active
+          className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 text-left shadow-lg"
         >
-          <p className="text-[10px] leading-snug text-amber-950">
+          <p className="whitespace-nowrap text-sm leading-snug text-slate-600">
             Far from{" "}
-            <span className="font-medium">{pendingWarning.previousValue || "0%"}</span>
+            <span className="font-medium text-slate-700">
+              {pendingWarning.previousValue || "0%"}
+            </span>
           </p>
-          <div className="mt-0.5 flex items-center gap-1.5 text-[10px]">
+          <div className="flex items-center gap-3 text-sm">
             <button
               type="button"
               className="font-medium text-brand-600 hover:underline"
@@ -405,12 +541,16 @@ function PercentConstraintCell({
               Revert
             </button>
           </div>
-        </div>
+        </FloatingCellAlert>
       )}
       {showBlock && blockAlert && !showConfirm && (
-        <p className="mt-0.5 text-[10px] leading-tight text-amber-700">
+        <FloatingCellAlert
+          anchorRef={anchorRef}
+          active
+          className="whitespace-nowrap rounded-lg border border-destructive/30 bg-white p-3 text-left text-sm leading-snug text-destructive shadow-lg"
+        >
           {blockAlert.message}
-        </p>
+        </FloatingCellAlert>
       )}
     </div>
   );
@@ -451,7 +591,7 @@ function EditableConstraintCell({
 }
 
 export function ConstraintsStep() {
-  const { optimizerType } = useSetupContext();
+  const { optimizerType, setConstraintsStepValid } = useSetupContext();
   const isRuleBased = optimizerType === "rule-based";
   const [showCampaignConstraints, setShowCampaignConstraints] = useState(false);
   const [rowState, setRowState] = useState(createInitialRowState);
@@ -460,6 +600,33 @@ export function ConstraintsStep() {
     useState<PendingPercentWarning | null>(null);
   const [blockAlert, setBlockAlert] = useState<InlineBlockAlert | null>(null);
   const [historicHintDismissed, setHistoricHintDismissed] = useState(false);
+
+  const constraintsStepValid = useMemo(() => {
+    if (pendingWarning || blockAlert) return false;
+
+    return CONSTRAINTS_SCOPE_ROWS.filter((row) => row.indent).every((row) => {
+      const state = rowState[row.id];
+      if (!state) return true;
+
+      if (!isPercentGroupValid(state.values, SPEND_PERCENT_FIELDS)) {
+        return false;
+      }
+
+      if (
+        showCampaignConstraints &&
+        !isPercentGroupValid(state.values, CAMPAIGN_PERCENT_FIELDS)
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [rowState, showCampaignConstraints, pendingWarning, blockAlert]);
+
+  useEffect(() => {
+    setConstraintsStepValid(constraintsStepValid);
+    return () => setConstraintsStepValid(true);
+  }, [constraintsStepValid, setConstraintsStepValid]);
 
   const updateValue = (
     rowId: string,
@@ -495,6 +662,19 @@ export function ConstraintsStep() {
     }));
   };
 
+  /**
+   * Constraints step — percent row commit (product rules):
+   *
+   * 1. On edit, lock every manually changed value in the row group (spend or campaign).
+   * 2. Rebalance all remaining prefilled (unlocked) columns proportionally using last-30-day
+   *    historic weights so the row returns to 100%.
+   * 3. Error state (red Total, Next disabled) only when auto-adjust is impossible:
+   *    - locked manual values alone exceed 100%, or
+   *    - every column in the group is manually set and the sum is not exactly 100%.
+   *
+   * Do NOT skip redistribution just because the raw row sum exceeds 100% before rebalance —
+   * that is expected while only the edited cell has changed.
+   */
   const applyPercentCommit = (
     rowId: string,
     field: PercentField,
@@ -508,15 +688,43 @@ export function ConstraintsStep() {
       const row = current[rowId];
       if (!row) return current;
 
-      const nextOverridden = { ...row.overridden, [field]: true };
-      const locked = getLockedPercents(
+      const nextOverridden = { ...row.overridden };
+      if (editedValue === row.historicPercents[field]) {
+        delete nextOverridden[field];
+      } else {
+        nextOverridden[field] = true;
+      }
+
+      const committedValues = {
+        ...row.values,
+        [field]: formatPercentNumber(editedValue),
+      };
+
+      const locked = buildManualLockedPercents(
         fields,
-        {
-          ...row.values,
-          [field]: formatPercentNumber(editedValue),
-        },
+        committedValues,
+        row.historicPercents,
+        field,
+        editedValue,
         nextOverridden,
       );
+      const lockedSum = sumLockedPercents(locked);
+      const unlockedFields = fields.filter((groupField) => locked[groupField] === undefined);
+      const cannotAutoAdjust =
+        lockedSum > PERCENT_TOTAL_TARGET ||
+        (unlockedFields.length === 0 && lockedSum !== PERCENT_TOTAL_TARGET);
+
+      if (cannotAutoAdjust) {
+        return {
+          ...current,
+          [rowId]: {
+            ...row,
+            overridden: nextOverridden,
+            values: committedValues,
+          },
+        };
+      }
+
       const redistributed = redistributePercentFields(
         fields,
         row.historicPercents,
@@ -542,10 +750,60 @@ export function ConstraintsStep() {
     field: ConstraintValueField,
     previousValue: string,
   ) => {
+    if (
+      blockAlert &&
+      (blockAlert.rowId !== rowId || blockAlert.field !== field)
+    ) {
+      restoreFieldValue(
+        blockAlert.rowId,
+        blockAlert.field,
+        blockAlert.previousValue,
+      );
+      delete editSessionsRef.current[
+        editSessionKey(blockAlert.rowId, blockAlert.field)
+      ];
+      setBlockAlert(null);
+    }
+
     setPendingWarning(null);
-    setBlockAlert(null);
-    editSessionsRef.current[editSessionKey(rowId, field)] = previousValue;
+    const sessionPrevious =
+      blockAlert?.rowId === rowId && blockAlert.field === field
+        ? blockAlert.previousValue
+        : previousValue;
+    editSessionsRef.current[editSessionKey(rowId, field)] = sessionPrevious;
   };
+
+  const revertActiveBlockAlert = () => {
+    if (!blockAlert) return;
+
+    restoreFieldValue(
+      blockAlert.rowId,
+      blockAlert.field,
+      blockAlert.previousValue,
+    );
+    delete editSessionsRef.current[
+      editSessionKey(blockAlert.rowId, blockAlert.field)
+    ];
+    setBlockAlert(null);
+  };
+
+  useEffect(() => {
+    if (!blockAlert) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+
+      const cell = target.closest("[data-constraint-cell]");
+      const blockedKey = `${blockAlert.rowId}:${blockAlert.field}`;
+      if (cell?.getAttribute("data-constraint-cell") === blockedKey) return;
+
+      revertActiveBlockAlert();
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [blockAlert]);
 
   const getPreviousValue = (
     rowId: string,
@@ -584,14 +842,23 @@ export function ConstraintsStep() {
         return;
       }
 
-      restoreFieldValue(rowId, field, previousValue);
+      const isRepeatBlock =
+        blockAlert?.rowId === rowId && blockAlert?.field === field;
+
+      if (isRepeatBlock) {
+        restoreFieldValue(rowId, field, blockAlert.previousValue);
+        setBlockAlert(null);
+        delete editSessionsRef.current[editSessionKey(rowId, field)];
+        return;
+      }
+
       setBlockAlert({
         rowId,
         field,
         message: inlineBlockMessage(validation.issue),
+        previousValue,
       });
       setPendingWarning(null);
-      delete editSessionsRef.current[editSessionKey(rowId, field)];
       return;
     }
 
@@ -651,11 +918,21 @@ export function ConstraintsStep() {
           : formatCurrency(parseCurrency(raw)) || raw
         : "";
 
+      const nextOverridden = { ...row.overridden };
+      if (
+        normalizeCurrencyDisplay(formatted) ===
+        normalizeCurrencyDisplay(row.historicValues[field])
+      ) {
+        delete nextOverridden[field];
+      } else {
+        nextOverridden[field] = true;
+      }
+
       return {
         ...current,
         [rowId]: {
           ...row,
-          overridden: { ...row.overridden, [field]: true },
+          overridden: nextOverridden,
           values: {
             ...row.values,
             [field]: formatted,
@@ -719,7 +996,8 @@ export function ConstraintsStep() {
               DATA_COL_WIDTH * (SPEND_CONSTRAINT_COL_COUNT - 1) +
               SPEND_TOTAL_COL_WIDTH +
               (showCampaignConstraints
-                ? DATA_COL_WIDTH * CAMPAIGN_CONSTRAINT_COL_COUNT
+                ? DATA_COL_WIDTH * (CAMPAIGN_CONSTRAINT_COL_COUNT - 1) +
+                  SPEND_TOTAL_COL_WIDTH
                 : 0),
           }}
         >
@@ -847,7 +1125,13 @@ export function ConstraintsStep() {
                   <th className={cn(dataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
                     SD
                   </th>
-                  <th className={cn(dataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                  <th
+                    className={cn(
+                      spendTotalColClass,
+                      totalColClass,
+                      "border-r border-slate-200 py-2 text-center font-normal",
+                    )}
+                  >
                     Total
                   </th>
                   <th className={cn(dataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
@@ -958,11 +1242,19 @@ export function ConstraintsStep() {
                     className={cn(
                       spendTotalColClass,
                       totalColClass,
-                      "border-r border-slate-100 py-3 font-medium text-slate-700",
+                      "border-r border-slate-100 py-3",
                       !showCampaignConstraints && "border-r-0",
+                      isEditableRow &&
+                        state &&
+                        percentTotalClassName(state.values, SPEND_PERCENT_FIELDS),
                     )}
                   >
-                    {isEditableRow ? SPEND_TOTAL_DISPLAY : null}
+                    {isEditableRow && state
+                      ? formatPercentTotalDisplay(
+                          state.values,
+                          SPEND_PERCENT_FIELDS,
+                        )
+                      : null}
                   </td>
                   {showCampaignConstraints && (
                     <>
@@ -1004,12 +1296,23 @@ export function ConstraintsStep() {
                       ))}
                       <td
                         className={cn(
-                          dataColClass,
+                          spendTotalColClass,
                           totalColClass,
-                          "border-r border-slate-100 py-3 font-medium text-slate-700",
+                          "border-r border-slate-100 py-3",
+                          isEditableRow &&
+                            state &&
+                            percentTotalClassName(
+                              state.values,
+                              CAMPAIGN_PERCENT_FIELDS,
+                            ),
                         )}
                       >
-                        {isEditableRow ? SPEND_TOTAL_DISPLAY : null}
+                        {isEditableRow && state
+                          ? formatPercentTotalDisplay(
+                              state.values,
+                              CAMPAIGN_PERCENT_FIELDS,
+                            )
+                          : null}
                       </td>
                       {(
                         [
@@ -1062,7 +1365,7 @@ export function ConstraintsStep() {
             <p className="flex-1 pr-2">
               Gray italic values are based on your{" "}
               <span className="font-medium text-slate-700">last 30 days</span> of
-              spend distribution. Edit any cell to override it — the remaining
+              spend distribution. Edit any cell to override it — the other
               columns will rebalance so the total always stays at{" "}
               <span className="font-medium text-slate-700">100%</span> of the
               budget you set in the previous step.

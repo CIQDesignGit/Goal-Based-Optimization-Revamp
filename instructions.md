@@ -35,3 +35,13 @@
 - Interactive pages: `"use client"`.
 - No inline styles — Tailwind only.
 - Keep components under 150 lines; split if needed.
+
+## Constraints step — percent split (product rules)
+When a user edits spend/campaign percent cells on a brand row:
+1. **Manual edits are locked** — every value the user changed stays as entered.
+2. **Prefilled columns auto-adjust first** — all remaining (unlocked) columns rebalance proportionally using last-30-day historic weights until the row totals **100%**.
+3. **Error state only when auto-adjust is impossible** — show red `SUM% / 100%` on Total and disable Next when:
+   - locked manual values alone exceed **100%**, or
+   - every column in the group is manually set and the sum is not exactly **100%**.
+4. Never zero out columns to “fix” an over-100 row; leave values as entered and let the user adjust.
+5. Cell styling: **prefilled** (gray italic) = still at historic value; **edited** (dark) = user changed; **adjusted** (blue) = auto-rebalanced after another edit.
