@@ -47,8 +47,8 @@ export function SetupHeader({
 
   return (
     <div className="border-b border-slate-200 bg-white px-6 py-4">
-      <div className="relative flex min-h-9 items-center justify-center">
-        <div className="absolute left-0 flex min-w-0 items-center gap-2 text-sm text-slate-600">
+      <div className="flex min-h-9 items-center">
+        <div className="flex min-w-0 items-center gap-2 text-sm text-slate-600">
           <Cloud className="size-4 shrink-0 text-slate-500" />
           <span className="shrink-0">Optimization</span>
           <span className="shrink-0 text-slate-400">&gt;</span>
@@ -60,16 +60,10 @@ export function SetupHeader({
             <ChevronDown className="size-4 shrink-0" />
           </button>
         </div>
-
-        <SetupStepper
-          currentStep={currentStep}
-          onStepSelect={onStepSelect}
-          className="w-full max-w-3xl"
-        />
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <div className="flex shrink-0 items-center">
+      <div className="mt-3 flex items-center gap-3">
+        <div className="flex w-28 shrink-0 items-center sm:w-32">
           {!isFirstStep && (
             <Button
               variant="ghost"
@@ -81,6 +75,14 @@ export function SetupHeader({
               Back
             </Button>
           )}
+        </div>
+
+        <div className="flex min-w-0 flex-1 justify-center">
+          <SetupStepper
+            currentStep={currentStep}
+            onStepSelect={onStepSelect}
+            className="w-full max-w-3xl"
+          />
         </div>
 
         <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
