@@ -17,7 +17,9 @@ import {
   CONSTRAINTS_SCOPE_ROWS,
   getDefaultBudgetWindowStart,
   GOALS_SCOPE_ROWS,
+  type AggressivenessLevel,
   type ConstraintLast30Days,
+  type GoalType,
 } from "@/lib/gbo-optimization/setup-data";
 
 // ---------------------------------------------------------------------------
@@ -99,6 +101,39 @@ export type ImpactedScope = {
   fields: string[];
   changeCount: number;
 };
+
+export type BudgetDefinitionType = "retailer" | "internal";
+
+export type GeneralConfig = {
+  goalType: GoalType | null;
+  aggressiveness: AggressivenessLevel | null;
+  granularity: string;
+  budgetType: BudgetDefinitionType;
+  level1: string;
+  level2: string;
+  prefillMetric: string;
+  /** FR-006 — shown after the user changes goal type mid-session. */
+  showGoalChangeImpact: boolean;
+  previousGoalType: GoalType | null;
+};
+
+export function createInitialGeneralConfig(): GeneralConfig {
+  return {
+    goalType: null,
+    aggressiveness: null,
+    granularity: "Monthly",
+    budgetType: "retailer",
+    level1: "portfolio",
+    level2: "na",
+    prefillMetric: "roas",
+    showGoalChangeImpact: false,
+    previousGoalType: null,
+  };
+}
+
+export function isGeneralConfigComplete(config: GeneralConfig): boolean {
+  return config.goalType !== null && config.aggressiveness !== null;
+}
 
 // ---------------------------------------------------------------------------
 // Initial state factories
@@ -249,12 +284,18 @@ function nextChangeId(): string {
 // ---------------------------------------------------------------------------
 
 type SetupSessionState = {
+  generalConfig: GeneralConfig;
   goalsRowState: Record<string, GoalsRowState>;
   constraintsRowState: Record<string, ConstraintRowState>;
   monthWindowStart: number;
   goalsHistoricHintDismissed: boolean;
   changeLedger: ChangeLedgerEntry[];
   summaryReviewed: boolean;
+
+  setGoalType: (goalType: GoalType) => void;
+  setAggressiveness: (level: AggressivenessLevel) => void;
+  updateGeneralConfig: (patch: Partial<GeneralConfig>) => void;
+  dismissGoalChangeImpact: () => void;
 
   setGoalsRowState: (
     updater:
@@ -289,6 +330,7 @@ type SetupSessionState = {
 
 function createInitialSessionState(): Pick<
   SetupSessionState,
+  | "generalConfig"
   | "goalsRowState"
   | "constraintsRowState"
   | "monthWindowStart"
@@ -297,6 +339,7 @@ function createInitialSessionState(): Pick<
   | "summaryReviewed"
 > {
   return {
+    generalConfig: createInitialGeneralConfig(),
     goalsRowState: createInitialGoalsRowState(),
     constraintsRowState: createInitialConstraintsRowState(),
     monthWindowStart: getDefaultBudgetWindowStart(BUDGET_CURRENT_MONTH_INDEX),
@@ -308,6 +351,52 @@ function createInitialSessionState(): Pick<
 
 export const useSetupSessionStore = create<SetupSessionState>((set, get) => ({
   ...createInitialSessionState(),
+
+  setGoalType: (goalType) => {
+    set((state) => {
+      const previousGoalType = state.generalConfig.goalType;
+      const isChange =
+        previousGoalType !== null && previousGoalType !== goalType;
+
+      return {
+        generalConfig: {
+          ...state.generalConfig,
+          goalType,
+          previousGoalType: isChange ? previousGoalType : state.generalConfig.previousGoalType,
+          showGoalChangeImpact: isChange
+            ? true
+            : state.generalConfig.showGoalChangeImpact,
+        },
+      };
+    });
+  },
+
+  setAggressiveness: (level) => {
+    set((state) => ({
+      generalConfig: {
+        ...state.generalConfig,
+        aggressiveness: level,
+      },
+    }));
+  },
+
+  updateGeneralConfig: (patch) => {
+    set((state) => ({
+      generalConfig: {
+        ...state.generalConfig,
+        ...patch,
+      },
+    }));
+  },
+
+  dismissGoalChangeImpact: () => {
+    set((state) => ({
+      generalConfig: {
+        ...state.generalConfig,
+        showGoalChangeImpact: false,
+      },
+    }));
+  },
 
   setGoalsRowState: (updater) => {
     set((state) => ({

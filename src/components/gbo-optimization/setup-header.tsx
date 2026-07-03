@@ -10,7 +10,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { useSetupContext } from "@/components/gbo-optimization/setup-context";
-import { useSetupSessionStore } from "@/lib/gbo-optimization/setup-session-store";
+import { useSetupSessionStore, isGeneralConfigComplete } from "@/lib/gbo-optimization/setup-session-store";
 import type { SetupStepKey } from "@/lib/gbo-optimization/setup-data";
 
 import { SetupStepper } from "./setup-stepper";
@@ -33,13 +33,15 @@ export function SetupHeader({
   const { steps, constraintsStepValid } = useSetupContext();
   const changeLedger = useSetupSessionStore((state) => state.changeLedger);
   const summaryReviewed = useSetupSessionStore((state) => state.summaryReviewed);
+  const generalConfig = useSetupSessionStore((state) => state.generalConfig);
   const currentIndex = steps.findIndex((step) => step.key === currentStep);
   const stepConfig = steps[currentIndex];
   const isFirstStep = currentIndex === 0;
   const isSummaryStep = currentStep === "summary";
   const hasSessionChanges = changeLedger.length > 0;
   const isNextDisabled =
-    currentStep === "constraints" && !constraintsStepValid;
+    (currentStep === "general" && !isGeneralConfigComplete(generalConfig)) ||
+    (currentStep === "constraints" && !constraintsStepValid);
   const isSaveDisabled =
     isSummaryStep && hasSessionChanges && !summaryReviewed;
 

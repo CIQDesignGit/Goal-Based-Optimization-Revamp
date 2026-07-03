@@ -1,5 +1,13 @@
 export type OptimizerType = "ally-ai" | "rule-based";
 
+export type GoalType =
+  | "brand-roas"
+  | "incremental-roas"
+  | "total-roas"
+  | "sov";
+
+export type AggressivenessLevel = "aggressive" | "moderate" | "conservative";
+
 export type SetupStepKey =
   | "general"
   | "goals-budgets"
@@ -32,6 +40,79 @@ export const OPTIMIZER_OPTIONS = [
   },
 ] as const;
 
+export const GOAL_TYPE_OPTIONS = [
+  {
+    value: "brand-roas" as const,
+    label: "Brand ROAS",
+    description: "Optimize return on ad spend at the brand level.",
+  },
+  {
+    value: "incremental-roas" as const,
+    label: "Incremental ROAS",
+    description: "Focus on incremental lift from advertising spend.",
+  },
+  {
+    value: "total-roas" as const,
+    label: "Total ROAS",
+    description: "Optimize total return including organic and paid.",
+  },
+  {
+    value: "sov" as const,
+    label: "SOV (Share of Voice)",
+    description:
+      "Maximize share of voice in the category. Available with rule-based optimization only.",
+    blocksAllyAi: true,
+  },
+] as const;
+
+export const AGGRESSIVENESS_OPTIONS = [
+  {
+    value: "aggressive" as const,
+    label: "Aggressive",
+    description: "Prioritize growth and market share over efficiency.",
+  },
+  {
+    value: "moderate" as const,
+    label: "Moderate",
+    description: "Balance growth targets with spend efficiency.",
+  },
+  {
+    value: "conservative" as const,
+    label: "Conservative",
+    description: "Prioritize efficiency and stable returns.",
+  },
+] as const;
+
+export function isSovGoal(goalType: GoalType | null): boolean {
+  return goalType === "sov";
+}
+
+export function getGoalTypeLabel(goalType: GoalType): string {
+  return (
+    GOAL_TYPE_OPTIONS.find((option) => option.value === goalType)?.label ??
+    goalType
+  );
+}
+
+export function getGoalChangeImpactMessage(
+  optimizerType: OptimizerType,
+  goalType: GoalType,
+): string {
+  const goalLabel = getGoalTypeLabel(goalType);
+
+  if (optimizerType === "rule-based") {
+    return `Changing the goal to ${goalLabel} will recalibrate existing strategies across all brands in this portfolio. Review goals, floor/ceiling constraints, and optimizer rules before continuing.`;
+  }
+
+  return `Changing the goal to ${goalLabel} will recalibrate Ally AI targets across all brands in this portfolio. Review goals, budgets, constraints, and seasonality before continuing.`;
+}
+
+export const RULE_BASED_OPTIMIZER_NOTICE =
+  "Rule-based mode does not include budget entry. Your flow will be Goals (targets only) → Constraints (floor/ceiling only) → Optimizer → Summary.";
+
+export const ALLY_AI_RECOMMENDATION_NOTICE =
+  "Ally AI is recommended — it allocates spend and manages constraints automatically, with no manual rules required.";
+
 type StepDefinition = {
   key: SetupStepKey;
   label: string;
@@ -50,27 +131,14 @@ function withStepIds(flow: StepDefinition[]): SetupStepConfig[] {
   });
 }
 
-function buildAllyAiFlow(
-  includeSeasonality: boolean,
-  includeConstraints: boolean,
-): StepDefinition[] {
-  const flow: StepDefinition[] = [
+function buildAllyAiFlow(): StepDefinition[] {
+  return [
     { key: "general", label: "General" },
     { key: "goals-budgets", label: "Goals & Budgets" },
+    { key: "constraints", label: "Constraints" },
+    { key: "seasonality", label: "Seasonality" },
+    { key: "summary", label: "Summary", nextLabel: "Save & Launch" },
   ];
-
-  if (includeSeasonality) {
-    flow.push({ key: "seasonality", label: "Seasonality" });
-  }
-
-  if (includeConstraints) {
-    flow.push({ key: "constraints", label: "Constraints" });
-  }
-
-  flow.push({ key: "optimizer", label: "Optimizer" });
-  flow.push({ key: "summary", label: "Summary", nextLabel: "Save & Launch" });
-
-  return flow;
 }
 
 const RULE_BASED_FLOW: StepDefinition[] = [
@@ -81,20 +149,10 @@ const RULE_BASED_FLOW: StepDefinition[] = [
   { key: "summary", label: "Summary", nextLabel: "Save & Launch" },
 ];
 
-export type SetupFlowOptions = {
-  includeSeasonality?: boolean;
-  includeConstraints?: boolean;
-};
-
-/** Returns wizard steps for the selected optimizer and optional step toggles (FR-005). */
-export function getSetupSteps(
-  optimizer: OptimizerType,
-  options: SetupFlowOptions = {},
-): SetupStepConfig[] {
-  const { includeSeasonality = false, includeConstraints = false } = options;
-
+/** Returns wizard steps for the selected optimizer (FR-005). */
+export function getSetupSteps(optimizer: OptimizerType): SetupStepConfig[] {
   if (optimizer === "ally-ai") {
-    return withStepIds(buildAllyAiFlow(includeSeasonality, includeConstraints));
+    return withStepIds(buildAllyAiFlow());
   }
 
   return withStepIds(RULE_BASED_FLOW);

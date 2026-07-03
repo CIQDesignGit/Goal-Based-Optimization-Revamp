@@ -8,6 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
+  AGGRESSIVENESS_OPTIONS,
+  getGoalTypeLabel,
+} from "@/lib/gbo-optimization/setup-data";
+import {
   groupChangesByStep,
   SETUP_CHANGE_CATEGORY_LABELS,
   useSetupSessionStore,
@@ -66,6 +70,7 @@ function ChangeRow({ entry }: { entry: ChangeLedgerEntry }) {
 
 export function SummaryStep() {
   const { optimizerType } = useSetupContext();
+  const generalConfig = useSetupSessionStore((state) => state.generalConfig);
   const changeLedger = useSetupSessionStore((state) => state.changeLedger);
   const summaryReviewed = useSetupSessionStore((state) => state.summaryReviewed);
   const setSummaryReviewed = useSetupSessionStore(
@@ -77,6 +82,14 @@ export function SummaryStep() {
 
   const optimizerLabel =
     optimizerType === "ally-ai" ? "Ally AI" : "Rule-based";
+  const goalLabel = generalConfig.goalType
+    ? getGoalTypeLabel(generalConfig.goalType)
+    : null;
+  const aggressivenessLabel = generalConfig.aggressiveness
+    ? AGGRESSIVENESS_OPTIONS.find(
+        (option) => option.value === generalConfig.aggressiveness,
+      )?.label
+    : null;
   const hasChanges = changeLedger.length > 0;
 
   const groupedChanges = useMemo(
@@ -104,6 +117,16 @@ export function SummaryStep() {
       <Card className="border border-slate-200 shadow-none">
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
+            {goalLabel && (
+              <Badge variant="secondary" className="font-normal">
+                Goal: {goalLabel}
+              </Badge>
+            )}
+            {aggressivenessLabel && (
+              <Badge variant="outline" className="font-normal text-slate-600">
+                {aggressivenessLabel}
+              </Badge>
+            )}
             <Badge variant="secondary" className="font-normal">
               Optimizer: {optimizerLabel}
             </Badge>

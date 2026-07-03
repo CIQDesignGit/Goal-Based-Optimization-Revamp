@@ -62,8 +62,7 @@ function resolveStepAfterFlowChange(
 }
 
 function SetupWizardContent() {
-  const { optimizerType, includeSeasonality, includeConstraints, steps } =
-    useSetupContext();
+  const { optimizerType, steps } = useSetupContext();
   const [currentStep, setCurrentStep] = useState<SetupStepKey>("general");
   const StepComponent = STEP_COMPONENTS[currentStep];
 
@@ -75,13 +74,7 @@ function SetupWizardContent() {
     if (resolved !== currentStep) {
       setCurrentStep(resolved);
     }
-  }, [
-    optimizerType,
-    includeSeasonality,
-    includeConstraints,
-    stepKeys,
-    currentStep,
-  ]);
+  }, [optimizerType, stepKeys, currentStep]);
 
   const handleBack = () => {
     if (currentIndex > 0) {

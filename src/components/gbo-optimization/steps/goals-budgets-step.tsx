@@ -19,14 +19,15 @@ import {
 
 import { useSetupContext } from "@/components/gbo-optimization/setup-context";
 import { ChangedCellTooltip } from "@/components/gbo-optimization/changed-cell-tooltip";
+import { ImpactBanner } from "@/components/gbo-optimization/impact-banner";
 import { InfoLabel } from "@/components/gbo-optimization/info-label";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import {
   BUDGET_MONTHS,
   BUDGET_MONTH_VISIBLE_COUNT,
   GOALS_SCOPE_ROWS,
+  RULE_BASED_OPTIMIZER_NOTICE,
 } from "@/lib/gbo-optimization/setup-data";
 import {
   getGoalsBudgetFieldKey,
@@ -274,13 +275,7 @@ function ScopeColumnHeader({ width, onResizeStart }: ScopeColumnHeaderProps) {
 }
 
 export function GoalsBudgetsStep() {
-  const {
-    optimizerType,
-    includeSeasonality,
-    setIncludeSeasonality,
-    includeConstraints,
-    setIncludeConstraints,
-  } = useSetupContext();
+  const { optimizerType } = useSetupContext();
   const isRuleBased = optimizerType === "rule-based";
   const rowState = useSetupSessionStore((state) => state.goalsRowState);
   const setRowState = useSetupSessionStore((state) => state.setGoalsRowState);
@@ -423,10 +418,9 @@ export function GoalsBudgetsStep() {
   return (
     <div className="flex flex-col gap-3 py-4">
       {isRuleBased && (
-        <p className="rounded-md border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-          Rule-based mode — set goals only. Budget entry is not part of this
-          step (FR-005).
-        </p>
+        <ImpactBanner title="Rule-based — goals only">
+          {RULE_BASED_OPTIMIZER_NOTICE}
+        </ImpactBanner>
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -447,25 +441,6 @@ export function GoalsBudgetsStep() {
             Add Filters
           </Button>
         </div>
-
-        {!isRuleBased && (
-          <div className="flex flex-wrap items-center gap-4">
-            <label className="flex items-center gap-2 text-sm text-slate-600">
-              <Switch
-                checked={includeSeasonality}
-                onCheckedChange={setIncludeSeasonality}
-              />
-              <span>Seasonality</span>
-            </label>
-            <label className="flex items-center gap-2 text-sm text-slate-600">
-              <Switch
-                checked={includeConstraints}
-                onCheckedChange={setIncludeConstraints}
-              />
-              <span>Constraints</span>
-            </label>
-          </div>
-        )}
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
