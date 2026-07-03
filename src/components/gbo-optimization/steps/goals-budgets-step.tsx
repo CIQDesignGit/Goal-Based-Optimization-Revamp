@@ -23,6 +23,7 @@ import { InfoLabel } from "@/components/gbo-optimization/info-label";
 import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   BUDGET_CURRENT_MONTH_INDEX,
   BUDGET_MONTHS,
@@ -408,7 +409,13 @@ function ScopeColumnHeader({ width, onResizeStart }: ScopeColumnHeaderProps) {
 }
 
 export function GoalsBudgetsStep() {
-  const { optimizerType } = useSetupContext();
+  const {
+    optimizerType,
+    includeSeasonality,
+    setIncludeSeasonality,
+    includeConstraints,
+    setIncludeConstraints,
+  } = useSetupContext();
   const isRuleBased = optimizerType === "rule-based";
   const rowState = useSetupSessionStore((state) => state.goalsRowState);
   const setRowState = useSetupSessionStore((state) => state.setGoalsRowState);
@@ -666,6 +673,25 @@ export function GoalsBudgetsStep() {
             Add Filters
           </Button>
         </div>
+
+        {!isRuleBased && (
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <Switch
+                checked={includeSeasonality}
+                onCheckedChange={setIncludeSeasonality}
+              />
+              <span>Seasonality</span>
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <Switch
+                checked={includeConstraints}
+                onCheckedChange={setIncludeConstraints}
+              />
+              <span>Constraints</span>
+            </label>
+          </div>
+        )}
       </div>
 
       <div

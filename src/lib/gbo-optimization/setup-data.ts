@@ -140,14 +140,26 @@ function withStepIds(flow: StepDefinition[]): SetupStepConfig[] {
   });
 }
 
-function buildAllyAiFlow(): StepDefinition[] {
-  return [
+function buildAllyAiFlow(
+  includeConstraints: boolean,
+  includeSeasonality: boolean,
+): StepDefinition[] {
+  const flow: StepDefinition[] = [
     { key: "general", label: "General" },
     { key: "goals-budgets", label: "Goals & Budgets" },
-    { key: "constraints", label: "Constraints" },
-    { key: "seasonality", label: "Seasonality" },
-    { key: "summary", label: "Summary", nextLabel: "Save & Launch" },
   ];
+
+  if (includeConstraints) {
+    flow.push({ key: "constraints", label: "Constraints" });
+  }
+
+  if (includeSeasonality) {
+    flow.push({ key: "seasonality", label: "Seasonality" });
+  }
+
+  flow.push({ key: "summary", label: "Summary", nextLabel: "Save & Launch" });
+
+  return flow;
 }
 
 const RULE_BASED_FLOW: StepDefinition[] = [
@@ -158,14 +170,26 @@ const RULE_BASED_FLOW: StepDefinition[] = [
   { key: "summary", label: "Summary", nextLabel: "Save & Launch" },
 ];
 
-/** Returns wizard steps for the selected optimizer (FR-005). */
-export function getSetupSteps(optimizer: OptimizerType): SetupStepConfig[] {
+/** Returns wizard steps for the selected optimizer and optional step toggles (FR-005). */
+export type SetupFlowOptions = {
+  includeSeasonality?: boolean;
+  includeConstraints?: boolean;
+};
+
+export function getSetupSteps(
+  optimizer: OptimizerType,
+  options: SetupFlowOptions = {},
+): SetupStepConfig[] {
+  const { includeSeasonality = false, includeConstraints = false } = options;
+
   if (optimizer === "rule-based") {
     return withStepIds(RULE_BASED_FLOW);
   }
 
-  // Ally AI and Custom share the full flow (budgets, constraints, seasonality).
-  return withStepIds(buildAllyAiFlow());
+  // Ally AI and Custom share the full flow (budgets, optional constraints/seasonality).
+  return withStepIds(
+    buildAllyAiFlow(includeConstraints, includeSeasonality),
+  );
 }
 
 /** Default Ally AI flow — optional steps off, optimizer before summary. */

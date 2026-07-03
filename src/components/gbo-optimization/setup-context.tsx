@@ -20,6 +20,10 @@ import { useSetupSessionStore } from "@/lib/gbo-optimization/setup-session-store
 type SetupContextValue = {
   optimizerType: OptimizerType;
   setOptimizerType: (value: OptimizerType) => void;
+  includeSeasonality: boolean;
+  setIncludeSeasonality: (value: boolean) => void;
+  includeConstraints: boolean;
+  setIncludeConstraints: (value: boolean) => void;
   constraintsStepValid: boolean;
   setConstraintsStepValid: (value: boolean) => void;
   steps: SetupStepConfig[];
@@ -30,12 +34,18 @@ const SetupContext = createContext<SetupContextValue | null>(null);
 export function SetupProvider({ children }: { children: ReactNode }) {
   const [optimizerType, setOptimizerTypeState] =
     useState<OptimizerType>("ally-ai");
+  const [includeSeasonality, setIncludeSeasonalityState] = useState(false);
+  const [includeConstraints, setIncludeConstraintsState] = useState(false);
   const [constraintsStepValid, setConstraintsStepValidState] = useState(true);
   const goalType = useSetupSessionStore((state) => state.generalConfig.goalType);
 
   const steps = useMemo(
-    () => getSetupSteps(optimizerType),
-    [optimizerType],
+    () =>
+      getSetupSteps(optimizerType, {
+        includeSeasonality,
+        includeConstraints,
+      }),
+    [optimizerType, includeSeasonality, includeConstraints],
   );
 
   const setOptimizerType = useCallback(
@@ -53,11 +63,23 @@ export function SetupProvider({ children }: { children: ReactNode }) {
     setConstraintsStepValidState(value);
   }, []);
 
+  const setIncludeSeasonality = useCallback((value: boolean) => {
+    setIncludeSeasonalityState(value);
+  }, []);
+
+  const setIncludeConstraints = useCallback((value: boolean) => {
+    setIncludeConstraintsState(value);
+  }, []);
+
   return (
     <SetupContext.Provider
       value={{
         optimizerType,
         setOptimizerType,
+        includeSeasonality,
+        setIncludeSeasonality,
+        includeConstraints,
+        setIncludeConstraints,
         constraintsStepValid,
         setConstraintsStepValid,
         steps,
