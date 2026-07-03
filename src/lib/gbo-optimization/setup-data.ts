@@ -1,4 +1,4 @@
-export type OptimizerType = "ally-ai" | "rule-based";
+export type OptimizerType = "ally-ai" | "rule-based" | "custom";
 
 export type GoalType =
   | "brand-roas"
@@ -6,7 +6,7 @@ export type GoalType =
   | "total-roas"
   | "sov";
 
-export type AggressivenessLevel = "aggressive" | "moderate" | "conservative";
+export type AggressivenessLevel = "aggressive" | "moderate";
 
 export type SetupStepKey =
   | "general"
@@ -36,6 +36,13 @@ export const OPTIMIZER_OPTIONS = [
     label: "Rule-based",
     description:
       "Define explicit strategies and rules manually. Constraints and seasonality do not apply (except floor/ceiling).",
+    recommended: false,
+  },
+  {
+    value: "custom" as const,
+    label: "Custom",
+    description:
+      "Mix Ally AI and rule-based — choose the optimizer independently for each brand on the Goals step.",
     recommended: false,
   },
 ] as const;
@@ -76,11 +83,6 @@ export const AGGRESSIVENESS_OPTIONS = [
     label: "Moderate",
     description: "Balance growth targets with spend efficiency.",
   },
-  {
-    value: "conservative" as const,
-    label: "Conservative",
-    description: "Prioritize efficiency and stable returns.",
-  },
 ] as const;
 
 export function isSovGoal(goalType: GoalType | null): boolean {
@@ -91,6 +93,13 @@ export function getGoalTypeLabel(goalType: GoalType): string {
   return (
     GOAL_TYPE_OPTIONS.find((option) => option.value === goalType)?.label ??
     goalType
+  );
+}
+
+export function getOptimizerLabel(optimizerType: OptimizerType): string {
+  return (
+    OPTIMIZER_OPTIONS.find((option) => option.value === optimizerType)?.label ??
+    optimizerType
   );
 }
 
@@ -151,11 +160,12 @@ const RULE_BASED_FLOW: StepDefinition[] = [
 
 /** Returns wizard steps for the selected optimizer (FR-005). */
 export function getSetupSteps(optimizer: OptimizerType): SetupStepConfig[] {
-  if (optimizer === "ally-ai") {
-    return withStepIds(buildAllyAiFlow());
+  if (optimizer === "rule-based") {
+    return withStepIds(RULE_BASED_FLOW);
   }
 
-  return withStepIds(RULE_BASED_FLOW);
+  // Ally AI and Custom share the full flow (budgets, constraints, seasonality).
+  return withStepIds(buildAllyAiFlow());
 }
 
 /** Default Ally AI flow — optional steps off, optimizer before summary. */

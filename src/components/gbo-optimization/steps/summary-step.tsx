@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import {
   AGGRESSIVENESS_OPTIONS,
   getGoalTypeLabel,
+  getOptimizerLabel,
 } from "@/lib/gbo-optimization/setup-data";
 import {
   groupChangesByStep,
@@ -80,8 +81,7 @@ export function SummaryStep() {
     (state) => state.getImpactedScopes,
   );
 
-  const optimizerLabel =
-    optimizerType === "ally-ai" ? "Ally AI" : "Rule-based";
+  const optimizerLabel = getOptimizerLabel(optimizerType);
   const goalLabel = generalConfig.goalType
     ? getGoalTypeLabel(generalConfig.goalType)
     : null;

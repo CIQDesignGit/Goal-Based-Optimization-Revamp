@@ -119,8 +119,8 @@ export type GeneralConfig = {
 
 export function createInitialGeneralConfig(): GeneralConfig {
   return {
-    goalType: null,
-    aggressiveness: null,
+    goalType: "brand-roas",
+    aggressiveness: "aggressive",
     granularity: "Monthly",
     budgetType: "retailer",
     level1: "portfolio",

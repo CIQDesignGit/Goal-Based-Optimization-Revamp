@@ -27,6 +27,11 @@ import { cn } from "@/lib/utils";
 const SETUP_SELECT_TRIGGER_CLASS =
   "w-full border-slate-200 bg-white text-slate-700 shadow-none";
 
+const GOAL_TYPE_SELECT_OPTIONS = GOAL_TYPE_OPTIONS.map((option) => ({
+  value: option.value,
+  label: option.label,
+}));
+
 const BUDGET_TYPE_OPTIONS: {
   value: BudgetDefinitionType;
   title: string;
@@ -89,6 +94,9 @@ export function GeneralStep() {
   );
 
   const isSovSelected = isSovGoal(generalConfig.goalType);
+  const selectedGoalOption = GOAL_TYPE_OPTIONS.find(
+    (option) => option.value === generalConfig.goalType,
+  );
 
   const handleGoalTypeChange = (goalType: GoalType) => {
     setGoalType(goalType);
@@ -255,35 +263,22 @@ export function GeneralStep() {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-            {GOAL_TYPE_OPTIONS.map((option) => {
-              const isSelected = generalConfig.goalType === option.value;
-
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  title={option.description}
-                  onClick={() => handleGoalTypeChange(option.value)}
-                  className={cn(
-                    "flex items-start gap-2 rounded-md border px-2.5 py-2 text-left transition-colors",
-                    isSelected
-                      ? "border-brand-600 bg-brand-50"
-                      : "border-slate-200 bg-white hover:bg-slate-50",
-                  )}
-                >
-                  <RadioIndicator selected={isSelected} compact />
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold leading-snug text-slate-900 sm:text-sm">
-                      {option.label}
-                    </p>
-                    <p className="mt-0.5 line-clamp-2 text-[0.6875rem] leading-tight text-slate-500">
-                      {option.description}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
+          <div className="space-y-2">
+            <SetupInlineSelect
+              label="Goal type"
+              value={generalConfig.goalType}
+              options={GOAL_TYPE_SELECT_OPTIONS}
+              placeholder="Select a goal type"
+              onValueChange={(value) =>
+                handleGoalTypeChange(value as GoalType)
+              }
+              triggerClassName={SETUP_SELECT_TRIGGER_CLASS}
+            />
+            {selectedGoalOption ? (
+              <p className="text-sm leading-relaxed text-slate-500">
+                {selectedGoalOption.description}
+              </p>
+            ) : null}
           </div>
 
           {isSovSelected && (
@@ -309,11 +304,7 @@ export function GeneralStep() {
             <h3 className="text-sm font-semibold text-slate-900">
               Aggressiveness <span className="text-slate-900">*</span>
             </h3>
-            <div
-              className="grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-1"
-              role="tablist"
-              aria-label="Aggressiveness level"
-            >
+            <div className="grid grid-cols-2 gap-2">
               {AGGRESSIVENESS_OPTIONS.map((option) => {
                 const isSelected =
                   generalConfig.aggressiveness === option.value;
@@ -322,18 +313,24 @@ export function GeneralStep() {
                   <button
                     key={option.value}
                     type="button"
-                    role="tab"
-                    aria-selected={isSelected}
                     title={option.description}
                     onClick={() => setAggressiveness(option.value)}
                     className={cn(
-                      "rounded-md px-2 py-2 text-center text-sm transition-colors",
+                      "flex items-start gap-2 rounded-md border px-2.5 py-2 text-left transition-colors",
                       isSelected
-                        ? "border border-brand-600 bg-white font-semibold text-brand-600"
-                        : "border border-transparent bg-transparent font-normal text-slate-500 hover:text-slate-700",
+                        ? "border-brand-600 bg-brand-50"
+                        : "border-slate-200 bg-white hover:bg-slate-50",
                     )}
                   >
-                    {option.label}
+                    <RadioIndicator selected={isSelected} compact />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold leading-snug text-slate-900 sm:text-sm">
+                        {option.label}
+                      </p>
+                      <p className="mt-0.5 line-clamp-2 text-[0.6875rem] leading-tight text-slate-500">
+                        {option.description}
+                      </p>
+                    </div>
                   </button>
                 );
               })}
@@ -351,12 +348,12 @@ export function GeneralStep() {
               <span className="text-slate-900">*</span>
             </h2>
             <p className="text-sm text-slate-500">
-              Applies across all brands in the portfolio. You can also override
-              Ally AI or rule-based per brand on the Goals step.
+              Applies across all brands in the portfolio, unless you choose
+              Custom to set Ally AI or rule-based per brand on the Goals step.
             </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {OPTIMIZER_OPTIONS.map((option) => {
               const isSelected = optimizerType === option.value;
               const isDisabled =
