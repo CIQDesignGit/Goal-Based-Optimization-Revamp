@@ -311,7 +311,6 @@ function buildConstraintCellTooltipProps(
   rowId: string,
   field: ConstraintValueField,
   state: ConstraintRowState,
-  historicHint: string,
 ) {
   const historicFrom = isPercentField(field)
     ? formatPercentNumber(state.historicPercents[field])
@@ -328,7 +327,6 @@ function buildConstraintCellTooltipProps(
     cellVisual: getCellVisualState(state, field),
     diffFrom: diff.from,
     diffTo: diff.to,
-    historicHint,
   };
 }
 
@@ -465,7 +463,6 @@ type PercentConstraintCellProps = {
   cellVisual: CellVisualState;
   diffFrom: string;
   diffTo: string;
-  historicHint?: string;
   showHistoricalData?: boolean;
   historicDisplay?: string;
   pendingWarning: PendingPercentWarning | null;
@@ -486,7 +483,6 @@ function PercentConstraintCell({
   cellVisual,
   diffFrom,
   diffTo,
-  historicHint,
   showHistoricalData = false,
   historicDisplay,
   pendingWarning,
@@ -517,7 +513,6 @@ function PercentConstraintCell({
           visual={cellVisual}
           from={diffFrom}
           to={diffTo}
-          historicHint={historicHint}
         >
           <Input
             value={value}
@@ -609,7 +604,6 @@ type EditableConstraintCellProps = {
   cellVisual: CellVisualState;
   diffFrom: string;
   diffTo: string;
-  historicHint?: string;
   showHistoricalData?: boolean;
   historicDisplay?: string;
 };
@@ -624,7 +618,6 @@ function EditableConstraintCell({
   cellVisual,
   diffFrom,
   diffTo,
-  historicHint,
   showHistoricalData = false,
   historicDisplay,
 }: EditableConstraintCellProps) {
@@ -634,7 +627,6 @@ function EditableConstraintCell({
         visual={cellVisual}
         from={diffFrom}
         to={diffTo}
-        historicHint={historicHint}
       >
         <Input
           value={value}
@@ -1045,12 +1037,6 @@ export function ConstraintsStep() {
     });
   };
 
-  const historicHint = useMemo(
-    () =>
-      "Prefilled from last 30 days of performance. Edit any value to set your own split.",
-    [],
-  );
-
   const dataColWidth = showHistoricalData
     ? HISTORY_DATA_COL_WIDTH
     : DATA_COL_WIDTH;
@@ -1332,7 +1318,6 @@ export function ConstraintsStep() {
                           row.id,
                           "goalValue",
                           state,
-                          historicHint,
                         )}
                       />
                     ) : null}
@@ -1364,7 +1349,6 @@ export function ConstraintsStep() {
                             row.id,
                             field,
                             state,
-                            historicHint,
                           )}
                         />
                       ) : null}
@@ -1421,7 +1405,6 @@ export function ConstraintsStep() {
                                 row.id,
                                 field,
                                 state,
-                                historicHint,
                               )}
                             />
                           ) : null}
@@ -1479,7 +1462,6 @@ export function ConstraintsStep() {
                                 row.id,
                                 field,
                                 state,
-                                historicHint,
                               )}
                             />
                           ) : null}

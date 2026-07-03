@@ -15,11 +15,15 @@ import {
   BUDGET_CURRENT_MONTH_INDEX,
   BUDGET_MONTHS,
   CONSTRAINTS_SCOPE_ROWS,
+  getDefaultBudgetWindowEnd,
   getDefaultBudgetWindowStart,
   GOALS_SCOPE_ROWS,
+  normalizeGoalMetricValue,
+  resolveInitialMonthlyBudgets,
   type AggressivenessLevel,
   type ConstraintLast30Days,
   type GoalType,
+  type GoalMetricValue,
 } from "@/lib/gbo-optimization/setup-data";
 
 // ---------------------------------------------------------------------------
@@ -27,6 +31,7 @@ import {
 // ---------------------------------------------------------------------------
 
 export type GoalsRowState = {
+  goalMetric: GoalMetricValue;
   goalValue: string;
   monthlyBudgets: string[];
   historicGoalValue: string;
@@ -139,21 +144,15 @@ export function isGeneralConfigComplete(config: GeneralConfig): boolean {
 // Initial state factories
 // ---------------------------------------------------------------------------
 
-function padMonthlyBudgets(budgets: string[]): string[] {
-  return Array.from(
-    { length: BUDGET_MONTHS.length },
-    (_, index) => budgets[index] ?? "",
-  );
-}
-
 export function createInitialGoalsRowState(): Record<string, GoalsRowState> {
   return Object.fromEntries(
     GOALS_SCOPE_ROWS.map((row) => {
-      const monthlyBudgets = padMonthlyBudgets(row.monthlyBudgets);
+      const monthlyBudgets = resolveInitialMonthlyBudgets(row);
 
       return [
         row.id,
         {
+          goalMetric: normalizeGoalMetricValue(row.goalMetric),
           goalValue: row.goalValue,
           monthlyBudgets,
           historicGoalValue: row.goalValue,
@@ -288,6 +287,7 @@ type SetupSessionState = {
   goalsRowState: Record<string, GoalsRowState>;
   constraintsRowState: Record<string, ConstraintRowState>;
   monthWindowStart: number;
+  monthWindowEnd: number;
   goalsHistoricHintDismissed: boolean;
   changeLedger: ChangeLedgerEntry[];
   summaryReviewed: boolean;
@@ -313,9 +313,7 @@ type SetupSessionState = {
         ) => Record<string, ConstraintRowState>),
   ) => void;
 
-  setMonthWindowStart: (
-    value: number | ((current: number) => number),
-  ) => void;
+  setMonthWindowRange: (start: number, end: number) => void;
 
   setGoalsHistoricHintDismissed: (value: boolean) => void;
 
@@ -334,15 +332,21 @@ function createInitialSessionState(): Pick<
   | "goalsRowState"
   | "constraintsRowState"
   | "monthWindowStart"
+  | "monthWindowEnd"
   | "goalsHistoricHintDismissed"
   | "changeLedger"
   | "summaryReviewed"
 > {
+  const defaultMonthWindowStart = getDefaultBudgetWindowStart(
+    BUDGET_CURRENT_MONTH_INDEX,
+  );
+
   return {
     generalConfig: createInitialGeneralConfig(),
     goalsRowState: createInitialGoalsRowState(),
     constraintsRowState: createInitialConstraintsRowState(),
-    monthWindowStart: getDefaultBudgetWindowStart(BUDGET_CURRENT_MONTH_INDEX),
+    monthWindowStart: defaultMonthWindowStart,
+    monthWindowEnd: getDefaultBudgetWindowEnd(defaultMonthWindowStart),
     goalsHistoricHintDismissed: false,
     changeLedger: [],
     summaryReviewed: false,
@@ -414,11 +418,11 @@ export const useSetupSessionStore = create<SetupSessionState>((set, get) => ({
     }));
   },
 
-  setMonthWindowStart: (value) => {
-    set((state) => ({
-      monthWindowStart:
-        typeof value === "function" ? value(state.monthWindowStart) : value,
-    }));
+  setMonthWindowRange: (start, end) => {
+    set({
+      monthWindowStart: Math.max(0, start),
+      monthWindowEnd: Math.min(BUDGET_MONTHS.length, Math.max(start + 1, end)),
+    });
   },
 
   setGoalsHistoricHintDismissed: (value) => {

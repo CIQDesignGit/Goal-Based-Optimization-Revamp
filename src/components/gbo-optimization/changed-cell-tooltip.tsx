@@ -5,6 +5,7 @@ import type { ReactElement, ReactNode } from "react";
 import {
   Tooltip,
   TooltipContent,
+  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
@@ -15,7 +16,6 @@ type ChangedCellTooltipProps = {
   visual: CellVisualState;
   from: string;
   to: string;
-  historicHint?: string;
 };
 
 function formatDiffValue(value: string): string {
@@ -27,10 +27,9 @@ function buildTooltipContent({
   visual,
   from,
   to,
-  historicHint,
-}: Omit<ChangedCellTooltipProps, "children">): ReactNode {
-  if (visual === "historic" && historicHint) {
-    return historicHint;
+}: Omit<ChangedCellTooltipProps, "children">): ReactNode | null {
+  if (visual === "historic") {
+    return null;
   }
 
   if (visual === "adjusted") {
@@ -56,30 +55,29 @@ function buildTooltipContent({
   return null;
 }
 
-/** Hover diff for edited cells — preserves styling via persisted flags in the store. */
+/** Hover diff for edited or auto-adjusted cells only (FR-013). */
 export function ChangedCellTooltip({
   children,
   visual,
   from,
   to,
-  historicHint,
 }: ChangedCellTooltipProps) {
-  const content = buildTooltipContent({ visual, from, to, historicHint });
+  const content = buildTooltipContent({ visual, from, to });
 
   if (!content) {
     return children;
   }
 
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <span className="block w-full min-w-0">{children}</span>
-        }
-      />
-      <TooltipContent className="max-w-xs text-left leading-snug">
-        {content}
-      </TooltipContent>
-    </Tooltip>
+    <TooltipProvider delay={500}>
+      <Tooltip>
+        <TooltipTrigger
+          render={<span className="block w-full min-w-0">{children}</span>}
+        />
+        <TooltipContent className="max-w-xs text-left leading-snug">
+          {content}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }

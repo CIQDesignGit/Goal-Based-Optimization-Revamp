@@ -103,43 +103,43 @@ export function SetupInlineSelect({
             <X className="size-4" />
           </button>
         ) : null}
+
+        {listOpen ? (
+          <ul
+            id={listId}
+            role="listbox"
+            aria-label={label}
+            className="absolute top-full left-0 z-50 mt-1 max-h-60 w-full min-w-full overflow-y-auto rounded-md border border-slate-200 bg-white p-1 shadow-md ring-1 ring-foreground/10"
+          >
+            {options.map((option) => {
+              const isSelected = value === option.value;
+
+              return (
+                <li key={option.value} role="presentation">
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    className={cn(
+                      "relative flex w-full cursor-default items-center rounded-md py-1.5 pr-8 pl-2 text-left text-sm outline-hidden select-none hover:bg-slate-100 focus:bg-slate-100",
+                      isSelected && "bg-accent text-accent-foreground",
+                    )}
+                    onClick={() => {
+                      onValueChange(option.value);
+                      setListOpen(false);
+                    }}
+                  >
+                    {option.label}
+                    {isSelected ? (
+                      <Check className="absolute right-2 size-4 text-slate-900" />
+                    ) : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
       </div>
-
-      {listOpen ? (
-        <ul
-          id={listId}
-          role="listbox"
-          aria-label={label}
-          className="mt-1 overflow-hidden rounded-md border border-slate-200 bg-white p-1 shadow-md ring-1 ring-foreground/10"
-        >
-          {options.map((option) => {
-            const isSelected = value === option.value;
-
-            return (
-              <li key={option.value} role="presentation">
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={isSelected}
-                  className={cn(
-                    "relative flex w-full cursor-default items-center rounded-md py-1.5 pr-8 pl-2 text-left text-sm outline-hidden select-none hover:bg-slate-100 focus:bg-slate-100",
-                    isSelected && "bg-accent text-accent-foreground",
-                  )}
-                  onClick={() => {
-                    onValueChange(option.value);
-                    setListOpen(false);
-                  }}
-                >
-                  {option.label}
-                  {isSelected ? (
-                    <Check className="absolute right-2 size-4 text-slate-900" />
-                  ) : null}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
     </div>
   );
 }

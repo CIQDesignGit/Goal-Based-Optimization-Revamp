@@ -235,6 +235,17 @@ export const PREFILL_METRIC_OPTIONS = [
   { value: "acos", label: "ACOS" },
 ] as const;
 
+export type GoalMetricValue = (typeof PREFILL_METRIC_OPTIONS)[number]["value"];
+
+export function normalizeGoalMetricValue(metric: string): GoalMetricValue {
+  const normalized = metric.trim().toLowerCase();
+  return normalized === "acos" ? "acos" : "roas";
+}
+
+export function isRoasGoalMetric(metric: string): boolean {
+  return normalizeGoalMetricValue(metric) === "roas";
+}
+
 export const BUDGET_MONTHS = [
   "Jan '26",
   "Feb '26",
@@ -262,10 +273,34 @@ export const BUDGET_MONTH_VISIBLE_COUNT =
 /** Prototype anchor month — July 2026. */
 export const BUDGET_CURRENT_MONTH_INDEX = 6;
 
+/** Past months before the anchor cannot be edited in the budget table. */
+export function isBudgetMonthLocked(
+  monthIndex: number,
+  currentMonthIndex: number = BUDGET_CURRENT_MONTH_INDEX,
+): boolean {
+  return monthIndex < currentMonthIndex;
+}
+
+export function isBudgetCurrentMonth(
+  monthIndex: number,
+  currentMonthIndex: number = BUDGET_CURRENT_MONTH_INDEX,
+): boolean {
+  return monthIndex === currentMonthIndex;
+}
+
 export function getDefaultBudgetWindowStart(
   currentMonthIndex: number = BUDGET_CURRENT_MONTH_INDEX,
 ): number {
   return Math.max(0, currentMonthIndex - (BUDGET_MONTH_VISIBLE_RECENT - 1));
+}
+
+export function getDefaultBudgetWindowEnd(
+  windowStart: number = getDefaultBudgetWindowStart(),
+): number {
+  return Math.min(
+    BUDGET_MONTHS.length,
+    windowStart + BUDGET_MONTH_VISIBLE_COUNT,
+  );
 }
 
 export type ScopeRow = {
@@ -280,6 +315,20 @@ export type ScopeRow = {
   fyTotal: string;
 };
 
+/** Monthly budget default from last-30-day spend (prototype uses the row's L30D budget). */
+export function getScopeRowDefaultMonthlyBudget(row: ScopeRow): string {
+  return row.monthlyBudgets.find((budget) => budget.trim() !== "")?.trim() ?? "";
+}
+
+export function resolveInitialMonthlyBudgets(row: ScopeRow): string[] {
+  const defaultBudget = getScopeRowDefaultMonthlyBudget(row);
+
+  return Array.from({ length: BUDGET_MONTHS.length }, (_, index) => {
+    const existing = row.monthlyBudgets[index]?.trim() ?? "";
+    return existing || defaultBudget;
+  });
+}
+
 export const GOALS_SCOPE_ROWS: ScopeRow[] = [
   {
     id: "entire-business",
@@ -289,6 +338,10 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
     goalValue: "14.8",
     last30Days: "14.6",
     monthlyBudgets: [
+      "$22,809",
+      "$22,809",
+      "$22,809",
+      "$22,809",
       "$22,809",
       "$22,809",
       "$22,809",
@@ -308,6 +361,11 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
     goalValue: "17.5",
     last30Days: "18.48",
     monthlyBudgets: [
+      "$13,808",
+      "$13,808",
+      "$13,808",
+      "$13,808",
+      "$13,808",
       "$13,808",
       "$13,808",
       "$13,808",
@@ -349,12 +407,16 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
       "$2,500",
       "$2,500",
       "$2,500",
-      "",
-      "",
-      "",
-      "",
+      "$2,500",
+      "$2,500",
+      "$2,500",
+      "$2,500",
+      "$2,500",
+      "$2,500",
+      "$2,500",
+      "$2,500",
     ],
-    fyTotal: "$10,000",
+    fyTotal: "$30,000",
   },
   {
     id: "pilgrims",
@@ -427,10 +489,14 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
       "$2,100",
       "$2,100",
       "$2,100",
-      "",
-      "",
+      "$2,100",
+      "$2,100",
+      "$2,100",
+      "$2,100",
+      "$2,100",
+      "$2,100",
     ],
-    fyTotal: "$12,600",
+    fyTotal: "$25,200",
   },
   {
     id: "premium-pet",
