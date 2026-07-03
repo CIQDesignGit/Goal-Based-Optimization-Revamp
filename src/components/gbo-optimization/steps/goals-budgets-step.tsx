@@ -1,44 +1,86 @@
 "use client";
 
-import { ChevronDown, ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
-import { useCallback, useMemo, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  History,
+  Plus,
+  Search,
+  X,
+} from "lucide-react";
+import {
+  useCallback,
+  useMemo,
+  useState,
+  type FocusEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 import { useSetupContext } from "@/components/gbo-optimization/setup-context";
+import { ChangedCellTooltip } from "@/components/gbo-optimization/changed-cell-tooltip";
 import { InfoLabel } from "@/components/gbo-optimization/info-label";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
-  BUDGET_CURRENT_MONTH_INDEX,
   BUDGET_MONTHS,
   BUDGET_MONTH_VISIBLE_COUNT,
-  getDefaultBudgetWindowStart,
   GOALS_SCOPE_ROWS,
 } from "@/lib/gbo-optimization/setup-data";
+import {
+  getGoalsBudgetFieldKey,
+  getLatestCellChange,
+  recordGoalsBudgetChange,
+  recordGoalsGoalChange,
+  useSetupSessionStore,
+  type GoalsRowState,
+} from "@/lib/gbo-optimization/setup-session-store";
 import { cn } from "@/lib/utils";
 
 const NUM_HEAD =
   "border-r border-slate-200 px-3 py-2 text-right text-xs font-medium text-slate-600";
 const NUM_CELL = "border-r border-slate-100 p-1.5 text-right";
-const BUDGET_HEAD =
-  "min-w-[5.5rem] whitespace-nowrap border-r border-slate-200 px-2 py-2 text-right text-xs font-medium text-slate-600";
-const BUDGET_CELL =
-  "min-w-[5.5rem] whitespace-nowrap border-r border-slate-100 p-1 text-right";
+const BUDGET_COL_WIDTH_CLASS =
+  "w-[6.5rem] min-w-[6.5rem] max-w-[6.5rem] whitespace-nowrap";
+const BUDGET_HEAD = cn(
+  BUDGET_COL_WIDTH_CLASS,
+  "border-r border-slate-200 px-2 py-2 text-right text-xs font-medium text-slate-600",
+);
+const BUDGET_CELL = cn(
+  BUDGET_COL_WIDTH_CLASS,
+  "border-r border-slate-100 p-1 text-right",
+);
 const TARGET_HEAD =
   "w-28 min-w-28 border-r border-brand-200 bg-brand-50 px-2 py-2 text-right text-xs font-medium text-brand-800";
 const TARGET_CELL =
   "w-28 min-w-28 border-r border-brand-100 bg-brand-50/70 p-1 text-right";
-const EDITABLE_INPUT_CLASS =
-  "h-8 w-full min-w-0 border-transparent bg-transparent px-1.5 text-right text-sm tabular-nums shadow-none hover:border-slate-200 focus-visible:border-brand-300 focus-visible:bg-white";
-const BUDGET_INPUT_CLASS =
-  "h-8 w-full min-w-[4.75rem] border-transparent bg-transparent px-1.5 text-right text-sm tabular-nums shadow-none hover:border-slate-200 focus-visible:border-brand-300 focus-visible:bg-white";
+const cellInputClass =
+  "h-8 w-full min-w-0 border border-transparent px-1.5 text-right text-sm tabular-nums shadow-none hover:border-slate-200 focus-visible:border-brand-300 focus-visible:bg-white";
+const budgetCellInputClass =
+  "h-8 w-full min-w-0 border border-transparent px-1.5 text-right text-sm tabular-nums shadow-none hover:border-slate-200 focus-visible:border-brand-300 focus-visible:bg-white";
 const SCOPE_COLUMN_MIN_WIDTH = 200;
 const SCOPE_COLUMN_DEFAULT_WIDTH = 220;
+const HISTORIC_HINT =
+  "Prefilled from last 30 days of performance. Edit any value to set your own target or budget.";
 
-type EditableRowState = {
-  goalValue: string;
-  monthlyBudgets: string[];
-};
+function selectEditablePortion(input: HTMLInputElement) {
+  const { value } = input;
+  const start = value.startsWith("$") ? 1 : 0;
+  const end = value.length;
+
+  if (end > start) {
+    input.setSelectionRange(start, end);
+  } else if (value.length > 0) {
+    input.select();
+  }
+}
+
+function handleGoalsInputFocus(event: FocusEvent<HTMLInputElement>) {
+  requestAnimationFrame(() => {
+    selectEditablePortion(event.currentTarget);
+  });
+}
 
 function parseCurrency(value: string): number {
   const cleaned = value.replace(/[$,]/g, "").trim();
@@ -60,22 +102,103 @@ function sumMonthlyBudgets(budgets: string[]): number {
   return budgets.reduce((total, budget) => total + parseCurrency(budget), 0);
 }
 
-function padMonthlyBudgets(budgets: string[]): string[] {
-  return Array.from(
-    { length: BUDGET_MONTHS.length },
-    (_, index) => budgets[index] ?? "",
+function normalizeCurrencyDisplay(value: string): string {
+  const raw = value.trim();
+  if (!raw) return "";
+  return formatCurrency(parseCurrency(raw));
+}
+
+function normalizeGoalDisplay(value: string, isRoas: boolean): string {
+  const raw = value.trim();
+  if (!raw) return "";
+
+  if (isRoas) {
+    const numeric = Number.parseFloat(raw.replace(/,/g, ""));
+    if (Number.isNaN(numeric)) return raw;
+    return Number.isInteger(numeric) ? String(numeric) : numeric.toFixed(1);
+  }
+
+  if (raw.startsWith("$")) return raw;
+  return formatCurrency(parseCurrency(raw)) || raw;
+}
+
+function goalMatchesHistoric(
+  state: GoalsRowState,
+  isRoas: boolean,
+): boolean {
+  return (
+    normalizeGoalDisplay(state.goalValue, isRoas) ===
+    normalizeGoalDisplay(state.historicGoalValue, isRoas)
   );
 }
 
-function createInitialRowState(): Record<string, EditableRowState> {
-  return Object.fromEntries(
-    GOALS_SCOPE_ROWS.map((row) => [
-      row.id,
-      {
-        goalValue: row.goalValue,
-        monthlyBudgets: padMonthlyBudgets(row.monthlyBudgets),
-      },
-    ]),
+function monthMatchesHistoric(
+  state: GoalsRowState,
+  monthIndex: number,
+): boolean {
+  return (
+    normalizeCurrencyDisplay(state.monthlyBudgets[monthIndex] ?? "") ===
+    normalizeCurrencyDisplay(state.historicMonthlyBudgets[monthIndex] ?? "")
+  );
+}
+
+function getGoalCellVisualState(
+  state: GoalsRowState,
+  isRoas: boolean,
+): "historic" | "edited" {
+  if (state.editedGoalValue) return "edited";
+  return goalMatchesHistoric(state, isRoas) ? "historic" : "edited";
+}
+
+function getBudgetCellVisualState(
+  state: GoalsRowState,
+  monthIndex: number,
+): "historic" | "edited" {
+  if (state.editedMonthlyBudgets[monthIndex]) return "edited";
+  return monthMatchesHistoric(state, monthIndex) ? "historic" : "edited";
+}
+
+function getGoalsCellDiff(
+  scopeId: string,
+  fieldKey: string,
+  historicFrom: string,
+  currentTo: string,
+): { from: string; to: string } {
+  const entry = getLatestCellChange(scopeId, fieldKey);
+
+  if (entry) {
+    return { from: entry.from, to: entry.to };
+  }
+
+  return { from: historicFrom, to: currentTo };
+}
+
+function goalInputVisualClass(
+  state: GoalsRowState,
+  isRoas: boolean,
+): string {
+  const visual = getGoalCellVisualState(state, isRoas);
+
+  return cn(
+    cellInputClass,
+    visual === "historic" &&
+      "bg-brand-50/80 text-brand-600/80 italic placeholder:text-brand-400/60",
+    visual === "edited" &&
+      "bg-white font-medium text-brand-900 placeholder:text-brand-400/70",
+  );
+}
+
+function budgetInputVisualClass(
+  state: GoalsRowState,
+  monthIndex: number,
+): string {
+  const visual = getBudgetCellVisualState(state, monthIndex);
+
+  return cn(
+    budgetCellInputClass,
+    visual === "historic" &&
+      "bg-slate-50 text-slate-400 italic placeholder:text-slate-300",
+    visual === "edited" && "bg-white font-medium text-slate-900",
   );
 }
 
@@ -159,9 +282,19 @@ export function GoalsBudgetsStep() {
     setIncludeConstraints,
   } = useSetupContext();
   const isRuleBased = optimizerType === "rule-based";
-  const [rowState, setRowState] = useState(createInitialRowState);
-  const [monthWindowStart, setMonthWindowStart] = useState(() =>
-    getDefaultBudgetWindowStart(BUDGET_CURRENT_MONTH_INDEX),
+  const rowState = useSetupSessionStore((state) => state.goalsRowState);
+  const setRowState = useSetupSessionStore((state) => state.setGoalsRowState);
+  const historicHintDismissed = useSetupSessionStore(
+    (state) => state.goalsHistoricHintDismissed,
+  );
+  const setHistoricHintDismissed = useSetupSessionStore(
+    (state) => state.setGoalsHistoricHintDismissed,
+  );
+  const monthWindowStart = useSetupSessionStore(
+    (state) => state.monthWindowStart,
+  );
+  const setMonthWindowStart = useSetupSessionStore(
+    (state) => state.setMonthWindowStart,
   );
   const { width: scopeColumnWidth, onResizeStart: onScopeResizeStart } =
     useResizableColumnWidth(
@@ -199,29 +332,29 @@ export function GoalsBudgetsStep() {
       const row = current[rowId];
       if (!row) return current;
 
-      const raw = row.goalValue.trim();
-      if (!raw) return current;
-
       const scopeRow = GOALS_SCOPE_ROWS.find((item) => item.id === rowId);
       const isRoasTarget = scopeRow?.goalMetric === "ROAS";
+      const formatted = normalizeGoalDisplay(row.goalValue, isRoasTarget);
+      const nextRow: GoalsRowState = {
+        ...row,
+        goalValue: formatted,
+        editedGoalValue: false,
+      };
+      nextRow.editedGoalValue = !goalMatchesHistoric(nextRow, isRoasTarget);
 
-      let formatted = raw;
-      if (isRoasTarget) {
-        const numeric = Number.parseFloat(raw.replace(/,/g, ""));
-        if (!Number.isNaN(numeric)) {
-          formatted = Number.isInteger(numeric)
-            ? String(numeric)
-            : numeric.toFixed(1);
-        }
-      } else if (raw.startsWith("$")) {
-        formatted = raw;
-      } else {
-        formatted = formatCurrency(parseCurrency(raw)) || raw;
+      if (
+        normalizeGoalDisplay(row.historicGoalValue, isRoasTarget) !== formatted
+      ) {
+        recordGoalsGoalChange(
+          rowId,
+          row.historicGoalValue,
+          formatted,
+        );
       }
 
       return {
         ...current,
-        [rowId]: { ...row, goalValue: formatted },
+        [rowId]: nextRow,
       };
     });
   };
@@ -252,13 +385,28 @@ export function GoalsBudgetsStep() {
 
       const monthlyBudgets = [...row.monthlyBudgets];
       const raw = monthlyBudgets[monthIndex]?.trim() ?? "";
+      const historicValue = row.historicMonthlyBudgets[monthIndex] ?? "";
 
       monthlyBudgets[monthIndex] =
-        raw === "" ? "" : formatCurrency(parseCurrency(raw));
+        raw === "" ? "" : normalizeCurrencyDisplay(raw);
+
+      const editedMonthlyBudgets = [...row.editedMonthlyBudgets];
+      editedMonthlyBudgets[monthIndex] =
+        normalizeCurrencyDisplay(historicValue) !==
+        normalizeCurrencyDisplay(monthlyBudgets[monthIndex] ?? "");
+
+      if (editedMonthlyBudgets[monthIndex]) {
+        recordGoalsBudgetChange(
+          rowId,
+          monthIndex,
+          historicValue,
+          monthlyBudgets[monthIndex] ?? "",
+        );
+      }
 
       return {
         ...current,
-        [rowId]: { ...row, monthlyBudgets },
+        [rowId]: { ...row, monthlyBudgets, editedMonthlyBudgets },
       };
     });
   };
@@ -321,7 +469,7 @@ export function GoalsBudgetsStep() {
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-        <table className="w-full min-w-[960px] table-fixed border-collapse text-sm">
+        <table className="w-full min-w-[1080px] table-fixed border-collapse text-sm">
           <colgroup>
             <col style={{ width: scopeColumnWidth }} />
           </colgroup>
@@ -418,6 +566,7 @@ export function GoalsBudgetsStep() {
               const isParent = row.id === "entire-business";
               const editable = rowState[row.id];
               const fyTotal = fyTotals[row.id] ?? 0;
+              const isRoasTarget = row.goalMetric === "ROAS";
 
               return (
                 <tr
@@ -450,19 +599,33 @@ export function GoalsBudgetsStep() {
                     {row.goalMetric}
                   </td>
                   <td className={TARGET_CELL}>
-                    <Input
-                      value={editable?.goalValue ?? ""}
-                      onChange={(event) =>
-                        updateGoalValue(row.id, event.target.value)
-                      }
-                      onBlur={() => formatGoalValue(row.id)}
-                      placeholder="Set target"
-                      aria-label={`Target value for ${row.name}`}
-                      className={cn(
-                        EDITABLE_INPUT_CLASS,
-                        "text-brand-900 placeholder:text-brand-400/70",
-                      )}
-                    />
+                    {editable ? (
+                      <ChangedCellTooltip
+                        visual={getGoalCellVisualState(editable, isRoasTarget)}
+                        {...getGoalsCellDiff(
+                          row.id,
+                          "goalValue",
+                          editable.historicGoalValue,
+                          editable.goalValue,
+                        )}
+                        historicHint={HISTORIC_HINT}
+                      >
+                        <Input
+                          value={editable.goalValue}
+                          onChange={(event) =>
+                            updateGoalValue(row.id, event.target.value)
+                          }
+                          onFocus={handleGoalsInputFocus}
+                          onClick={(event) =>
+                            selectEditablePortion(event.currentTarget)
+                          }
+                          onBlur={() => formatGoalValue(row.id)}
+                          placeholder="Set target"
+                          aria-label={`Target value for ${row.name}`}
+                          className={goalInputVisualClass(editable, isRoasTarget)}
+                        />
+                      </ChangedCellTooltip>
+                    ) : null}
                   </td>
                   <td className={cn(NUM_CELL, "border-r border-slate-200")}>
                     <span className="block px-2 py-1.5 tabular-nums text-slate-700">
@@ -475,22 +638,44 @@ export function GoalsBudgetsStep() {
                         key={`${row.id}-${monthIndex}`}
                         className={BUDGET_CELL}
                       >
-                        <Input
-                          value={editable?.monthlyBudgets[monthIndex] ?? ""}
-                          onChange={(event) =>
-                            updateMonthlyBudget(
-                              row.id,
+                        {editable ? (
+                          <ChangedCellTooltip
+                            visual={getBudgetCellVisualState(
+                              editable,
                               monthIndex,
-                              event.target.value,
-                            )
-                          }
-                          onBlur={() => formatMonthlyBudget(row.id, monthIndex)}
-                          aria-label={`${BUDGET_MONTHS[monthIndex]} budget for ${row.name}`}
-                          className={cn(
-                            BUDGET_INPUT_CLASS,
-                            "text-slate-700 placeholder:text-transparent",
-                          )}
-                        />
+                            )}
+                            {...getGoalsCellDiff(
+                              row.id,
+                              getGoalsBudgetFieldKey(monthIndex),
+                              editable.historicMonthlyBudgets[monthIndex] ?? "",
+                              editable.monthlyBudgets[monthIndex] ?? "",
+                            )}
+                            historicHint={HISTORIC_HINT}
+                          >
+                            <Input
+                              value={editable.monthlyBudgets[monthIndex] ?? ""}
+                              onChange={(event) =>
+                                updateMonthlyBudget(
+                                  row.id,
+                                  monthIndex,
+                                  event.target.value,
+                                )
+                              }
+                              onFocus={handleGoalsInputFocus}
+                              onClick={(event) =>
+                                selectEditablePortion(event.currentTarget)
+                              }
+                              onBlur={() =>
+                                formatMonthlyBudget(row.id, monthIndex)
+                              }
+                              aria-label={`${BUDGET_MONTHS[monthIndex]} budget for ${row.name}`}
+                              className={budgetInputVisualClass(
+                                editable,
+                                monthIndex,
+                              )}
+                            />
+                          </ChangedCellTooltip>
+                        ) : null}
                       </td>
                     ))}
                   {!isRuleBased && (
@@ -510,6 +695,29 @@ export function GoalsBudgetsStep() {
           </tbody>
         </table>
       </div>
+
+      {!historicHintDismissed && (
+        <div className="sticky bottom-0 z-20 shrink-0 -mx-2 border-t border-slate-200 bg-slate-50/95 px-4 py-3 shadow-[0_-4px_12px_-2px_rgba(0,0,0,0.08)] backdrop-blur-sm">
+          <div className="flex items-start gap-2 text-sm text-slate-600">
+            <History className="mt-0.5 size-4 shrink-0 text-slate-400" />
+            <p className="flex-1 pr-2">
+              Gray italic values are based on your{" "}
+              <span className="font-medium text-slate-700">last 30 days</span> of
+              performance. Edit any cell to override it — the{" "}
+              <span className="font-medium text-slate-700">FY 2026</span> total
+              updates automatically from your monthly budgets.
+            </p>
+            <button
+              type="button"
+              onClick={() => setHistoricHintDismissed(true)}
+              className="shrink-0 rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-200/80 hover:text-slate-600"
+              aria-label="Dismiss hint"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

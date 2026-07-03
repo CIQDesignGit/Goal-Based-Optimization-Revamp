@@ -26,6 +26,10 @@ import {
 } from "lucide-react";
 
 import { useSetupContext } from "@/components/gbo-optimization/setup-context";
+import {
+  ChangedCellTooltip,
+  type CellVisualState,
+} from "@/components/gbo-optimization/changed-cell-tooltip";
 import { InfoLabel } from "@/components/gbo-optimization/info-label";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,9 +55,16 @@ import {
 } from "@/lib/gbo-optimization/constraint-distribution";
 import {
   CONSTRAINTS_SCOPE_ROWS,
-  type ConstraintLast30Days,
   type ConstraintRow,
 } from "@/lib/gbo-optimization/setup-data";
+import {
+  getLatestCellChange,
+  recordConstraintFieldChange,
+  useSetupSessionStore,
+  type ConstraintRowState,
+  type ConstraintValueField,
+  type ConstraintValues,
+} from "@/lib/gbo-optimization/setup-session-store";
 import { cn } from "@/lib/utils";
 
 const SPEND_CONSTRAINT_COL_COUNT = 7;
@@ -172,25 +183,6 @@ function FloatingCellAlert({
   );
 }
 
-type ConstraintValues = {
-  goalValue: string;
-  genericKeyword: string;
-  clientBrandedKeyword: string;
-  competitorKeyword: string;
-  competitorProduct: string;
-  auto: string;
-  others: string;
-  campaignSp: string;
-  campaignSb: string;
-  campaignSd: string;
-  bidFloor: string;
-  bidCeiling: string;
-  budgetFloor: string;
-  budgetCeiling: string;
-};
-
-type ConstraintValueField = keyof ConstraintValues;
-
 type PercentGroup = "spend" | "campaign";
 
 function editSessionKey(rowId: string, field: ConstraintValueField): string {
@@ -221,32 +213,6 @@ function inlineBlockMessage(
   return "Min 0%";
 }
 
-type ConstraintRowState = {
-  values: ConstraintValues;
-  historicPercents: Record<PercentField, number>;
-  historicValues: ConstraintValues;
-  overridden: Partial<Record<ConstraintValueField, boolean>>;
-};
-
-function emptyValues(): ConstraintValues {
-  return {
-    goalValue: "",
-    genericKeyword: "",
-    clientBrandedKeyword: "",
-    competitorKeyword: "",
-    competitorProduct: "",
-    auto: "",
-    others: "",
-    campaignSp: "",
-    campaignSb: "",
-    campaignSd: "",
-    bidFloor: "",
-    bidCeiling: "",
-    budgetFloor: "",
-    budgetCeiling: "",
-  };
-}
-
 function parseCurrency(value: string): number {
   const cleaned = value.replace(/[$,\s]/g, "");
   const parsed = Number.parseFloat(cleaned);
@@ -260,69 +226,6 @@ function formatCurrency(value: number): string {
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(value);
-}
-
-function buildHistoricPercents(
-  values: ConstraintValues,
-): Record<PercentField, number> {
-  return Object.fromEntries(
-    [...SPEND_PERCENT_FIELDS, ...CAMPAIGN_PERCENT_FIELDS].map((field) => [
-      field,
-      parsePercent(values[field]),
-    ]),
-  ) as Record<PercentField, number>;
-}
-
-function buildRowStateFromHistoric(last30Days: ConstraintLast30Days = {}): ConstraintRowState {
-  const values: ConstraintValues = {
-    ...emptyValues(),
-    goalValue: last30Days.goalValue ?? "",
-    genericKeyword: last30Days.genericKeyword ?? "",
-    clientBrandedKeyword: last30Days.clientBrandedKeyword ?? "",
-    competitorKeyword: last30Days.competitorKeyword ?? "",
-    competitorProduct: last30Days.competitorProduct ?? "",
-    auto: last30Days.auto ?? "",
-    others: last30Days.others ?? "",
-    campaignSp: last30Days.campaignSp ?? "",
-    campaignSb: last30Days.campaignSb ?? "",
-    campaignSd: last30Days.campaignSd ?? "",
-    bidFloor: last30Days.bidFloor ?? "",
-    bidCeiling: last30Days.bidCeiling ?? "",
-    budgetFloor: last30Days.budgetFloor ?? "",
-    budgetCeiling: last30Days.budgetCeiling ?? "",
-  };
-
-  const historicPercents = buildHistoricPercents(values);
-  const spendDistributed = redistributePercentFields(
-    SPEND_PERCENT_FIELDS,
-    historicPercents,
-    {},
-  );
-  const campaignDistributed = redistributePercentFields(
-    CAMPAIGN_PERCENT_FIELDS,
-    historicPercents,
-    {},
-  );
-
-  return {
-    values: {
-      ...values,
-      ...spendDistributed,
-      ...campaignDistributed,
-    },
-    historicPercents,
-    historicValues: values,
-    overridden: {},
-  };
-}
-
-function createInitialRowState(): Record<string, ConstraintRowState> {
-  return Object.fromEntries(
-    CONSTRAINTS_SCOPE_ROWS.map((row) => [
-      row.id,
-      buildRowStateFromHistoric(row.last30Days),
-    ]),
-  );
 }
 
 function isPercentField(field: ConstraintValueField): field is PercentField {
@@ -367,18 +270,95 @@ function rowHasManualEditsOnOtherFields(
 function getCellVisualState(
   state: ConstraintRowState,
   field: ConstraintValueField,
-): "historic" | "adjusted" | "edited" {
-  const matchesHistoric = fieldMatchesHistoric(state, field);
-
-  if (state.overridden[field] && !matchesHistoric) {
+): CellVisualState {
+  if (state.overridden[field]) {
     return "edited";
   }
+
+  if (state.adjusted[field]) {
+    return "adjusted";
+  }
+
+  const matchesHistoric = fieldMatchesHistoric(state, field);
 
   if (!matchesHistoric && rowHasManualEditsOnOtherFields(state, field)) {
     return "adjusted";
   }
 
+  if (!matchesHistoric) {
+    return "edited";
+  }
+
   return "historic";
+}
+
+function getConstraintCellDiff(
+  scopeId: string,
+  field: ConstraintValueField,
+  historicFrom: string,
+  currentTo: string,
+): { from: string; to: string } {
+  const entry = getLatestCellChange(scopeId, field);
+
+  if (entry) {
+    return { from: entry.from, to: entry.to };
+  }
+
+  return { from: historicFrom, to: currentTo };
+}
+
+function buildConstraintCellTooltipProps(
+  rowId: string,
+  field: ConstraintValueField,
+  state: ConstraintRowState,
+  historicHint: string,
+) {
+  const historicFrom = isPercentField(field)
+    ? formatPercentNumber(state.historicPercents[field])
+    : state.historicValues[field];
+
+  const diff = getConstraintCellDiff(
+    rowId,
+    field,
+    historicFrom,
+    state.values[field],
+  );
+
+  return {
+    cellVisual: getCellVisualState(state, field),
+    diffFrom: diff.from,
+    diffTo: diff.to,
+    historicHint,
+  };
+}
+
+function buildNextAdjustedFlags(
+  row: ConstraintRowState,
+  fields: readonly PercentField[],
+  editedField: PercentField,
+  nextOverridden: Partial<Record<ConstraintValueField, boolean>>,
+  nextValues: ConstraintValues,
+): Partial<Record<ConstraintValueField, boolean>> {
+  const nextAdjusted = { ...row.adjusted };
+
+  delete nextAdjusted[editedField];
+
+  for (const groupField of fields) {
+    if (nextOverridden[groupField]) {
+      delete nextAdjusted[groupField];
+      continue;
+    }
+
+    if (
+      parsePercent(nextValues[groupField]) !== row.historicPercents[groupField]
+    ) {
+      nextAdjusted[groupField] = true;
+    } else {
+      delete nextAdjusted[groupField];
+    }
+  }
+
+  return nextAdjusted;
 }
 
 function percentTotalClassName(
@@ -482,7 +462,10 @@ type PercentConstraintCellProps = {
   value: string;
   state: ConstraintRowState;
   ariaLabel: string;
-  title?: string;
+  cellVisual: CellVisualState;
+  diffFrom: string;
+  diffTo: string;
+  historicHint?: string;
   showHistoricalData?: boolean;
   historicDisplay?: string;
   pendingWarning: PendingPercentWarning | null;
@@ -500,7 +483,10 @@ function PercentConstraintCell({
   value,
   state,
   ariaLabel,
-  title,
+  cellVisual,
+  diffFrom,
+  diffTo,
+  historicHint,
   showHistoricalData = false,
   historicDisplay,
   pendingWarning,
@@ -527,30 +513,36 @@ function PercentConstraintCell({
       data-constraint-cell={`${rowId}:${field}`}
     >
       <div className="flex flex-col items-center gap-0.5">
-        <Input
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          onFocus={(event) => handleConstraintInputFocus(event, onFocus)}
-          onClick={(event) => selectEditablePortion(event.currentTarget)}
-          onKeyDown={(event) =>
-            handleConstraintInputKeyDown(event, {
-              showConfirm,
-              onConfirm: onConfirmPending,
-            })
-          }
-          onBlur={onBlur}
-          aria-label={ariaLabel}
-          aria-invalid={showBlock && !showConfirm}
-          title={title}
-          className={cn(
-            cellInputVisualClass(state, field),
-            showConfirm &&
-              "!border-amber-400 bg-amber-50/50 !ring-2 !ring-amber-200 hover:!border-amber-400 hover:bg-amber-50/50 focus-visible:!border-amber-500 focus-visible:!ring-amber-200 focus-visible:bg-white",
-            showBlock &&
-              !showConfirm &&
-              "!border-destructive bg-white !ring-2 !ring-destructive/25 hover:!border-destructive focus-visible:!border-destructive focus-visible:!ring-destructive/25",
-          )}
-        />
+        <ChangedCellTooltip
+          visual={cellVisual}
+          from={diffFrom}
+          to={diffTo}
+          historicHint={historicHint}
+        >
+          <Input
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            onFocus={(event) => handleConstraintInputFocus(event, onFocus)}
+            onClick={(event) => selectEditablePortion(event.currentTarget)}
+            onKeyDown={(event) =>
+              handleConstraintInputKeyDown(event, {
+                showConfirm,
+                onConfirm: onConfirmPending,
+              })
+            }
+            onBlur={onBlur}
+            aria-label={ariaLabel}
+            aria-invalid={showBlock && !showConfirm}
+            className={cn(
+              cellInputVisualClass(state, field),
+              showConfirm &&
+                "!border-amber-400 bg-amber-50/50 !ring-2 !ring-amber-200 hover:!border-amber-400 hover:bg-amber-50/50 focus-visible:!border-amber-500 focus-visible:!ring-amber-200 focus-visible:bg-white",
+              showBlock &&
+                !showConfirm &&
+                "!border-destructive bg-white !ring-2 !ring-destructive/25 hover:!border-destructive focus-visible:!border-destructive focus-visible:!ring-destructive/25",
+            )}
+          />
+        </ChangedCellTooltip>
         {showHistoricalData && historicDisplay ? (
           <HistoricValueLabel value={historicDisplay} />
         ) : null}
@@ -614,7 +606,10 @@ type EditableConstraintCellProps = {
   onBlur?: () => void;
   ariaLabel: string;
   className?: string;
-  title?: string;
+  cellVisual: CellVisualState;
+  diffFrom: string;
+  diffTo: string;
+  historicHint?: string;
   showHistoricalData?: boolean;
   historicDisplay?: string;
 };
@@ -626,23 +621,32 @@ function EditableConstraintCell({
   onBlur,
   ariaLabel,
   className,
-  title,
+  cellVisual,
+  diffFrom,
+  diffTo,
+  historicHint,
   showHistoricalData = false,
   historicDisplay,
 }: EditableConstraintCellProps) {
   return (
     <div className="flex flex-col items-center gap-0.5">
-      <Input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        onFocus={(event) => handleConstraintInputFocus(event, onFocus)}
-        onClick={(event) => selectEditablePortion(event.currentTarget)}
-        onKeyDown={(event) => handleConstraintInputKeyDown(event)}
-        onBlur={onBlur}
-        aria-label={ariaLabel}
-        title={title}
-        className={className}
-      />
+      <ChangedCellTooltip
+        visual={cellVisual}
+        from={diffFrom}
+        to={diffTo}
+        historicHint={historicHint}
+      >
+        <Input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onFocus={(event) => handleConstraintInputFocus(event, onFocus)}
+          onClick={(event) => selectEditablePortion(event.currentTarget)}
+          onKeyDown={(event) => handleConstraintInputKeyDown(event)}
+          onBlur={onBlur}
+          aria-label={ariaLabel}
+          className={className}
+        />
+      </ChangedCellTooltip>
       {showHistoricalData && historicDisplay ? (
         <HistoricValueLabel value={historicDisplay} />
       ) : null}
@@ -654,7 +658,10 @@ export function ConstraintsStep() {
   const { optimizerType, setConstraintsStepValid } = useSetupContext();
   const isRuleBased = optimizerType === "rule-based";
   const [showCampaignConstraints, setShowCampaignConstraints] = useState(false);
-  const [rowState, setRowState] = useState(createInitialRowState);
+  const rowState = useSetupSessionStore((state) => state.constraintsRowState);
+  const setRowState = useSetupSessionStore(
+    (state) => state.setConstraintsRowState,
+  );
   const editSessionsRef = useRef<Record<string, string>>({});
   const [pendingWarning, setPendingWarning] =
     useState<PendingPercentWarning | null>(null);
@@ -744,6 +751,16 @@ export function ConstraintsStep() {
   ) => {
     const fields =
       group === "spend" ? SPEND_PERCENT_FIELDS : CAMPAIGN_PERCENT_FIELDS;
+    const row = rowState[rowId];
+
+    if (row && editedValue !== row.historicPercents[field]) {
+      recordConstraintFieldChange(
+        rowId,
+        field,
+        formatPercentNumber(row.historicPercents[field]),
+        formatPercentNumber(editedValue),
+      );
+    }
 
     setRowState((current) => {
       const row = current[rowId];
@@ -781,6 +798,13 @@ export function ConstraintsStep() {
           [rowId]: {
             ...row,
             overridden: nextOverridden,
+            adjusted: buildNextAdjustedFlags(
+              row,
+              fields,
+              field,
+              nextOverridden,
+              committedValues,
+            ),
             values: committedValues,
           },
         };
@@ -791,16 +815,24 @@ export function ConstraintsStep() {
         row.historicPercents,
         locked,
       );
+      const nextValues = {
+        ...row.values,
+        ...redistributed,
+      };
 
       return {
         ...current,
         [rowId]: {
           ...row,
           overridden: nextOverridden,
-          values: {
-            ...row.values,
-            ...redistributed,
-          },
+          adjusted: buildNextAdjustedFlags(
+            row,
+            fields,
+            field,
+            nextOverridden,
+            nextValues,
+          ),
+          values: nextValues,
         },
       };
     });
@@ -968,21 +1000,31 @@ export function ConstraintsStep() {
   };
 
   const commitCurrencyField = (rowId: string, field: ConstraintValueField) => {
+    const row = rowState[rowId];
+    if (!row) return;
+
+    const raw = row.values[field].trim();
+    const formatted = raw
+      ? raw.startsWith("$")
+        ? raw
+        : formatCurrency(parseCurrency(raw)) || raw
+      : "";
+    const historic = row.historicValues[field];
+
+    if (
+      normalizeCurrencyDisplay(historic) !== normalizeCurrencyDisplay(formatted)
+    ) {
+      recordConstraintFieldChange(rowId, field, historic, formatted);
+    }
+
     setRowState((current) => {
-      const row = current[rowId];
-      if (!row) return current;
+      const currentRow = current[rowId];
+      if (!currentRow) return current;
 
-      const raw = row.values[field].trim();
-      const formatted = raw
-        ? raw.startsWith("$")
-          ? raw
-          : formatCurrency(parseCurrency(raw)) || raw
-        : "";
-
-      const nextOverridden = { ...row.overridden };
+      const nextOverridden = { ...currentRow.overridden };
       if (
         normalizeCurrencyDisplay(formatted) ===
-        normalizeCurrencyDisplay(row.historicValues[field])
+        normalizeCurrencyDisplay(currentRow.historicValues[field])
       ) {
         delete nextOverridden[field];
       } else {
@@ -992,10 +1034,10 @@ export function ConstraintsStep() {
       return {
         ...current,
         [rowId]: {
-          ...row,
+          ...currentRow,
           overridden: nextOverridden,
           values: {
-            ...row.values,
+            ...currentRow.values,
             [field]: formatted,
           },
         },
@@ -1283,14 +1325,15 @@ export function ConstraintsStep() {
                         }
                         onBlur={() => commitCurrencyField(row.id, "goalValue")}
                         ariaLabel={`Goal value for ${row.name}`}
-                        title={
-                          getCellVisualState(state, "goalValue") === "historic"
-                            ? historicHint
-                            : undefined
-                        }
                         className={cellInputVisualClass(state, "goalValue", "text-brand-600")}
                         showHistoricalData={showHistoricalData}
                         historicDisplay={getHistoricDisplayValue(state, "goalValue")}
+                        {...buildConstraintCellTooltipProps(
+                          row.id,
+                          "goalValue",
+                          state,
+                          historicHint,
+                        )}
                       />
                     ) : null}
                   </td>
@@ -1315,15 +1358,14 @@ export function ConstraintsStep() {
                           pendingWarning={pendingWarning}
                           blockAlert={blockAlert}
                           ariaLabel={`${field} for ${row.name}`}
-                          title={
-                            getCellVisualState(state, field) === "historic"
-                              ? historicHint
-                              : getCellVisualState(state, field) === "adjusted"
-                                ? "Auto-adjusted to keep the total at 100%"
-                                : undefined
-                          }
                           showHistoricalData={showHistoricalData}
                           historicDisplay={getHistoricDisplayValue(state, field)}
+                          {...buildConstraintCellTooltipProps(
+                            row.id,
+                            field,
+                            state,
+                            historicHint,
+                          )}
                         />
                       ) : null}
                     </td>
@@ -1373,15 +1415,14 @@ export function ConstraintsStep() {
                               pendingWarning={pendingWarning}
                               blockAlert={blockAlert}
                               ariaLabel={`${field} for ${row.name}`}
-                              title={
-                                getCellVisualState(state, field) === "historic"
-                                  ? historicHint
-                                  : getCellVisualState(state, field) === "adjusted"
-                                    ? "Auto-adjusted to keep the total at 100%"
-                                    : undefined
-                              }
                               showHistoricalData={showHistoricalData}
                               historicDisplay={getHistoricDisplayValue(state, field)}
+                              {...buildConstraintCellTooltipProps(
+                                row.id,
+                                field,
+                                state,
+                                historicHint,
+                              )}
                             />
                           ) : null}
                         </td>
@@ -1431,14 +1472,15 @@ export function ConstraintsStep() {
                               }
                               onBlur={() => commitCurrencyField(row.id, field)}
                               ariaLabel={`${field} for ${row.name}`}
-                              title={
-                                getCellVisualState(state, field) === "historic"
-                                  ? historicHint
-                                  : undefined
-                              }
                               className={cellInputVisualClass(state, field)}
                               showHistoricalData={showHistoricalData}
                               historicDisplay={getHistoricDisplayValue(state, field)}
+                              {...buildConstraintCellTooltipProps(
+                                row.id,
+                                field,
+                                state,
+                                historicHint,
+                              )}
                             />
                           ) : null}
                         </td>

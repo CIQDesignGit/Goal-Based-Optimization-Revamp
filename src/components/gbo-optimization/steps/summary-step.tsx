@@ -1,13 +1,93 @@
 "use client";
 
+import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { useMemo } from "react";
+
+import { useSetupContext } from "@/components/gbo-optimization/setup-context";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { useSetupContext } from "@/components/gbo-optimization/setup-context";
+import { Label } from "@/components/ui/label";
+import {
+  groupChangesByStep,
+  SETUP_CHANGE_CATEGORY_LABELS,
+  useSetupSessionStore,
+  type ChangeLedgerEntry,
+  type SetupChangeCategory,
+} from "@/lib/gbo-optimization/setup-session-store";
+import { cn } from "@/lib/utils";
+
+const CATEGORY_BADGE_CLASS: Record<SetupChangeCategory, string> = {
+  goal: "bg-brand-50 text-brand-700 hover:bg-brand-50",
+  budget: "bg-sky-50 text-sky-700 hover:bg-sky-50",
+  constraint: "bg-violet-50 text-violet-700 hover:bg-violet-50",
+  seasonality: "bg-amber-50 text-amber-700 hover:bg-amber-50",
+  general: "bg-slate-100 text-slate-700 hover:bg-slate-100",
+};
+
+function formatChangeValue(value: string): string {
+  const trimmed = value.trim();
+  return trimmed || "—";
+}
+
+function ChangeRow({ entry }: { entry: ChangeLedgerEntry }) {
+  return (
+    <li className="grid gap-2 border-b border-slate-100 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.4fr)] sm:items-center sm:gap-4">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-slate-900">
+          {entry.scopeName}
+        </p>
+        <p className="text-xs text-slate-500">{entry.fieldLabel}</p>
+      </div>
+
+      <div className="sm:justify-self-start">
+        <Badge
+          variant="secondary"
+          className={cn(
+            "font-normal",
+            CATEGORY_BADGE_CLASS[entry.category],
+          )}
+        >
+          {SETUP_CHANGE_CATEGORY_LABELS[entry.category]}
+        </Badge>
+      </div>
+
+      <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm tabular-nums">
+        <span className="text-slate-500 line-through decoration-slate-300">
+          {formatChangeValue(entry.from)}
+        </span>
+        <ArrowRight className="size-3.5 shrink-0 text-slate-400" aria-hidden />
+        <span className="font-medium text-slate-900">
+          {formatChangeValue(entry.to)}
+        </span>
+      </div>
+    </li>
+  );
+}
 
 export function SummaryStep() {
   const { optimizerType } = useSetupContext();
+  const changeLedger = useSetupSessionStore((state) => state.changeLedger);
+  const summaryReviewed = useSetupSessionStore((state) => state.summaryReviewed);
+  const setSummaryReviewed = useSetupSessionStore(
+    (state) => state.setSummaryReviewed,
+  );
+  const getImpactedScopes = useSetupSessionStore(
+    (state) => state.getImpactedScopes,
+  );
+
   const optimizerLabel =
     optimizerType === "ally-ai" ? "Ally AI" : "Rule-based";
+  const hasChanges = changeLedger.length > 0;
+
+  const groupedChanges = useMemo(
+    () => groupChangesByStep(changeLedger),
+    [changeLedger],
+  );
+
+  const impactedScopes = useMemo(
+    () => getImpactedScopes(),
+    [getImpactedScopes, changeLedger],
+  );
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 py-8">
@@ -28,17 +108,88 @@ export function SummaryStep() {
               Optimizer: {optimizerLabel}
             </Badge>
             <Badge variant="outline" className="font-normal text-slate-600">
-              Session draft
+              {hasChanges
+                ? `${changeLedger.length} change${changeLedger.length === 1 ? "" : "s"}`
+                : "No changes yet"}
             </Badge>
           </div>
 
-          <p className="text-sm text-slate-600">
-            A detailed list of changed goals, budgets, constraints, and impacted
-            brands will appear here. This prototype placeholder marks the end of
-            the setup flow.
-          </p>
+          {!hasChanges ? (
+            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
+              <CheckCircle2 className="mx-auto size-8 text-slate-300" />
+              <p className="mt-3 text-sm font-medium text-slate-700">
+                No session changes to review
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Edit goals, budgets, or constraints earlier in the flow and
+                they will appear here before you save.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {impactedScopes.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    Impacted areas
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {impactedScopes.map((scope) => (
+                      <Badge
+                        key={scope.scopeId}
+                        variant="outline"
+                        className="font-normal text-slate-700"
+                        title={scope.fields.join(", ")}
+                      >
+                        {scope.scopeName}
+                        <span className="ml-1.5 text-slate-400">
+                          · {scope.changeCount}
+                        </span>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {groupedChanges.map((group) => (
+                <section key={group.step} className="space-y-2">
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    {group.label}
+                  </h3>
+                  <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white px-4">
+                    {group.entries.map((entry) => (
+                      <ChangeRow key={entry.id} entry={entry} />
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {hasChanges && (
+        <Card className="border border-slate-200 shadow-none">
+          <CardContent className="py-4">
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={summaryReviewed}
+                onChange={(event) => setSummaryReviewed(event.target.checked)}
+                className="mt-0.5 size-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+              />
+              <div className="space-y-1">
+                <Label className="cursor-pointer text-sm font-medium text-slate-900">
+                  I have reviewed these changes
+                </Label>
+                <p className="text-sm text-slate-500">
+                  Save &amp; Launch stays disabled until you confirm you have
+                  checked every change above.
+                </p>
+              </div>
+            </label>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

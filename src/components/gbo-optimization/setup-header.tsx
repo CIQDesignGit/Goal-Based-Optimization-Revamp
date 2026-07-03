@@ -10,6 +10,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { useSetupContext } from "@/components/gbo-optimization/setup-context";
+import { useSetupSessionStore } from "@/lib/gbo-optimization/setup-session-store";
 import type { SetupStepKey } from "@/lib/gbo-optimization/setup-data";
 
 import { SetupStepper } from "./setup-stepper";
@@ -30,12 +31,17 @@ export function SetupHeader({
   onStepSelect,
 }: SetupHeaderProps) {
   const { steps, constraintsStepValid } = useSetupContext();
+  const changeLedger = useSetupSessionStore((state) => state.changeLedger);
+  const summaryReviewed = useSetupSessionStore((state) => state.summaryReviewed);
   const currentIndex = steps.findIndex((step) => step.key === currentStep);
   const stepConfig = steps[currentIndex];
   const isFirstStep = currentIndex === 0;
   const isSummaryStep = currentStep === "summary";
+  const hasSessionChanges = changeLedger.length > 0;
   const isNextDisabled =
     currentStep === "constraints" && !constraintsStepValid;
+  const isSaveDisabled =
+    isSummaryStep && hasSessionChanges && !summaryReviewed;
 
   return (
     <div className="border-b border-slate-200 bg-white px-6 py-4">
@@ -85,7 +91,7 @@ export function SetupHeader({
           </Button>
           <Button
             onClick={isSummaryStep ? onComplete : onNext}
-            disabled={isNextDisabled}
+            disabled={isNextDisabled || isSaveDisabled}
             className="shrink-0 gap-1.5 bg-brand-600 text-white hover:bg-brand-700 disabled:pointer-events-none disabled:opacity-50"
           >
             {isSummaryStep ? (
