@@ -21,6 +21,7 @@ type SetupInlineSelectProps = {
   triggerClassName?: string;
   onClear?: () => void;
   hideLabel?: boolean;
+  menuMinWidth?: number;
 };
 
 const INLINE_SELECT_TRIGGER_BASE =
@@ -38,6 +39,7 @@ export function SetupInlineSelect({
   triggerClassName,
   onClear,
   hideLabel = false,
+  menuMinWidth = MENU_MIN_WIDTH_PX,
 }: SetupInlineSelectProps) {
   const [listOpen, setListOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{
@@ -68,7 +70,7 @@ export function SetupInlineSelect({
       setMenuPosition({
         top: rect.bottom + 4,
         left: rect.left,
-        width: Math.max(rect.width, MENU_MIN_WIDTH_PX),
+        width: Math.max(rect.width, menuMinWidth),
       });
     };
 
@@ -80,7 +82,7 @@ export function SetupInlineSelect({
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [listOpen]);
+  }, [listOpen, menuMinWidth]);
 
   useEffect(() => {
     if (!listOpen) return;

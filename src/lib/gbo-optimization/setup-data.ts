@@ -254,20 +254,48 @@ export const LEVEL_1_OPTIONS = [
 
 export const LEVEL_2_OPTIONS = [{ value: "na", label: "NA" }] as const;
 
-export const PREFILL_METRIC_OPTIONS = [
-  { value: "roas", label: "ROAS" },
-  { value: "acos", label: "ACOS" },
-] as const;
+export const PREFILL_METRIC_OPTIONS = GOAL_TYPE_OPTIONS.map((option) => ({
+  value: option.value,
+  label: option.label,
+}));
 
-export type GoalMetricValue = (typeof PREFILL_METRIC_OPTIONS)[number]["value"];
+export type GoalMetricValue = GoalType;
 
 export function normalizeGoalMetricValue(metric: string): GoalMetricValue {
   const normalized = metric.trim().toLowerCase();
-  return normalized === "acos" ? "acos" : "roas";
+
+  if (normalized === "sov" || normalized.includes("share of voice")) {
+    return "sov";
+  }
+  if (
+    normalized === "incremental-roas" ||
+    normalized === "incremental roas" ||
+    normalized === "incremental"
+  ) {
+    return "incremental-roas";
+  }
+  if (
+    normalized === "total-roas" ||
+    normalized === "total roas" ||
+    normalized === "total"
+  ) {
+    return "total-roas";
+  }
+  if (
+    normalized === "brand-roas" ||
+    normalized === "brand roas" ||
+    normalized === "roas" ||
+    normalized === "acos"
+  ) {
+    return "brand-roas";
+  }
+
+  const match = GOAL_TYPE_OPTIONS.find((option) => option.value === normalized);
+  return match?.value ?? "brand-roas";
 }
 
 export function isRoasGoalMetric(metric: string): boolean {
-  return normalizeGoalMetricValue(metric) === "roas";
+  return normalizeGoalMetricValue(metric) !== "sov";
 }
 
 export const BUDGET_MONTHS = [

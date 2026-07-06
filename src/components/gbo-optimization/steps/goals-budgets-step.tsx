@@ -32,13 +32,13 @@ import {
   getDefaultBudgetWindowStart,
   getScopeRowDefaultMonthlyBudget,
   GOALS_SCOPE_ROWS,
+  GOAL_TYPE_OPTIONS,
   isBudgetMonthLocked,
   isBudgetCurrentMonth,
   isBudgetFutureMonth,
   isRoasGoalMetric,
-  PREFILL_METRIC_OPTIONS,
   RULE_BASED_OPTIMIZER_NOTICE,
-  type GoalMetricValue,
+  type GoalType,
 } from "@/lib/gbo-optimization/setup-data";
 import {
   getGoalsBudgetFieldKey,
@@ -98,10 +98,11 @@ const LAST_30_HEAD = cn(
 );
 const LAST_30_CELL = cn(NUM_CELL, "border-r border-slate-200 px-2");
 
-const GOAL_METRIC_SELECT_OPTIONS = PREFILL_METRIC_OPTIONS.map((option) => ({
+const GOAL_METRIC_SELECT_OPTIONS = GOAL_TYPE_OPTIONS.map((option) => ({
   value: option.value,
   label: option.label,
 }));
+const GOAL_METRIC_MENU_MIN_WIDTH_PX = 220;
 const METRIC_SELECT_TRIGGER_CLASS =
   "h-auto w-auto gap-1 border-0 bg-transparent p-0 text-sm font-medium text-slate-700 shadow-none ring-0 focus-visible:border-transparent focus-visible:ring-0 hover:bg-transparent";
 const STICKY_SCOPE_HEAD =
@@ -559,7 +560,7 @@ export function GoalsBudgetsStep() {
       ...current,
       [rowId]: {
         ...current[rowId],
-        goalMetric: value as GoalMetricValue,
+        goalMetric: value as GoalType,
       },
     }));
   };
@@ -949,6 +950,7 @@ export function GoalsBudgetsStep() {
                           value={editable.goalMetric}
                           options={GOAL_METRIC_SELECT_OPTIONS}
                           placeholder="Select metric"
+                          menuMinWidth={GOAL_METRIC_MENU_MIN_WIDTH_PX}
                           onValueChange={(value) =>
                             updateGoalMetric(row.id, value)
                           }
