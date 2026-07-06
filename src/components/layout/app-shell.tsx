@@ -29,8 +29,8 @@ export function AppShell({ children }: AppShellProps) {
         {!isSetupFlow && <TopBar />}
         <main
           className={cn(
-            "flex-1 overflow-y-auto",
-            isSetupFlow ? "p-0" : "p-6",
+            "flex flex-1 flex-col",
+            isSetupFlow ? "min-h-0 overflow-hidden p-0" : "overflow-y-auto p-6",
           )}
         >
           {children}

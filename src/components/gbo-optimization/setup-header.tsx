@@ -46,7 +46,7 @@ export function SetupHeader({
     isSummaryStep && hasSessionChanges && !summaryReviewed;
 
   return (
-    <div className="border-b border-slate-200 bg-white px-6 py-4">
+    <div className="z-30 shrink-0 border-b border-slate-200 bg-white px-6 py-4">
       <div className="flex min-h-9 items-center">
         <div className="flex min-w-0 items-center gap-2 text-sm text-slate-600">
           <Cloud className="size-4 shrink-0 text-slate-500" />

@@ -94,7 +94,7 @@ function SetupWizardContent() {
   };
 
   return (
-    <div className="flex min-h-full flex-col bg-slate-100">
+    <div className="flex h-full min-h-0 flex-col bg-slate-100">
       <SetupHeader
         currentStep={currentStep}
         onBack={handleBack}
@@ -102,7 +102,7 @@ function SetupWizardContent() {
         onComplete={handleComplete}
         onStepSelect={setCurrentStep}
       />
-      <div className="flex-1 overflow-y-auto px-6 pb-8">
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-8">
         <StepComponent />
       </div>
     </div>
