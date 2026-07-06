@@ -115,18 +115,6 @@ export function GeneralStep() {
       return;
     }
 
-    // FR-003 — only prompt when switching away from Ally AI; OK keeps Rule-based.
-    if (value === "rule-based" && optimizerType === "ally-ai") {
-      const keepRuleBased = window.confirm(
-        "Ally AI is recommended — it handles spend and constraints automatically.\n\nClick OK to continue with Rule-based.\nClick Cancel to switch to Ally AI instead.",
-      );
-
-      if (!keepRuleBased) {
-        setOptimizerType("ally-ai");
-        return;
-      }
-    }
-
     setOptimizerType(value);
   };
 
