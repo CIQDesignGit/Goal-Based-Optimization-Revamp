@@ -10,8 +10,13 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { useSetupContext } from "@/components/gbo-optimization/setup-context";
-import { useSetupSessionStore, isGeneralConfigComplete } from "@/lib/gbo-optimization/setup-session-store";
+import {
+  areAllGoalsBudgetsGoalsSelected,
+  isGeneralConfigComplete,
+  useSetupSessionStore,
+} from "@/lib/gbo-optimization/setup-session-store";
 import type { SetupStepKey } from "@/lib/gbo-optimization/setup-data";
+import { cn } from "@/lib/utils";
 
 import { SetupStepper } from "./setup-stepper";
 
@@ -34,16 +39,46 @@ export function SetupHeader({
   const changeLedger = useSetupSessionStore((state) => state.changeLedger);
   const summaryReviewed = useSetupSessionStore((state) => state.summaryReviewed);
   const generalConfig = useSetupSessionStore((state) => state.generalConfig);
+  const goalsRowState = useSetupSessionStore((state) => state.goalsRowState);
+  const triggerMissingGoalsFeedback = useSetupSessionStore(
+    (state) => state.triggerMissingGoalsFeedback,
+  );
   const currentIndex = steps.findIndex((step) => step.key === currentStep);
   const stepConfig = steps[currentIndex];
   const isFirstStep = currentIndex === 0;
   const isSummaryStep = currentStep === "summary";
   const hasSessionChanges = changeLedger.length > 0;
+  const goalsBudgetsStepValid = areAllGoalsBudgetsGoalsSelected(goalsRowState);
+  const isGoalsBudgetsBlocked =
+    currentStep === "goals-budgets" && !goalsBudgetsStepValid;
   const isNextDisabled =
     (currentStep === "general" && !isGeneralConfigComplete(generalConfig)) ||
-    (currentStep === "constraints" && !constraintsStepValid);
+    (currentStep === "constraints" && !constraintsStepValid) ||
+    isGoalsBudgetsBlocked;
   const isSaveDisabled =
     isSummaryStep && hasSessionChanges && !summaryReviewed;
+
+  const handlePrimaryAction = () => {
+    if (isSaveDisabled) {
+      return;
+    }
+
+    if (isGoalsBudgetsBlocked) {
+      triggerMissingGoalsFeedback();
+      return;
+    }
+
+    if (isNextDisabled) {
+      return;
+    }
+
+    if (isSummaryStep) {
+      onComplete();
+      return;
+    }
+
+    onNext();
+  };
 
   return (
     <div className="z-30 shrink-0 border-b border-slate-200 bg-white px-6 py-4">
@@ -94,9 +129,12 @@ export function SetupHeader({
             Exit Setup
           </Button>
           <Button
-            onClick={isSummaryStep ? onComplete : onNext}
-            disabled={isNextDisabled || isSaveDisabled}
-            className="shrink-0 gap-1.5 bg-brand-600 text-white hover:bg-brand-700 disabled:pointer-events-none disabled:opacity-50"
+            onClick={handlePrimaryAction}
+            aria-disabled={isNextDisabled || isSaveDisabled}
+            className={cn(
+              "shrink-0 gap-1.5 bg-brand-600 text-white hover:bg-brand-700",
+              (isNextDisabled || isSaveDisabled) && "cursor-not-allowed opacity-50",
+            )}
           >
             {isSummaryStep ? (
               <>

@@ -242,12 +242,11 @@ export function GeneralStep() {
         <CardContent className="space-y-4">
           <div className="space-y-1">
             <h2 className="text-base font-semibold text-slate-900">
-              What is your optimization goal?{" "}
-              <span className="text-slate-900">*</span>
+              What is your optimization goal?
             </h2>
             <p className="text-sm text-slate-500">
-              Portfolio-wide goal and aggressiveness before budgets, constraints,
-              and seasonality.
+              Optional portfolio-wide goal and aggressiveness before budgets,
+              constraints, and seasonality.
             </p>
           </div>
 
@@ -260,6 +259,7 @@ export function GeneralStep() {
               onValueChange={(value) =>
                 handleGoalTypeChange(value as GoalType)
               }
+              onClear={() => setGoalType(null)}
               triggerClassName={SETUP_SELECT_TRIGGER_CLASS}
             />
             {selectedGoalOption ? (
@@ -290,7 +290,7 @@ export function GeneralStep() {
 
           <div className="space-y-2 border-t border-slate-100 pt-4">
             <h3 className="text-sm font-semibold text-slate-900">
-              Aggressiveness <span className="text-slate-900">*</span>
+              Aggressiveness
             </h3>
             <div className="grid grid-cols-2 gap-2">
               {AGGRESSIVENESS_OPTIONS.map((option) => {
@@ -302,7 +302,9 @@ export function GeneralStep() {
                     key={option.value}
                     type="button"
                     title={option.description}
-                    onClick={() => setAggressiveness(option.value)}
+                    onClick={() =>
+                      setAggressiveness(isSelected ? null : option.value)
+                    }
                     className={cn(
                       "flex items-start gap-2 rounded-md border px-2.5 py-2 text-left transition-colors",
                       isSelected

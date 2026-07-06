@@ -438,7 +438,7 @@ export const BUDGET_MONTHS = [
 export const BUDGET_MONTH_VISIBLE_RECENT = 4;
 
 /** Future months shown after the recent window (may be blank). */
-export const BUDGET_MONTH_VISIBLE_FUTURE = 2;
+export const BUDGET_MONTH_VISIBLE_FUTURE = 1;
 
 export const BUDGET_MONTH_VISIBLE_COUNT =
   BUDGET_MONTH_VISIBLE_RECENT + BUDGET_MONTH_VISIBLE_FUTURE;

@@ -2,7 +2,7 @@
 
 import {
   ChevronDown,
-  History,
+  Info,
   Plus,
   Search,
   X,
@@ -22,6 +22,7 @@ import { ChangedCellTooltip } from "@/components/gbo-optimization/changed-cell-t
 import { ImpactBanner } from "@/components/gbo-optimization/impact-banner";
 import { InfoLabel } from "@/components/gbo-optimization/info-label";
 import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
+import { SetupToast } from "@/components/gbo-optimization/setup-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -81,7 +82,7 @@ const SCOPE_COLUMN_DEFAULT_WIDTH = 220;
 /** Narrower scope column when budget months are hidden (rule-based flow). */
 const SCOPE_COLUMN_RULE_BASED_MIN_WIDTH = 128;
 const SCOPE_COLUMN_RULE_BASED_DEFAULT_WIDTH = 148;
-const METRIC_COL_WIDTH_PX = 120;
+const METRIC_COL_WIDTH_PX = 220;
 const TARGET_COL_WIDTH_PX = 112;
 const LAST_30_COL_WIDTH_PX = 120;
 const GOAL_SECTION_WIDTH_PX =
@@ -96,7 +97,10 @@ const LAST_30_HEAD = cn(
   NUM_HEAD,
   "border-r border-slate-200 px-2",
 );
-const LAST_30_CELL = cn(NUM_CELL, "border-r border-slate-200 px-2");
+const LAST_30_CELL = cn(
+  "border-r border-slate-100 p-1.5 text-right px-2",
+  ROW_BORDER,
+);
 
 const GOAL_METRIC_SELECT_OPTIONS = GOAL_TYPE_OPTIONS.map((option) => ({
   value: option.value,
@@ -118,6 +122,8 @@ const STICKY_FY_HEAD =
 const STICKY_FY_CELL =
   "sticky right-0 z-40 bg-white shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)] group-hover:bg-slate-50";
 const BUDGET_LOCKED_HINT = "Past months are locked and cannot be edited.";
+const BUDGET_GOAL_REQUIRED_HINT =
+  "Select a goal before entering budget.";
 
 function selectEditablePortion(input: HTMLInputElement) {
   const { value } = input;
@@ -249,8 +255,13 @@ function budgetMonthHeadClass(monthIndex: number): string {
 function budgetMonthTdClass(
   visual: BudgetMonthVisual,
   monthIndex: number,
+  goalLocked = false,
 ): string {
   const isCurrent = isBudgetCurrentMonth(monthIndex);
+
+  if (goalLocked) {
+    return cn(BUDGET_CELL, ROW_BORDER, "bg-slate-100");
+  }
 
   return cn(
     BUDGET_CELL,
@@ -258,7 +269,7 @@ function budgetMonthTdClass(
     visual === "locked" && "bg-slate-100",
     isCurrent && visual !== "locked" && "border-r-0 bg-brand-50/40",
     visual === "edited" &&
-      "[&_input]:font-medium [&_input]:!text-brand-600 [&_input]:not-italic",
+      "[&_input]:font-medium [&_input]:text-slate-700 [&_input]:not-italic",
   );
 }
 
@@ -285,10 +296,8 @@ function goalInputVisualClass(
 
   return cn(
     cellInputClass,
-    visual === "historic" &&
-      "bg-slate-50 text-slate-500 italic placeholder:text-slate-400",
-    visual === "edited" &&
-      "bg-white font-medium text-slate-900 placeholder:text-slate-400",
+    "bg-white text-slate-900 not-italic placeholder:text-slate-400",
+    visual === "edited" && "font-medium",
   );
 }
 
@@ -300,7 +309,7 @@ function budgetInputVisualClass(
   if (isBudgetFutureMonth(monthIndex) && !value) {
     return cn(
       budgetCellInputClass,
-      "bg-white text-slate-900 placeholder:text-slate-300",
+      "bg-white text-slate-700 placeholder:text-slate-300",
     );
   }
 
@@ -309,8 +318,8 @@ function budgetInputVisualClass(
   return cn(
     budgetCellInputClass,
     visual === "prefilled" &&
-      "bg-slate-50 text-slate-400 italic placeholder:text-slate-300",
-    visual === "edited" && "bg-white font-medium !text-brand-600",
+      "bg-slate-50 text-slate-700 italic placeholder:text-slate-300",
+    visual === "edited" && "bg-white font-medium text-slate-700",
   );
 }
 
@@ -443,18 +452,21 @@ export function GoalsBudgetsStep() {
   const setOptionalStepsHintDismissed = useSetupSessionStore(
     (state) => state.setGoalsOptionalStepsHintDismissed,
   );
-  const showOptionalStepsHint = !isRuleBased && !optionalStepsHintDismissed;
+  const showToggleHint = !optionalStepsHintDismissed;
 
-  const dismissOptionalStepsHint = useCallback(() => {
+  const dismissToggleHint = useCallback(() => {
     setOptionalStepsHintDismissed(true);
   }, [setOptionalStepsHintDismissed]);
 
   useEffect(() => {
-    if (!showOptionalStepsHint) return;
+    if (!showToggleHint) return;
 
-    const timer = window.setTimeout(dismissOptionalStepsHint, 12_000);
+    const timer = window.setTimeout(dismissToggleHint, 8_000);
     return () => window.clearTimeout(timer);
-  }, [showOptionalStepsHint, dismissOptionalStepsHint]);
+  }, [showToggleHint, dismissToggleHint]);
+
+  const toggleLabelClass = showToggleHint ? "toggle-label-shimmer" : "";
+
   const scopeMinWidth = isRuleBased
     ? SCOPE_COLUMN_RULE_BASED_MIN_WIDTH
     : SCOPE_COLUMN_MIN_WIDTH;
@@ -462,6 +474,9 @@ export function GoalsBudgetsStep() {
     ? SCOPE_COLUMN_RULE_BASED_DEFAULT_WIDTH
     : SCOPE_COLUMN_DEFAULT_WIDTH;
   const rowState = useSetupSessionStore((state) => state.goalsRowState);
+  const missingGoalHighlightRowIds = useSetupSessionStore(
+    (state) => state.missingGoalHighlightRowIds,
+  );
   const setRowState = useSetupSessionStore((state) => state.setGoalsRowState);
   const historicHintDismissed = useSetupSessionStore(
     (state) => state.goalsHistoricHintDismissed,
@@ -469,6 +484,7 @@ export function GoalsBudgetsStep() {
   const setHistoricHintDismissed = useSetupSessionStore(
     (state) => state.setGoalsHistoricHintDismissed,
   );
+  const toastMessage = useSetupSessionStore((state) => state.toastMessage);
   const ruleBasedNoticeDismissed = useSetupSessionStore(
     (state) => state.goalsRuleBasedNoticeDismissed,
   );
@@ -574,10 +590,14 @@ export function GoalsBudgetsStep() {
   };
 
   const updateGoalValue = (rowId: string, value: string) => {
-    setRowState((current) => ({
-      ...current,
-      [rowId]: { ...current[rowId], goalValue: value },
-    }));
+    setRowState((current) => {
+      if (!current[rowId]?.goalMetric) return current;
+
+      return {
+        ...current,
+        [rowId]: { ...current[rowId], goalValue: value },
+      };
+    });
   };
 
   const updateGoalMetric = (rowId: string, value: string) => {
@@ -595,7 +615,9 @@ export function GoalsBudgetsStep() {
       const row = current[rowId];
       if (!row) return current;
 
-      const isRoasTarget = isRoasGoalMetric(row.goalMetric);
+      const isRoasTarget = row.goalMetric
+        ? isRoasGoalMetric(row.goalMetric)
+        : true;
       const formatted = normalizeGoalDisplay(row.goalValue, isRoasTarget);
       const nextRow: GoalsRowState = {
         ...row,
@@ -632,7 +654,7 @@ export function GoalsBudgetsStep() {
 
     setRowState((current) => {
       const row = current[rowId];
-      if (!row) return current;
+      if (!row?.goalMetric) return current;
 
       const monthlyBudgets = [...row.monthlyBudgets];
       monthlyBudgets[monthIndex] = value;
@@ -663,7 +685,7 @@ export function GoalsBudgetsStep() {
 
     setRowState((current) => {
       const row = current[rowId];
-      if (!row) return current;
+      if (!row?.goalMetric) return current;
 
       const monthlyBudgets = [...row.monthlyBudgets];
       const raw = monthlyBudgets[monthIndex]?.trim() ?? "";
@@ -723,6 +745,12 @@ export function GoalsBudgetsStep() {
     );
   }, [rowState]);
 
+  const hasMissingGoals = useMemo(
+    () =>
+      GOALS_SCOPE_ROWS.some((row) => !rowState[row.id]?.goalMetric),
+    [rowState],
+  );
+
   return (
     <div className="flex flex-col gap-3 py-4">
       {isRuleBased && !ruleBasedNoticeDismissed && (
@@ -734,56 +762,63 @@ export function GoalsBudgetsStep() {
         </ImpactBanner>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-72">
-            <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
-            <Input
-              placeholder="Search"
-              className="h-9 border-slate-200 bg-white pl-9 shadow-none"
-            />
+      <div className="flex flex-col gap-1">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative w-72">
+              <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                placeholder="Search"
+                className="h-9 border-slate-200 bg-white pl-9 shadow-none"
+              />
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-9 gap-1.5 text-slate-600 hover:text-slate-900"
+            >
+              <Plus className="size-4" />
+              Add Filters
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9 gap-1.5 text-slate-600 hover:text-slate-900"
-          >
-            <Plus className="size-4" />
-            Add Filters
-          </Button>
-        </div>
 
-        <div
-          className={cn(
-            "relative flex flex-wrap items-center gap-4 rounded-lg",
-            !isRuleBased && "border-2 border-transparent px-3 py-1.5",
-            showOptionalStepsHint &&
-              "border-brand-300/30 bg-brand-50/50 motion-safe:animate-[optional-steps-glow_2.5s_ease-in-out_3]",
-          )}
-        >
-          {!isRuleBased && (
+          <div className="flex flex-wrap items-center gap-4">
+            {!isRuleBased && (
+              <label className="flex items-center gap-2 text-sm text-slate-600">
+                <Switch
+                  checked={includeSeasonality}
+                  onCheckedChange={(checked) => {
+                    dismissToggleHint();
+                    setIncludeSeasonality(checked === true);
+                  }}
+                />
+                <span className={toggleLabelClass}>Seasonality</span>
+              </label>
+            )}
             <label className="flex items-center gap-2 text-sm text-slate-600">
               <Switch
-                checked={includeSeasonality}
+                checked={includeConstraints}
                 onCheckedChange={(checked) => {
-                  dismissOptionalStepsHint();
-                  setIncludeSeasonality(checked === true);
+                  dismissToggleHint();
+                  setIncludeConstraints(checked === true);
                 }}
               />
-              <span>Seasonality</span>
+              <span className={toggleLabelClass}>Constraints</span>
             </label>
-          )}
-          <label className="flex items-center gap-2 text-sm text-slate-600">
-            <Switch
-              checked={includeConstraints}
-              onCheckedChange={(checked) => {
-                dismissOptionalStepsHint();
-                setIncludeConstraints(checked === true);
-              }}
-            />
-            <span>Constraints</span>
-          </label>
+          </div>
         </div>
+
+        {!isRuleBased && hasMissingGoals && (
+          <p
+            role="status"
+            className="flex items-center gap-2 text-sm text-slate-600"
+          >
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-100">
+              <Info className="size-3.5 text-amber-600" aria-hidden />
+            </span>
+            Goals must be selected to add or edit budgets.
+          </p>
+        )}
       </div>
 
       <div
@@ -942,9 +977,13 @@ export function GoalsBudgetsStep() {
               const isParent = row.id === "entire-business";
               const editable = rowState[row.id];
               const fyTotal = fyTotals[row.id] ?? 0;
-              const isRoasTarget = editable
+              const isRoasTarget = editable?.goalMetric
                 ? isRoasGoalMetric(editable.goalMetric)
-                : isRoasGoalMetric(row.goalMetric);
+                : true;
+              const canEditBudget = Boolean(editable?.goalMetric);
+              const isMissingGoalHighlighted = missingGoalHighlightRowIds.includes(
+                row.id,
+              );
 
               return (
                 <tr key={row.id} className="group hover:bg-slate-50/50">
@@ -981,21 +1020,26 @@ export function GoalsBudgetsStep() {
                       METRIC_CELL,
                       STICKY_GOAL_CELL,
                       "overflow-visible",
+                      isMissingGoalHighlighted &&
+                        "bg-amber-50 ring-2 ring-inset ring-amber-300 motion-safe:animate-pulse",
                     )}
                   >
                     {editable ? (
-                      <div className="min-w-22">
+                      <div className="min-w-0">
                         <SetupInlineSelect
                           hideLabel
                           label={`Metric to optimize for ${row.name}`}
                           value={editable.goalMetric}
                           options={GOAL_METRIC_SELECT_OPTIONS}
-                          placeholder="Select metric"
+                          placeholder="Select goal"
                           menuMinWidth={GOAL_METRIC_MENU_MIN_WIDTH_PX}
                           onValueChange={(value) =>
                             updateGoalMetric(row.id, value)
                           }
-                          triggerClassName={METRIC_SELECT_TRIGGER_CLASS}
+                          triggerClassName={cn(
+                            METRIC_SELECT_TRIGGER_CLASS,
+                            "w-full min-w-0",
+                          )}
                         />
                       </div>
                     ) : null}
@@ -1005,9 +1049,15 @@ export function GoalsBudgetsStep() {
                       goalStickyOffsets.target,
                       TARGET_COL_WIDTH_PX,
                     )}
-                    className={cn(TARGET_CELL, STICKY_GOAL_CELL)}
+                    className={cn(
+                      TARGET_CELL,
+                      STICKY_GOAL_CELL,
+                      canEditBudget
+                        ? "bg-white group-hover:bg-white"
+                        : "bg-slate-100 group-hover:bg-slate-100",
+                    )}
                   >
-                    {editable ? (
+                    {editable && canEditBudget ? (
                       <ChangedCellTooltip
                         visual={getGoalCellVisualState(editable, isRoasTarget)}
                         {...getGoalsCellDiff(
@@ -1027,11 +1077,16 @@ export function GoalsBudgetsStep() {
                             selectEditablePortion(event.currentTarget)
                           }
                           onBlur={() => formatGoalValue(row.id)}
-                          placeholder="Set target"
                           aria-label={`Target value for ${row.name}`}
                           className={goalInputVisualClass(editable, isRoasTarget)}
                         />
                       </ChangedCellTooltip>
+                    ) : editable ? (
+                      <span
+                        className="block h-8 px-1.5 py-1.5"
+                        title={BUDGET_GOAL_REQUIRED_HINT}
+                        aria-label={`Target value for ${row.name} (select a goal first)`}
+                      />
                     ) : null}
                   </td>
                   <td
@@ -1039,10 +1094,17 @@ export function GoalsBudgetsStep() {
                       goalStickyOffsets.last30,
                       LAST_30_COL_WIDTH_PX,
                     )}
-                    className={cn(LAST_30_CELL, STICKY_GOAL_CELL, STICKY_GOAL_EDGE)}
+                    className={cn(
+                      LAST_30_CELL,
+                      STICKY_GOAL_CELL,
+                      STICKY_GOAL_EDGE,
+                      canEditBudget
+                        ? "bg-white group-hover:bg-slate-50"
+                        : "bg-slate-100 group-hover:bg-slate-100",
+                    )}
                   >
                     <span className="block px-2 py-1.5 tabular-nums text-slate-700">
-                      {row.last30Days}
+                      {canEditBudget ? row.last30Days : ""}
                     </span>
                   </td>
                   {!isRuleBased &&
@@ -1056,7 +1118,11 @@ export function GoalsBudgetsStep() {
                       return (
                         <td
                           key={`${row.id}-${monthIndex}`}
-                          className={budgetMonthTdClass(monthVisual, monthIndex)}
+                          className={budgetMonthTdClass(
+                            monthVisual,
+                            monthIndex,
+                            !canEditBudget,
+                          )}
                         >
                           {editable && monthVisual === "locked" ? (
                             <span
@@ -1065,6 +1131,17 @@ export function GoalsBudgetsStep() {
                               aria-label={`${BUDGET_MONTHS[monthIndex]} budget for ${row.name} (locked)`}
                             >
                               {budgetValue || "—"}
+                            </span>
+                          ) : editable && !canEditBudget ? (
+                            <span
+                              className={cn(
+                                "block px-2 py-1.5 tabular-nums text-slate-400",
+                                budgetValue.trim() && "text-slate-500 not-italic",
+                              )}
+                              title={BUDGET_GOAL_REQUIRED_HINT}
+                              aria-label={`${BUDGET_MONTHS[monthIndex]} budget for ${row.name} (select a goal first)`}
+                            >
+                              {budgetValue}
                             </span>
                           ) : editable ? (
                             <ChangedCellTooltip
@@ -1127,29 +1204,41 @@ export function GoalsBudgetsStep() {
         </table>
       </div>
 
-      {!historicHintDismissed && (
-        <div className="sticky bottom-0 z-20 shrink-0 -mx-2 border-t border-slate-200 bg-slate-50/95 px-4 py-3 shadow-[0_-4px_12px_-2px_rgba(0,0,0,0.08)] backdrop-blur-sm">
-          <div className="flex items-start gap-2 text-sm text-slate-600">
-            <History className="mt-0.5 size-4 shrink-0 text-slate-400" />
-            <p className="flex-1 pr-2">
-              <span className="font-medium text-slate-500">Locked</span> past
-              months (gray) cannot be edited. Gray italic values in editable
-              months are based on your{" "}
-              <span className="font-medium text-slate-700">last 30 days</span> of
-              performance — edit any cell to override (shown in{" "}
-              <span className="font-medium text-brand-600">blue</span>). The{" "}
-              <span className="font-medium text-slate-700">FY 2026</span> total
-              updates automatically from your monthly budgets.
-            </p>
-            <button
-              type="button"
-              onClick={() => setHistoricHintDismissed(true)}
-              className="shrink-0 rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-200/80 hover:text-slate-600"
-              aria-label="Dismiss hint"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
+      {(toastMessage || !historicHintDismissed) && (
+        <div className="sticky bottom-0 z-[60] flex shrink-0 flex-col items-start gap-2 -mx-2">
+          {toastMessage ? <SetupToast className="ml-2" /> : null}
+
+          {!historicHintDismissed && (
+            <div className="w-full rounded-t-lg border border-slate-200 bg-slate-50/95 px-4 py-3 shadow-[0_-4px_12px_-2px_rgba(0,0,0,0.08),0_4px_16px_-4px_rgba(0,0,0,0.12)] backdrop-blur-sm">
+              <div className="flex items-start gap-2 text-sm text-slate-600">
+                <p className="flex-1 pr-2">
+                  Gray italic values in editable months are based on your{" "}
+                  <span className="font-medium text-slate-700">last 30 days</span>{" "}
+                  of performance — edit any cell to override.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setHistoricHintDismissed(true)}
+                  className="shrink-0 rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-200/80 hover:text-slate-600"
+                  aria-label="Dismiss hint"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+              <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-slate-500">
+                <input
+                  type="checkbox"
+                  className="size-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                  onChange={(event) => {
+                    if (event.target.checked) {
+                      setHistoricHintDismissed(true);
+                    }
+                  }}
+                />
+                Don&apos;t show me this again
+              </label>
+            </div>
+          )}
         </div>
       )}
     </div>

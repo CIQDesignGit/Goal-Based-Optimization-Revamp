@@ -18,7 +18,6 @@ import {
   getDefaultBudgetWindowEnd,
   getDefaultBudgetWindowStart,
   GOALS_SCOPE_ROWS,
-  normalizeGoalMetricValue,
   resolveInitialMonthlyBudgets,
   type AggressivenessLevel,
   type ConstraintLast30Days,
@@ -31,7 +30,7 @@ import {
 // ---------------------------------------------------------------------------
 
 export type GoalsRowState = {
-  goalMetric: GoalMetricValue;
+  goalMetric: GoalMetricValue | null;
   goalValue: string;
   monthlyBudgets: string[];
   historicGoalValue: string;
@@ -124,8 +123,8 @@ export type GeneralConfig = {
 
 export function createInitialGeneralConfig(): GeneralConfig {
   return {
-    goalType: "brand-roas",
-    aggressiveness: "aggressive",
+    goalType: null,
+    aggressiveness: null,
     granularity: "Monthly",
     budgetType: "retailer",
     level1: "portfolio",
@@ -136,8 +135,22 @@ export function createInitialGeneralConfig(): GeneralConfig {
   };
 }
 
-export function isGeneralConfigComplete(config: GeneralConfig): boolean {
-  return config.goalType !== null && config.aggressiveness !== null;
+export function isGeneralConfigComplete(_config: GeneralConfig): boolean {
+  return true;
+}
+
+export function areAllGoalsBudgetsGoalsSelected(
+  rowState: Record<string, GoalsRowState>,
+): boolean {
+  return GOALS_SCOPE_ROWS.every((row) => rowState[row.id]?.goalMetric != null);
+}
+
+export function getMissingGoalRowIds(
+  rowState: Record<string, GoalsRowState>,
+): string[] {
+  return GOALS_SCOPE_ROWS.filter((row) => !rowState[row.id]?.goalMetric).map(
+    (row) => row.id,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -152,8 +165,8 @@ export function createInitialGoalsRowState(): Record<string, GoalsRowState> {
       return [
         row.id,
         {
-          goalMetric: normalizeGoalMetricValue(row.goalMetric),
-          goalValue: row.goalValue,
+          goalMetric: null,
+          goalValue: "",
           monthlyBudgets,
           historicGoalValue: row.goalValue,
           historicMonthlyBudgets: [...monthlyBudgets],
@@ -272,6 +285,8 @@ function resolveScopeName(scopeId: string): string {
 }
 
 let changeIdCounter = 0;
+let missingGoalHighlightTimer: ReturnType<typeof setTimeout> | null = null;
+let setupToastTimer: ReturnType<typeof setTimeout> | null = null;
 
 function nextChangeId(): string {
   changeIdCounter += 1;
@@ -293,9 +308,11 @@ type SetupSessionState = {
   goalsRuleBasedNoticeDismissed: boolean;
   changeLedger: ChangeLedgerEntry[];
   summaryReviewed: boolean;
+  toastMessage: string | null;
+  missingGoalHighlightRowIds: string[];
 
-  setGoalType: (goalType: GoalType) => void;
-  setAggressiveness: (level: AggressivenessLevel) => void;
+  setGoalType: (goalType: GoalType | null) => void;
+  setAggressiveness: (level: AggressivenessLevel | null) => void;
   updateGeneralConfig: (patch: Partial<GeneralConfig>) => void;
   dismissGoalChangeImpact: () => void;
 
@@ -329,6 +346,8 @@ type SetupSessionState = {
 
   getImpactedScopes: () => ImpactedScope[];
 
+  triggerMissingGoalsFeedback: () => void;
+
   resetSession: () => void;
 };
 
@@ -344,6 +363,8 @@ function createInitialSessionState(): Pick<
   | "goalsRuleBasedNoticeDismissed"
   | "changeLedger"
   | "summaryReviewed"
+  | "toastMessage"
+  | "missingGoalHighlightRowIds"
 > {
   const defaultMonthWindowStart = getDefaultBudgetWindowStart(
     BUDGET_CURRENT_MONTH_INDEX,
@@ -360,6 +381,8 @@ function createInitialSessionState(): Pick<
     goalsRuleBasedNoticeDismissed: false,
     changeLedger: [],
     summaryReviewed: false,
+    toastMessage: null,
+    missingGoalHighlightRowIds: [],
   };
 }
 
@@ -370,17 +393,29 @@ export const useSetupSessionStore = create<SetupSessionState>((set, get) => ({
     set((state) => {
       const previousGoalType = state.generalConfig.goalType;
       const isChange =
-        previousGoalType !== null && previousGoalType !== goalType;
+        previousGoalType !== null &&
+        goalType !== null &&
+        previousGoalType !== goalType;
+
+      const goalsRowState = Object.fromEntries(
+        Object.entries(state.goalsRowState).map(([rowId, row]) => [
+          rowId,
+          { ...row, goalMetric: goalType },
+        ]),
+      );
 
       return {
         generalConfig: {
           ...state.generalConfig,
           goalType,
-          previousGoalType: isChange ? previousGoalType : state.generalConfig.previousGoalType,
+          previousGoalType: isChange
+            ? previousGoalType
+            : state.generalConfig.previousGoalType,
           showGoalChangeImpact: isChange
             ? true
             : state.generalConfig.showGoalChangeImpact,
         },
+        goalsRowState,
       };
     });
   },
@@ -496,8 +531,50 @@ export const useSetupSessionStore = create<SetupSessionState>((set, get) => ({
     return Array.from(grouped.values());
   },
 
+  triggerMissingGoalsFeedback: () => {
+    const missingIds = getMissingGoalRowIds(get().goalsRowState);
+
+    if (missingIds.length === 0) {
+      return;
+    }
+
+    if (missingGoalHighlightTimer) {
+      clearTimeout(missingGoalHighlightTimer);
+    }
+
+    if (setupToastTimer) {
+      clearTimeout(setupToastTimer);
+    }
+
+    set({
+      toastMessage: "Goal must be selected to enter budgets.",
+      missingGoalHighlightRowIds: missingIds,
+    });
+
+    missingGoalHighlightTimer = setTimeout(() => {
+      set({ missingGoalHighlightRowIds: [] });
+      missingGoalHighlightTimer = null;
+    }, 2000);
+
+    setupToastTimer = setTimeout(() => {
+      set({ toastMessage: null });
+      setupToastTimer = null;
+    }, 3000);
+  },
+
   resetSession: () => {
     changeIdCounter = 0;
+
+    if (missingGoalHighlightTimer) {
+      clearTimeout(missingGoalHighlightTimer);
+      missingGoalHighlightTimer = null;
+    }
+
+    if (setupToastTimer) {
+      clearTimeout(setupToastTimer);
+      setupToastTimer = null;
+    }
+
     set(createInitialSessionState());
   },
 }));
