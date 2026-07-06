@@ -36,18 +36,14 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
   CAMPAIGN_PERCENT_FIELDS,
-  buildManualLockedPercents,
   formatPercentNumber,
   formatPercentTotalDisplay,
   isPercentGroupValid,
   MAX_PERCENT_VALUE,
   parsePercent,
   PERCENT_DEVIATION_THRESHOLD,
-  redistributePercentFields,
   SPEND_PERCENT_FIELDS,
-  sumLockedPercents,
   sumPercentFields,
-  validatePercentEdit,
   type CampaignPercentField,
   type PercentField,
   type PercentValidationIssue,
@@ -338,35 +334,6 @@ function buildConstraintCellTooltipProps(
   };
 }
 
-function buildNextAdjustedFlags(
-  row: ConstraintRowState,
-  fields: readonly PercentField[],
-  editedField: PercentField,
-  nextOverridden: Partial<Record<ConstraintValueField, boolean>>,
-  nextValues: ConstraintValues,
-): Partial<Record<ConstraintValueField, boolean>> {
-  const nextAdjusted = { ...row.adjusted };
-
-  delete nextAdjusted[editedField];
-
-  for (const groupField of fields) {
-    if (nextOverridden[groupField]) {
-      delete nextAdjusted[groupField];
-      continue;
-    }
-
-    if (
-      parsePercent(nextValues[groupField]) !== row.historicPercents[groupField]
-    ) {
-      nextAdjusted[groupField] = true;
-    } else {
-      delete nextAdjusted[groupField];
-    }
-  }
-
-  return nextAdjusted;
-}
-
 function percentTotalClassName(
   values: ConstraintValues,
   fields: readonly PercentField[],
@@ -391,7 +358,7 @@ function cellInputVisualClass(
     visual === "historic" &&
       "bg-slate-50 text-slate-400 italic placeholder:text-slate-300",
     visual === "adjusted" && "bg-sky-50/60 text-slate-600",
-    visual === "edited" && "bg-white font-medium text-slate-900",
+    visual === "edited" && "bg-white font-medium !text-brand-600",
     extra,
   );
 }
@@ -435,7 +402,6 @@ function ConstraintDataColgroup({
   return (
     <colgroup>
       <col style={{ width: SCOPE_COL_WIDTH }} />
-      <col style={{ width: dataWidth }} />
       <col style={{ width: dataWidth }} />
       {!isRuleBased &&
         Array.from({ length: SPEND_CONSTRAINT_COL_COUNT }).map((_, index) => (
@@ -744,26 +710,17 @@ export function ConstraintsStep() {
   };
 
   /**
-   * Constraints step — percent row commit (product rules):
-   *
-   * 1. On edit, lock every manually changed value in the row group (spend or campaign).
-   * 2. Rebalance all remaining prefilled (unlocked) columns proportionally using last-30-day
-   *    historic weights so the row returns to 100%.
-   * 3. Error state (red Total, Next disabled) only when auto-adjust is impossible:
-   *    - locked manual values alone exceed 100%, or
-   *    - every column in the group is manually set and the sum is not exactly 100%.
-   *
-   * Do NOT skip redistribution just because the raw row sum exceeds 100% before rebalance —
-   * that is expected while only the edited cell has changed.
+   * Constraints step — percent row commit:
+   * Save the edited cell as-is (formatted). Other columns are left unchanged so
+   * the user can keep adjusting until the row total reaches 100%. Next stays
+   * disabled until each percent group sums to 100%.
    */
   const applyPercentCommit = (
     rowId: string,
     field: PercentField,
-    group: PercentGroup,
+    _group: PercentGroup,
     editedValue: number,
   ) => {
-    const fields =
-      group === "spend" ? SPEND_PERCENT_FIELDS : CAMPAIGN_PERCENT_FIELDS;
     const row = rowState[rowId];
 
     if (row && editedValue !== row.historicPercents[field]) {
@@ -786,51 +743,12 @@ export function ConstraintsStep() {
         nextOverridden[field] = true;
       }
 
+      const nextAdjusted = { ...row.adjusted };
+      delete nextAdjusted[field];
+
       const committedValues = {
         ...row.values,
         [field]: formatPercentNumber(editedValue),
-      };
-
-      const locked = buildManualLockedPercents(
-        fields,
-        committedValues,
-        row.historicPercents,
-        field,
-        editedValue,
-        nextOverridden,
-      );
-      const lockedSum = sumLockedPercents(locked);
-      const unlockedFields = fields.filter((groupField) => locked[groupField] === undefined);
-      const cannotAutoAdjust =
-        lockedSum > PERCENT_TOTAL_TARGET ||
-        (unlockedFields.length === 0 && lockedSum !== PERCENT_TOTAL_TARGET);
-
-      if (cannotAutoAdjust) {
-        return {
-          ...current,
-          [rowId]: {
-            ...row,
-            overridden: nextOverridden,
-            adjusted: buildNextAdjustedFlags(
-              row,
-              fields,
-              field,
-              nextOverridden,
-              committedValues,
-            ),
-            values: committedValues,
-          },
-        };
-      }
-
-      const redistributed = redistributePercentFields(
-        fields,
-        row.historicPercents,
-        locked,
-      );
-      const nextValues = {
-        ...row.values,
-        ...redistributed,
       };
 
       return {
@@ -838,14 +756,8 @@ export function ConstraintsStep() {
         [rowId]: {
           ...row,
           overridden: nextOverridden,
-          adjusted: buildNextAdjustedFlags(
-            row,
-            fields,
-            field,
-            nextOverridden,
-            nextValues,
-          ),
-          values: nextValues,
+          adjusted: nextAdjusted,
+          values: committedValues,
         },
       };
     });
@@ -857,59 +769,31 @@ export function ConstraintsStep() {
     previousValue: string,
   ) => {
     if (
+      pendingWarning &&
+      (pendingWarning.rowId !== rowId || pendingWarning.field !== field)
+    ) {
+      applyPercentCommit(
+        pendingWarning.rowId,
+        pendingWarning.field,
+        pendingWarning.group,
+        pendingWarning.proposedValue,
+      );
+      setPendingWarning(null);
+    }
+
+    if (
       blockAlert &&
       (blockAlert.rowId !== rowId || blockAlert.field !== field)
     ) {
-      restoreFieldValue(
-        blockAlert.rowId,
-        blockAlert.field,
-        blockAlert.previousValue,
-      );
-      delete editSessionsRef.current[
-        editSessionKey(blockAlert.rowId, blockAlert.field)
-      ];
       setBlockAlert(null);
     }
 
-    setPendingWarning(null);
     const sessionPrevious =
       blockAlert?.rowId === rowId && blockAlert.field === field
         ? blockAlert.previousValue
         : previousValue;
     editSessionsRef.current[editSessionKey(rowId, field)] = sessionPrevious;
   };
-
-  const revertActiveBlockAlert = () => {
-    if (!blockAlert) return;
-
-    restoreFieldValue(
-      blockAlert.rowId,
-      blockAlert.field,
-      blockAlert.previousValue,
-    );
-    delete editSessionsRef.current[
-      editSessionKey(blockAlert.rowId, blockAlert.field)
-    ];
-    setBlockAlert(null);
-  };
-
-  useEffect(() => {
-    if (!blockAlert) return;
-
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-
-      const cell = target.closest("[data-constraint-cell]");
-      const blockedKey = `${blockAlert.rowId}:${blockAlert.field}`;
-      if (cell?.getAttribute("data-constraint-cell") === blockedKey) return;
-
-      revertActiveBlockAlert();
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [blockAlert]);
 
   const getPreviousValue = (
     rowId: string,
@@ -926,49 +810,65 @@ export function ConstraintsStep() {
     if (!row) return;
 
     const previousValue = getPreviousValue(rowId, field, row.values[field]);
-    const rawValue = row.values[field];
-    const validation = validatePercentEdit(
-      rawValue,
-      parsePercent(previousValue),
-      {
-        max: MAX_PERCENT_VALUE,
-        deviationThreshold: PERCENT_DEVIATION_THRESHOLD,
-      },
-    );
-    if (!validation.ok) {
-      if (validation.issue.type === "value_deviation") {
-        setPendingWarning({
-          rowId,
-          field,
-          group,
-          previousValue,
-          proposedValue: validation.issue.attempted,
-        });
-        setBlockAlert(null);
-        return;
-      }
+    const rawValue = row.values[field].trim();
 
-      const isRepeatBlock =
-        blockAlert?.rowId === rowId && blockAlert?.field === field;
+    if (!rawValue) {
+      restoreFieldValue(rowId, field, previousValue);
+      setPendingWarning(null);
+      setBlockAlert(null);
+      delete editSessionsRef.current[editSessionKey(rowId, field)];
+      return;
+    }
 
-      if (isRepeatBlock) {
-        restoreFieldValue(rowId, field, blockAlert.previousValue);
-        setBlockAlert(null);
-        delete editSessionsRef.current[editSessionKey(rowId, field)];
-        return;
-      }
+    const parsed = Number.parseFloat(rawValue.replace(/%/g, ""));
+    if (Number.isNaN(parsed)) {
+      restoreFieldValue(rowId, field, previousValue);
+      setPendingWarning(null);
+      setBlockAlert(null);
+      delete editSessionsRef.current[editSessionKey(rowId, field)];
+      return;
+    }
 
+    if (parsed > MAX_PERCENT_VALUE) {
       setBlockAlert({
         rowId,
         field,
-        message: inlineBlockMessage(validation.issue),
+        message: inlineBlockMessage({
+          type: "over_max",
+          attempted: parsed,
+          max: MAX_PERCENT_VALUE,
+        }),
         previousValue,
       });
       setPendingWarning(null);
       return;
     }
 
-    applyPercentCommit(rowId, field, group, validation.value);
+    if (parsed < 0) {
+      setBlockAlert({
+        rowId,
+        field,
+        message: inlineBlockMessage({ type: "under_min", attempted: parsed }),
+        previousValue,
+      });
+      setPendingWarning(null);
+      return;
+    }
+
+    const baseline = parsePercent(previousValue);
+    if (Math.abs(parsed - baseline) > PERCENT_DEVIATION_THRESHOLD) {
+      setPendingWarning({
+        rowId,
+        field,
+        group,
+        previousValue,
+        proposedValue: parsed,
+      });
+      setBlockAlert(null);
+      return;
+    }
+
+    applyPercentCommit(rowId, field, group, parsed);
     setPendingWarning(null);
     setBlockAlert(null);
     delete editSessionsRef.current[editSessionKey(rowId, field)];
@@ -1066,7 +966,7 @@ export function ConstraintsStep() {
     : dataColClass;
   const tableMinWidth =
     SCOPE_COL_WIDTH +
-    dataColWidth * 2 +
+    dataColWidth +
     (isRuleBased
       ? 0
       : dataColWidth * (SPEND_CONSTRAINT_COL_COUNT - 1) + SPEND_TOTAL_COL_WIDTH) +
@@ -1169,19 +1069,10 @@ export function ConstraintsStep() {
                 className={cn(
                   activeDataColClass,
                   "border-r border-slate-200 py-3 text-center font-medium",
-                )}
-              >
-                <InfoLabel label="Goal" />
-              </th>
-              <th
-                rowSpan={scopeHeaderRowSpan}
-                className={cn(
-                  activeDataColClass,
-                  "border-r border-slate-200 py-3 text-center font-medium",
                   isRuleBased && !showCampaignConstraints && "border-r-0",
                 )}
               >
-                <InfoLabel label="Goal Value" />
+                <InfoLabel label="Goal" />
               </th>
               {!isRuleBased && (
                 <th
@@ -1366,27 +1257,6 @@ export function ConstraintsStep() {
                         ROAS
                       </span>
                     )}
-                  </td>
-                  <td className={cn(activeDataColClass, "border-r border-slate-100 p-1 text-center")}>
-                    {isEditableRow && state ? (
-                      <EditableConstraintCell
-                        value={state.values.goalValue}
-                        onChange={(value) => updateValue(row.id, "goalValue", value)}
-                        onFocus={() =>
-                          beginEditSession(row.id, "goalValue", state.values.goalValue)
-                        }
-                        onBlur={() => commitCurrencyField(row.id, "goalValue")}
-                        ariaLabel={`Goal value for ${row.name}`}
-                        className={cellInputVisualClass(state, "goalValue", "text-brand-600")}
-                        showHistoricalData={showHistoricalData}
-                        historicDisplay={getHistoricDisplayValue(state, "goalValue")}
-                        {...buildConstraintCellTooltipProps(
-                          row.id,
-                          "goalValue",
-                          state,
-                        )}
-                      />
-                    ) : null}
                   </td>
                   {!isRuleBased &&
                     SPEND_PERCENT_FIELDS.map((field) => (
@@ -1584,10 +1454,10 @@ export function ConstraintsStep() {
             <p className="flex-1 pr-2">
               Gray italic values are based on your{" "}
               <span className="font-medium text-slate-700">last 30 days</span> of
-              spend distribution. Edit any cell to override it — the other
-              columns will rebalance so the total always stays at{" "}
-              <span className="font-medium text-slate-700">100%</span> of the
-              budget you set in the previous step.
+              spend distribution. Edit any cell to override it — adjust cells until
+              the row total reaches{" "}
+              <span className="font-medium text-slate-700">100%</span> before
+              continuing.
             </p>
             <button
               type="button"
