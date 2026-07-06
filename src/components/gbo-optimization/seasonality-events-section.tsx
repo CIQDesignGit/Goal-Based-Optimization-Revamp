@@ -8,20 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SEASONALITY_SCOPE_OPTIONS } from "@/lib/gbo-optimization/setup-data";
+import { SEASONALITY_SCOPE_OPTIONS, type SeasonalityEvent } from "@/lib/gbo-optimization/setup-data";
 import { cn } from "@/lib/utils";
 
 type BudgetMode = "percent" | "absolute";
-
-type SeasonalityEvent = {
-  id: string;
-  name: string;
-  startDate: string;
-  endDate: string;
-  scope: string;
-  budgetMode: BudgetMode;
-  budgetValue: string;
-};
 
 type EventFormState = {
   name: string;
@@ -238,8 +228,13 @@ function SeasonalityEventForm({
   );
 }
 
-export function SeasonalityEventsSection() {
-  const [events, setEvents] = useState<SeasonalityEvent[]>([]);
+export function SeasonalityEventsSection({
+  events,
+  onAddEvent,
+}: {
+  events: SeasonalityEvent[];
+  onAddEvent: (event: SeasonalityEvent) => void;
+}) {
   const [showForm, setShowForm] = useState(true);
   const [form, setForm] = useState<EventFormState>(DEFAULT_FORM);
 
@@ -259,18 +254,15 @@ export function SeasonalityEventsSection() {
       return;
     }
 
-    setEvents((current) => [
-      ...current,
-      {
-        id: crypto.randomUUID(),
-        name: form.name.trim(),
-        startDate: form.startDate,
-        endDate: form.endDate,
-        scope,
-        budgetMode: form.budgetMode,
-        budgetValue: form.budgetValue,
-      },
-    ]);
+    onAddEvent({
+      id: crypto.randomUUID(),
+      name: form.name.trim(),
+      startDate: form.startDate,
+      endDate: form.endDate,
+      scope,
+      budgetMode: form.budgetMode,
+      budgetValue: form.budgetValue,
+    });
 
     setForm(DEFAULT_FORM);
     setShowForm(true);

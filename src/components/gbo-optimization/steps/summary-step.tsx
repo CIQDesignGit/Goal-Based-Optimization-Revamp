@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowRight, CheckCircle2 } from "lucide-react";
-import { useMemo } from "react";
+import { ArrowRight, CheckCircle2, ChevronDown } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import { useSetupContext } from "@/components/gbo-optimization/setup-context";
 import { Badge } from "@/components/ui/badge";
@@ -69,6 +69,51 @@ function ChangeRow({ entry }: { entry: ChangeLedgerEntry }) {
   );
 }
 
+function ChangesAccordionSection({
+  label,
+  entries,
+  defaultOpen = false,
+}: {
+  label: string;
+  entries: ChangeLedgerEntry[];
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50"
+      >
+        <h3 className="text-sm font-semibold text-slate-900">{label}</h3>
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge variant="outline" className="font-normal text-slate-600">
+            {entries.length} change{entries.length === 1 ? "" : "s"}
+          </Badge>
+          <ChevronDown
+            className={cn(
+              "size-4 text-slate-500 transition-transform",
+              open && "rotate-180",
+            )}
+            aria-hidden
+          />
+        </div>
+      </button>
+
+      {open && (
+        <ul className="divide-y divide-slate-100 border-t border-slate-200 px-4">
+          {entries.map((entry) => (
+            <ChangeRow key={entry.id} entry={entry} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function SummaryStep() {
   const { optimizerType } = useSetupContext();
   const generalConfig = useSetupSessionStore((state) => state.generalConfig);
@@ -103,7 +148,7 @@ export function SummaryStep() {
   );
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 py-8">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 py-8">
       <div className="space-y-2">
         <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
           Review changes
@@ -173,45 +218,39 @@ export function SummaryStep() {
                 </div>
               )}
 
-              {groupedChanges.map((group) => (
-                <section key={group.step} className="space-y-2">
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    {group.label}
-                  </h3>
-                  <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white px-4">
-                    {group.entries.map((entry) => (
-                      <ChangeRow key={entry.id} entry={entry} />
-                    ))}
-                  </ul>
-                </section>
-              ))}
+              <div className="space-y-3">
+                {groupedChanges.map((group, index) => (
+                  <ChangesAccordionSection
+                    key={group.step}
+                    label={group.label}
+                    entries={group.entries}
+                    defaultOpen={index === 0}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </CardContent>
       </Card>
 
       {hasChanges && (
-        <Card className="border border-slate-200 shadow-none">
-          <CardContent className="py-4">
-            <label className="flex cursor-pointer items-start gap-3">
-              <input
-                type="checkbox"
-                checked={summaryReviewed}
-                onChange={(event) => setSummaryReviewed(event.target.checked)}
-                className="mt-0.5 size-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-              />
-              <div className="space-y-1">
-                <Label className="cursor-pointer text-sm font-medium text-slate-900">
-                  I have reviewed these changes
-                </Label>
-                <p className="text-sm text-slate-500">
-                  Save &amp; Launch stays disabled until you confirm you have
-                  checked every change above.
-                </p>
-              </div>
-            </label>
-          </CardContent>
-        </Card>
+        <label className="flex cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            checked={summaryReviewed}
+            onChange={(event) => setSummaryReviewed(event.target.checked)}
+            className="mt-0.5 size-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+          />
+          <div className="space-y-1">
+            <Label className="cursor-pointer text-sm font-medium text-slate-900">
+              I have reviewed these changes
+            </Label>
+            <p className="text-sm text-slate-500">
+              Save &amp; Launch stays disabled until you confirm you have checked
+              every change above.
+            </p>
+          </div>
+        </label>
       )}
     </div>
   );

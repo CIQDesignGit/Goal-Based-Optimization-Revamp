@@ -28,7 +28,7 @@ const entryPoints = [
 
 export function SettingsHomeContent() {
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-8">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           GBO home

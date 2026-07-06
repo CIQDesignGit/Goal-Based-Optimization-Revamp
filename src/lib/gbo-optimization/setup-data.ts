@@ -251,6 +251,117 @@ export const SEASONALITY_SCOPE_OPTIONS = [
   { value: "category", label: "Category" },
 ] as const;
 
+export type SeasonalityBudgetMode = "percent" | "absolute";
+
+export type SeasonalityEvent = {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  scope: string;
+  budgetMode: SeasonalityBudgetMode;
+  budgetValue: string;
+};
+
+export type SuggestedSeasonalityEventTemplate = {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  description: string;
+};
+
+/** Prototype "today" — keeps suggested events aligned with the 2026 demo data. */
+export const SEASONALITY_REFERENCE_DATE = new Date(2026, 6, 6);
+
+const SUGGESTED_SEASONALITY_EVENTS_BY_MONTH: Record<
+  string,
+  SuggestedSeasonalityEventTemplate[]
+> = {
+  "2026-07": [
+    {
+      id: "independence-day",
+      name: "Independence Day",
+      startDate: "Jul 03, 2026",
+      endDate: "Jul 05, 2026",
+      description: "US holiday weekend promotions",
+    },
+    {
+      id: "prime-day",
+      name: "Amazon Prime Day",
+      startDate: "Jul 15, 2026",
+      endDate: "Jul 16, 2026",
+      description: "Major Amazon retail event",
+    },
+    {
+      id: "mid-summer-sale",
+      name: "Mid-Summer Sale",
+      startDate: "Jul 10, 2026",
+      endDate: "Jul 12, 2026",
+      description: "Seasonal clearance across categories",
+    },
+    {
+      id: "back-to-school",
+      name: "Back to School Early Access",
+      startDate: "Jul 28, 2026",
+      endDate: "Jul 31, 2026",
+      description: "Early school-season demand",
+    },
+  ],
+  "2026-08": [
+    {
+      id: "tax-free-weekend",
+      name: "Tax-Free Weekend",
+      startDate: "Aug 07, 2026",
+      endDate: "Aug 09, 2026",
+      description: "State back-to-school tax holidays",
+    },
+    {
+      id: "labor-day-prep",
+      name: "Labor Day Prep",
+      startDate: "Aug 28, 2026",
+      endDate: "Aug 31, 2026",
+      description: "End-of-summer holiday lead-in",
+    },
+  ],
+  "2026-11": [
+    {
+      id: "black-friday",
+      name: "Black Friday",
+      startDate: "Nov 27, 2026",
+      endDate: "Nov 29, 2026",
+      description: "Peak holiday shopping weekend",
+    },
+    {
+      id: "cyber-monday",
+      name: "Cyber Monday",
+      startDate: "Nov 30, 2026",
+      endDate: "Nov 30, 2026",
+      description: "Online-focused holiday sales day",
+    },
+  ],
+};
+
+function monthKeyFromDate(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+export function formatSeasonalityMonthLabel(
+  referenceDate: Date = SEASONALITY_REFERENCE_DATE,
+) {
+  return referenceDate.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+/** FR-019 — known retail events for the month containing the reference date. */
+export function getSuggestedSeasonalityEvents(
+  referenceDate: Date = SEASONALITY_REFERENCE_DATE,
+): SuggestedSeasonalityEventTemplate[] {
+  return SUGGESTED_SEASONALITY_EVENTS_BY_MONTH[monthKeyFromDate(referenceDate)] ?? [];
+}
+
 export const BUDGET_GRANULARITIES = [
   "Monthly",
   "Quarterly",

@@ -4,8 +4,9 @@ import { useState } from "react";
 import { CalendarDays, ChevronDown } from "lucide-react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 
-import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
 import { SeasonalityEventsSection } from "@/components/gbo-optimization/seasonality-events-section";
+import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
+import { SuggestedSeasonalityEvents } from "@/components/gbo-optimization/suggested-seasonality-events";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -16,6 +17,7 @@ import {
 import {
   LEVEL_1_OPTIONS,
   SEASONALITY_CHART_DATA,
+  type SeasonalityEvent,
 } from "@/lib/gbo-optimization/setup-data";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +37,7 @@ function formatCurrency(value: number) {
 }
 
 export function SeasonalityStep() {
+  const [events, setEvents] = useState<SeasonalityEvent[]>([]);
   const [viewMode, setViewMode] = useState<"entire-business" | "portfolio">(
     "entire-business",
   );
@@ -49,7 +52,10 @@ export function SeasonalityStep() {
         Cumulative budget plan for the year 2026
       </h2>
 
-      <SeasonalityEventsSection />
+      <SeasonalityEventsSection
+        events={events}
+        onAddEvent={(event) => setEvents((current) => [...current, event])}
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -187,6 +193,8 @@ export function SeasonalityStep() {
           </ChartContainer>
         </CardContent>
       </Card>
+
+      <SuggestedSeasonalityEvents />
     </div>
   );
 }
