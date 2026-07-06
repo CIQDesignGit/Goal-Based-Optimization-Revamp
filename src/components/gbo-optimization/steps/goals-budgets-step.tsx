@@ -67,6 +67,9 @@ const BUDGET_COL_WIDTH_NUDGE =
 const BUDGET_COL_WIDTH_CLASS = BUDGET_COL_WIDTH_NORMAL;
 const BUDGET_HEAD_BASE =
   "border-r border-slate-200 px-2 py-2 text-right text-xs font-medium text-slate-600";
+const BUDGET_MONTH_HEADER_WITH_NUDGE_CLASS = "min-h-[4.5rem]";
+const BUDGET_MONTH_NUDGE_FOOTER_CLASS =
+  "min-h-[1.75rem] text-right text-[10px] font-normal leading-snug text-slate-500";
 const BUDGET_HEAD = cn(BUDGET_COL_WIDTH_CLASS, BUDGET_HEAD_BASE);
 const BUDGET_CELL_BASE =
   "overflow-visible border-r border-slate-100 p-1 text-right";
@@ -352,6 +355,7 @@ function budgetMonthHeadClass(
     budgetColumnWidthClass(monthIndex, showNextMonthNudge),
     HEAD_ROW_BORDER,
     isNudgeColumn && "overflow-visible",
+    showNextMonthNudge && BUDGET_MONTH_HEADER_WITH_NUDGE_CLASS,
     isBudgetMonthLocked(monthIndex) && "bg-slate-100 text-slate-400",
     !isBudgetMonthLocked(monthIndex) &&
       !isCurrent &&
@@ -1146,27 +1150,51 @@ export function GoalsBudgetsStep() {
                       title={isCurrent ? "Current month" : undefined}
                       aria-current={isCurrent ? "date" : undefined}
                     >
-                      <span className="flex w-full flex-col items-end gap-1">
-                        <span className="inline-flex items-center justify-end gap-1">
+                      {hasUnfilledNextMonthBudget ? (
+                        <div className="flex h-full flex-col justify-between gap-1">
+                          <div className="flex flex-1 items-center justify-end">
+                            <span className="inline-flex items-center justify-end gap-1">
+                              {isCurrent ? (
+                                <span
+                                  className="size-1.5 shrink-0 rounded-full bg-brand-500"
+                                  aria-hidden
+                                />
+                              ) : highlightNextMonth ? (
+                                <span
+                                  className="size-1.5 shrink-0 rounded-full bg-amber-500"
+                                  aria-hidden
+                                />
+                              ) : null}
+                              {BUDGET_MONTHS[monthIndex]}
+                            </span>
+                          </div>
+                          {highlightNextMonth ? (
+                            <span
+                              className={cn(
+                                BUDGET_MONTH_NUDGE_FOOTER_CLASS,
+                                "whitespace-normal",
+                              )}
+                            >
+                              Set {BUDGET_MONTHS[monthIndex]} before month-end
+                            </span>
+                          ) : (
+                            <span
+                              className={BUDGET_MONTH_NUDGE_FOOTER_CLASS}
+                              aria-hidden
+                            />
+                          )}
+                        </div>
+                      ) : (
+                        <span className="inline-flex w-full items-center justify-end gap-1">
                           {isCurrent ? (
                             <span
                               className="size-1.5 shrink-0 rounded-full bg-brand-500"
                               aria-hidden
                             />
-                          ) : highlightNextMonth ? (
-                            <span
-                              className="size-1.5 shrink-0 rounded-full bg-amber-500"
-                              aria-hidden
-                            />
                           ) : null}
                           {BUDGET_MONTHS[monthIndex]}
                         </span>
-                        {highlightNextMonth ? (
-                          <span className="w-full whitespace-normal text-right text-[10px] font-normal leading-snug text-slate-500">
-                            Set {BUDGET_MONTHS[monthIndex]} before month-end
-                          </span>
-                        ) : null}
-                      </span>
+                      )}
                     </th>
                   );
                 })}
