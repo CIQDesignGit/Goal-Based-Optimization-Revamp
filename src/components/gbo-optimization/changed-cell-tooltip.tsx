@@ -18,6 +18,9 @@ type ChangedCellTooltipProps = {
   to: string;
 };
 
+/** Stable render target so table inputs are not remounted when tooltip state toggles. */
+const TOOLTIP_CELL_TRIGGER = <span className="block w-full min-w-0" />;
+
 function formatDiffValue(value: string): string {
   const trimmed = value.trim();
   return trimmed || "—";
@@ -64,19 +67,15 @@ export function ChangedCellTooltip({
 }: ChangedCellTooltipProps) {
   const content = buildTooltipContent({ visual, from, to });
 
-  if (!content) {
-    return children;
-  }
-
   return (
     <TooltipProvider delay={500}>
-      <Tooltip>
-        <TooltipTrigger
-          render={<span className="block w-full min-w-0">{children}</span>}
-        />
-        <TooltipContent className="max-w-xs text-left leading-snug">
-          {content}
-        </TooltipContent>
+      <Tooltip disabled={!content}>
+        <TooltipTrigger render={TOOLTIP_CELL_TRIGGER}>{children}</TooltipTrigger>
+        {content ? (
+          <TooltipContent className="max-w-xs text-left leading-snug">
+            {content}
+          </TooltipContent>
+        ) : null}
       </Tooltip>
     </TooltipProvider>
   );

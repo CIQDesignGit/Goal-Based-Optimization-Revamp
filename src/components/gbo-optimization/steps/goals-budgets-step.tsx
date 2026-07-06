@@ -132,8 +132,9 @@ function selectEditablePortion(input: HTMLInputElement) {
 }
 
 function handleGoalsInputFocus(event: FocusEvent<HTMLInputElement>) {
+  const input = event.currentTarget;
   requestAnimationFrame(() => {
-    selectEditablePortion(event.currentTarget);
+    selectEditablePortion(input);
   });
 }
 

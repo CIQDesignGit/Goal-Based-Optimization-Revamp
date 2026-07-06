@@ -116,8 +116,9 @@ function handleConstraintInputFocus(
   onFocus?: () => void,
 ) {
   onFocus?.();
+  const input = event.currentTarget;
   requestAnimationFrame(() => {
-    selectEditablePortion(event.currentTarget);
+    selectEditablePortion(input);
   });
 }
 
