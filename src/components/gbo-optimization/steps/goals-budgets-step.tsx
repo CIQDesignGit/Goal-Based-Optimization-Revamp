@@ -22,6 +22,7 @@ import { useSetupContext } from "@/components/gbo-optimization/setup-context";
 import { ChangedCellTooltip, formatCellDiffValue } from "@/components/gbo-optimization/changed-cell-tooltip";
 import { ImpactBanner } from "@/components/gbo-optimization/impact-banner";
 import { InfoLabel } from "@/components/gbo-optimization/info-label";
+import { MonthlyBudgetDistributionCalendar } from "@/components/gbo-optimization/monthly-budget-distribution-calendar";
 import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
 import { SetupToast } from "@/components/gbo-optimization/setup-toast";
 import { Button } from "@/components/ui/button";
@@ -922,6 +923,21 @@ export function GoalsBudgetsStep() {
     [rowState],
   );
 
+  const currentMonthBudget = useMemo(() => {
+    const parentBudget =
+      rowState["entire-business"]?.monthlyBudgets[BUDGET_CURRENT_MONTH_INDEX] ??
+      "";
+    const parentTotal = parseCurrency(parentBudget);
+    if (parentTotal > 0) return parentTotal;
+
+    return GOALS_SCOPE_ROWS.reduce((total, row) => {
+      if (row.id === "entire-business") return total;
+      const budget =
+        rowState[row.id]?.monthlyBudgets[BUDGET_CURRENT_MONTH_INDEX] ?? "";
+      return total + parseCurrency(budget);
+    }, 0);
+  }, [rowState]);
+
   const bulkGoalMetric = useMemo(
     () => getBulkGoalMetric(rowState),
     [rowState],
@@ -984,16 +1000,27 @@ export function GoalsBudgetsStep() {
           </div>
         </div>
 
-        {!isRuleBased && hasMissingGoals && (
-          <p
-            role="status"
-            className="flex items-center gap-2 text-sm text-slate-600"
-          >
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-100">
-              <Info className="size-3.5 text-amber-600" aria-hidden />
-            </span>
-            Goals must be selected to add or edit budgets.
-          </p>
+        {!isRuleBased && (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {hasMissingGoals ? (
+              <p
+                role="status"
+                className="flex items-center gap-2 text-sm text-slate-600"
+              >
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-100">
+                  <Info className="size-3.5 text-amber-600" aria-hidden />
+                </span>
+                Goals must be selected to add or edit budgets.
+              </p>
+            ) : (
+              <span className="flex-1" aria-hidden />
+            )}
+            <MonthlyBudgetDistributionCalendar
+              monthIndex={BUDGET_CURRENT_MONTH_INDEX}
+              monthlyBudget={currentMonthBudget}
+              monthLabel={BUDGET_MONTHS[BUDGET_CURRENT_MONTH_INDEX]}
+            />
+          </div>
         )}
 
       </div>
