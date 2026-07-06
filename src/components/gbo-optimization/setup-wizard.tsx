@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { SetupHeader } from "@/components/gbo-optimization/setup-header";
 import {
@@ -64,6 +64,7 @@ function resolveStepAfterFlowChange(
 function SetupWizardContent() {
   const { optimizerType, steps } = useSetupContext();
   const [currentStep, setCurrentStep] = useState<SetupStepKey>("general");
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const StepComponent = STEP_COMPONENTS[currentStep];
 
   const currentIndex = steps.findIndex((step) => step.key === currentStep);
@@ -75,6 +76,19 @@ function SetupWizardContent() {
       setCurrentStep(resolved);
     }
   }, [optimizerType, stepKeys, currentStep]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const resetScroll = () => {
+      container.scrollTop = 0;
+      container.scrollLeft = 0;
+    };
+
+    resetScroll();
+    requestAnimationFrame(resetScroll);
+  }, [currentStep]);
 
   const handleBack = () => {
     if (currentIndex > 0) {
@@ -102,7 +116,10 @@ function SetupWizardContent() {
         onComplete={handleComplete}
         onStepSelect={setCurrentStep}
       />
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-8">
+      <div
+        ref={scrollContainerRef}
+        className="min-h-0 flex-1 overflow-y-auto px-6 pb-8"
+      >
         <StepComponent />
       </div>
     </div>

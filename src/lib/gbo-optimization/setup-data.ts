@@ -469,6 +469,21 @@ export function isBudgetFutureMonth(
   return monthIndex > currentMonthIndex;
 }
 
+/** Calendar month immediately after the anchor (e.g. August when anchor is July). */
+export function getNextBudgetMonthIndex(
+  currentMonthIndex: number = BUDGET_CURRENT_MONTH_INDEX,
+): number | null {
+  const nextIndex = currentMonthIndex + 1;
+  return nextIndex < BUDGET_MONTHS.length ? nextIndex : null;
+}
+
+export function isBudgetNextMonth(
+  monthIndex: number,
+  currentMonthIndex: number = BUDGET_CURRENT_MONTH_INDEX,
+): boolean {
+  return monthIndex === currentMonthIndex + 1;
+}
+
 export function getDefaultBudgetWindowStart(
   currentMonthIndex: number = BUDGET_CURRENT_MONTH_INDEX,
 ): number {

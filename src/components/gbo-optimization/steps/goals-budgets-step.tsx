@@ -31,12 +31,14 @@ import {
   BUDGET_MONTHS,
   getDefaultBudgetWindowEnd,
   getDefaultBudgetWindowStart,
+  getNextBudgetMonthIndex,
   getScopeRowDefaultMonthlyBudget,
   GOALS_SCOPE_ROWS,
   GOAL_TYPE_OPTIONS,
   isBudgetMonthLocked,
   isBudgetCurrentMonth,
   isBudgetFutureMonth,
+  isBudgetNextMonth,
   isRoasGoalMetric,
   RULE_BASED_OPTIMIZER_NOTICE,
   type GoalType,
@@ -106,9 +108,16 @@ const GOAL_METRIC_SELECT_OPTIONS = GOAL_TYPE_OPTIONS.map((option) => ({
   value: option.value,
   label: option.label,
 }));
+const BULK_CLEAR_GOAL_VALUE = "__clear-goal__";
+const BULK_GOAL_METRIC_SELECT_OPTIONS = [
+  { value: BULK_CLEAR_GOAL_VALUE, label: "Select goal" },
+  ...GOAL_METRIC_SELECT_OPTIONS,
+];
 const GOAL_METRIC_MENU_MIN_WIDTH_PX = 220;
 const METRIC_SELECT_TRIGGER_CLASS =
   "h-auto w-auto gap-1 border-0 bg-transparent p-0 text-sm font-medium text-slate-700 shadow-none ring-0 focus-visible:border-transparent focus-visible:ring-0 hover:bg-transparent";
+const BULK_METRIC_SELECT_TRIGGER_CLASS =
+  "flex h-8 w-full items-center justify-between gap-1 rounded-md border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 shadow-none hover:border-slate-300 focus-visible:border-brand-300 focus-visible:ring-2 focus-visible:ring-brand-500/20";
 const STICKY_SCOPE_HEAD =
   "sticky left-0 z-50 bg-slate-50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]";
 const STICKY_SCOPE_CELL =
@@ -124,6 +133,34 @@ const STICKY_FY_CELL =
 const BUDGET_LOCKED_HINT = "Past months are locked and cannot be edited.";
 const BUDGET_GOAL_REQUIRED_HINT =
   "Select a goal before entering budget.";
+
+function rowNeedsNextMonthBudget(
+  row: GoalsRowState,
+  nextMonthIndex: number,
+): boolean {
+  if (!row.goalMetric) return false;
+  return !(row.monthlyBudgets[nextMonthIndex]?.trim() ?? "");
+}
+
+function getBulkGoalMetric(
+  rowState: Record<string, GoalsRowState>,
+): GoalType | null | typeof BULK_CLEAR_GOAL_VALUE {
+  const metrics = GOALS_SCOPE_ROWS.map(
+    (row) => rowState[row.id]?.goalMetric ?? null,
+  );
+
+  if (metrics.every((metric) => metric === null)) {
+    return BULK_CLEAR_GOAL_VALUE;
+  }
+
+  const first = metrics[0];
+
+  if (first && metrics.every((metric) => metric === first)) {
+    return first;
+  }
+
+  return null;
+}
 
 function selectEditablePortion(input: HTMLInputElement) {
   const { value } = input;
@@ -237,8 +274,12 @@ function getBudgetCellTooltipVisual(
   return visual === "prefilled" ? "historic" : "edited";
 }
 
-function budgetMonthHeadClass(monthIndex: number): string {
+function budgetMonthHeadClass(
+  monthIndex: number,
+  highlightNextMonth = false,
+): string {
   const isCurrent = isBudgetCurrentMonth(monthIndex);
+  const isNextMonth = isBudgetNextMonth(monthIndex);
 
   return cn(
     BUDGET_HEAD,
@@ -246,9 +287,17 @@ function budgetMonthHeadClass(monthIndex: number): string {
     isBudgetMonthLocked(monthIndex) && "bg-slate-100 text-slate-400",
     !isBudgetMonthLocked(monthIndex) &&
       !isCurrent &&
+      !highlightNextMonth &&
       "bg-white text-slate-600",
+    highlightNextMonth &&
+      isNextMonth &&
+      "next-month-column-nudge bg-amber-50/70 text-amber-900",
     isCurrent &&
+      !highlightNextMonth &&
       "border-r-0 border-b-2 border-brand-500 bg-brand-50 font-semibold text-brand-700",
+    isCurrent &&
+      highlightNextMonth &&
+      "border-r-0 border-b-2 border-brand-500 bg-brand-50/80 font-semibold text-brand-700",
   );
 }
 
@@ -610,6 +659,23 @@ export function GoalsBudgetsStep() {
     }));
   };
 
+  const applyGoalToAllRows = (value: string) => {
+    setRowState((current) => {
+      const next = { ...current };
+
+      for (const row of GOALS_SCOPE_ROWS) {
+        if (!next[row.id]) continue;
+        next[row.id] = {
+          ...next[row.id],
+          goalMetric:
+            value === BULK_CLEAR_GOAL_VALUE ? null : (value as GoalType),
+        };
+      }
+
+      return next;
+    });
+  };
+
   const formatGoalValue = (rowId: string) => {
     setRowState((current) => {
       const row = current[rowId];
@@ -751,6 +817,28 @@ export function GoalsBudgetsStep() {
     [rowState],
   );
 
+  const nextMonthIndex = useMemo(() => getNextBudgetMonthIndex(), []);
+
+  const hasUnfilledNextMonthBudget = useMemo(() => {
+    if (isRuleBased || nextMonthIndex === null) return false;
+    if (!visibleMonthIndices.includes(nextMonthIndex)) return false;
+
+    return GOALS_SCOPE_ROWS.some((row) => {
+      const state = rowState[row.id];
+      return state && rowNeedsNextMonthBudget(state, nextMonthIndex);
+    });
+  }, [isRuleBased, nextMonthIndex, rowState, visibleMonthIndices]);
+
+  const nextMonthBudgetNudgeTooltip =
+    nextMonthIndex !== null
+      ? `${BUDGET_MONTHS[nextMonthIndex]} budget isn't set yet. Enter amounts before month-end so optimization doesn't pause.`
+      : undefined;
+
+  const bulkGoalMetric = useMemo(
+    () => getBulkGoalMetric(rowState),
+    [rowState],
+  );
+
   return (
     <div className="flex flex-col gap-3 py-4">
       {isRuleBased && !ruleBasedNoticeDismissed && (
@@ -762,7 +850,7 @@ export function GoalsBudgetsStep() {
         </ImpactBanner>
       )}
 
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative w-72">
@@ -819,6 +907,7 @@ export function GoalsBudgetsStep() {
             Goals must be selected to add or edit budgets.
           </p>
         )}
+
       </div>
 
       <div
@@ -878,7 +967,14 @@ export function GoalsBudgetsStep() {
                       />
                     </div>
                     <span className="shrink-0 text-center text-xs font-medium text-slate-600">
-                      <InfoLabel label="Budget FY2026" />
+                      <div className="flex flex-col items-center gap-0.5">
+                        <InfoLabel label="Budget FY2026" />
+                        {hasUnfilledNextMonthBudget && nextMonthIndex !== null ? (
+                          <span className="text-[10px] font-normal text-slate-400">
+                            Set {BUDGET_MONTHS[nextMonthIndex]} before month-end
+                          </span>
+                        ) : null}
+                      </div>
                     </span>
                     <div
                       className="inline-flex rounded-md bg-slate-100 p-0.5"
@@ -901,9 +997,26 @@ export function GoalsBudgetsStep() {
                   goalStickyOffsets.metric,
                   METRIC_COL_WIDTH_PX,
                 )}
-                className={cn(METRIC_HEAD, HEAD_ROW_BORDER, STICKY_GOAL_HEAD)}
+                className={cn(
+                  METRIC_HEAD,
+                  HEAD_ROW_BORDER,
+                  STICKY_GOAL_HEAD,
+                  "overflow-visible",
+                )}
               >
-                <InfoLabel label="Metric to optimize" />
+                <div className="flex flex-col gap-1.5">
+                  <InfoLabel label="Metric to optimize" />
+                  <SetupInlineSelect
+                    hideLabel
+                    label="Apply goal to all rows"
+                    value={bulkGoalMetric}
+                    options={BULK_GOAL_METRIC_SELECT_OPTIONS}
+                    placeholder="Apply to all"
+                    menuMinWidth={GOAL_METRIC_MENU_MIN_WIDTH_PX}
+                    onValueChange={applyGoalToAllRows}
+                    triggerClassName={BULK_METRIC_SELECT_TRIGGER_CLASS}
+                  />
+                </div>
               </th>
               <th
                 style={stickyColumnStyle(
@@ -943,22 +1056,49 @@ export function GoalsBudgetsStep() {
               {!isRuleBased &&
                 visibleMonthIndices.map((monthIndex) => {
                   const isCurrent = isBudgetCurrentMonth(monthIndex);
+                  const isNextMonth = isBudgetNextMonth(monthIndex);
+                  const highlightNextMonth =
+                    hasUnfilledNextMonthBudget && isNextMonth;
 
                   return (
                     <th
                       key={BUDGET_MONTHS[monthIndex]}
-                      className={budgetMonthHeadClass(monthIndex)}
-                      title={isCurrent ? "Current month" : undefined}
+                      className={budgetMonthHeadClass(
+                        monthIndex,
+                        highlightNextMonth,
+                      )}
+                      title={
+                        isCurrent
+                          ? "Current month"
+                          : highlightNextMonth
+                            ? "Next month — budget needed before month-end"
+                            : undefined
+                      }
                       aria-current={isCurrent ? "date" : undefined}
                     >
-                      <span className="inline-flex items-center justify-end gap-1">
-                        {isCurrent ? (
-                          <span
-                            className="size-1.5 shrink-0 rounded-full bg-brand-500"
-                            aria-hidden
-                          />
+                      <span className="inline-flex flex-col items-end gap-0.5">
+                        <span className="inline-flex items-center justify-end gap-1">
+                          {isCurrent ? (
+                            <span
+                              className="size-1.5 shrink-0 rounded-full bg-brand-500"
+                              aria-hidden
+                            />
+                          ) : highlightNextMonth ? (
+                            <span
+                              className="size-1.5 shrink-0 rounded-full bg-amber-500"
+                              aria-hidden
+                            />
+                          ) : null}
+                          {BUDGET_MONTHS[monthIndex]}
+                        </span>
+                        {highlightNextMonth ? (
+                          <span className="text-[10px] font-normal text-slate-500">
+                            <InfoLabel
+                              label="Up next"
+                              tooltip={nextMonthBudgetNudgeTooltip}
+                            />
+                          </span>
                         ) : null}
-                        {BUDGET_MONTHS[monthIndex]}
                       </span>
                     </th>
                   );
