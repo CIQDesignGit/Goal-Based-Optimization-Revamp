@@ -312,6 +312,14 @@ export function isBudgetCurrentMonth(
   return monthIndex === currentMonthIndex;
 }
 
+/** Months after the anchor are not prefilled — users enter them when ready. */
+export function isBudgetFutureMonth(
+  monthIndex: number,
+  currentMonthIndex: number = BUDGET_CURRENT_MONTH_INDEX,
+): boolean {
+  return monthIndex > currentMonthIndex;
+}
+
 export function getDefaultBudgetWindowStart(
   currentMonthIndex: number = BUDGET_CURRENT_MONTH_INDEX,
 ): number {
@@ -348,6 +356,10 @@ export function resolveInitialMonthlyBudgets(row: ScopeRow): string[] {
   const defaultBudget = getScopeRowDefaultMonthlyBudget(row);
 
   return Array.from({ length: BUDGET_MONTHS.length }, (_, index) => {
+    if (isBudgetFutureMonth(index)) {
+      return "";
+    }
+
     const existing = row.monthlyBudgets[index]?.trim() ?? "";
     return existing || defaultBudget;
   });

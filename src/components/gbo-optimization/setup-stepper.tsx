@@ -88,7 +88,7 @@ function StepConnector({ isComplete }: { isComplete: boolean }) {
   return (
     <div
       className={cn(
-        "mx-1 h-px min-w-2 max-w-[60px] flex-1 self-center sm:mx-2",
+        "mx-1 h-px w-5 shrink-0 self-center sm:mx-1.5",
         isComplete ? "bg-emerald-400" : "bg-slate-200",
       )}
       aria-hidden
@@ -107,7 +107,7 @@ export function SetupStepper({
   return (
     <nav
       aria-label="Setup progress"
-      className={cn("flex w-full min-w-0 items-center", className)}
+      className={cn("flex w-full min-w-0 items-center justify-center", className)}
     >
       {steps.map((step, index) => {
         const status = getStepStatus(index, currentIndex);

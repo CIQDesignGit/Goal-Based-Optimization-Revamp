@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -33,6 +34,7 @@ import {
   GOALS_SCOPE_ROWS,
   isBudgetMonthLocked,
   isBudgetCurrentMonth,
+  isBudgetFutureMonth,
   isRoasGoalMetric,
   PREFILL_METRIC_OPTIONS,
   RULE_BASED_OPTIMIZER_NOTICE,
@@ -76,6 +78,9 @@ const budgetCellInputClass =
   "h-8 w-full min-w-0 border border-transparent px-1.5 text-right text-sm tabular-nums shadow-none hover:border-slate-200 focus-visible:border-brand-300 focus-visible:bg-white";
 const SCOPE_COLUMN_MIN_WIDTH = 200;
 const SCOPE_COLUMN_DEFAULT_WIDTH = 220;
+/** Narrower scope column when budget months are hidden (rule-based flow). */
+const SCOPE_COLUMN_RULE_BASED_MIN_WIDTH = 128;
+const SCOPE_COLUMN_RULE_BASED_DEFAULT_WIDTH = 148;
 const METRIC_COL_WIDTH_PX = 120;
 const TARGET_COL_WIDTH_PX = 112;
 const LAST_30_COL_WIDTH_PX = 120;
@@ -289,6 +294,14 @@ function budgetInputVisualClass(
   state: GoalsRowState,
   monthIndex: number,
 ): string {
+  const value = state.monthlyBudgets[monthIndex]?.trim() ?? "";
+  if (isBudgetFutureMonth(monthIndex) && !value) {
+    return cn(
+      budgetCellInputClass,
+      "bg-white text-slate-900 placeholder:text-slate-300",
+    );
+  }
+
   const visual = getBudgetMonthVisualState(state, monthIndex);
 
   return cn(
@@ -342,11 +355,12 @@ function useResizableColumnWidth(
     [minWidth, width],
   );
 
-  return { width, onResizeStart };
+  return { width, setWidth, onResizeStart };
 }
 
 type ScopeColumnHeaderProps = {
   width: number;
+  minWidth: number;
   onResizeStart: (event: ReactPointerEvent<HTMLDivElement>) => void;
 };
 
@@ -383,11 +397,15 @@ function MonthRangeToggle({
   );
 }
 
-function ScopeColumnHeader({ width, onResizeStart }: ScopeColumnHeaderProps) {
+function ScopeColumnHeader({
+  width,
+  minWidth,
+  onResizeStart,
+}: ScopeColumnHeaderProps) {
   return (
     <th
       rowSpan={2}
-      style={{ width, minWidth: SCOPE_COLUMN_MIN_WIDTH, maxWidth: width }}
+      style={{ width, minWidth, maxWidth: width }}
       className={cn(
         "relative border-r border-slate-200 px-4 py-2.5 text-left font-medium",
         HEAD_ROW_BORDER,
@@ -417,6 +435,12 @@ export function GoalsBudgetsStep() {
     setIncludeConstraints,
   } = useSetupContext();
   const isRuleBased = optimizerType === "rule-based";
+  const scopeMinWidth = isRuleBased
+    ? SCOPE_COLUMN_RULE_BASED_MIN_WIDTH
+    : SCOPE_COLUMN_MIN_WIDTH;
+  const scopeDefaultWidth = isRuleBased
+    ? SCOPE_COLUMN_RULE_BASED_DEFAULT_WIDTH
+    : SCOPE_COLUMN_DEFAULT_WIDTH;
   const rowState = useSetupSessionStore((state) => state.goalsRowState);
   const setRowState = useSetupSessionStore((state) => state.setGoalsRowState);
   const historicHintDismissed = useSetupSessionStore(
@@ -433,19 +457,27 @@ export function GoalsBudgetsStep() {
     (state) => state.setMonthWindowRange,
   );
   const tableScrollRef = useRef<HTMLDivElement>(null);
-  const { width: scopeColumnWidth, onResizeStart: onScopeResizeStart } =
-    useResizableColumnWidth(
-      SCOPE_COLUMN_MIN_WIDTH,
-      SCOPE_COLUMN_DEFAULT_WIDTH,
+  const {
+    width: scopeColumnWidth,
+    setWidth: setScopeColumnWidth,
+    onResizeStart: onScopeResizeStart,
+  } = useResizableColumnWidth(scopeMinWidth, scopeDefaultWidth);
+
+  useEffect(() => {
+    if (!isRuleBased) return;
+
+    setScopeColumnWidth((current) =>
+      Math.max(scopeMinWidth, Math.min(current, scopeDefaultWidth)),
     );
+  }, [isRuleBased, scopeMinWidth, scopeDefaultWidth, setScopeColumnWidth]);
 
   const scopeColumnStyle = useMemo(
     () => ({
       width: scopeColumnWidth,
-      minWidth: SCOPE_COLUMN_MIN_WIDTH,
+      minWidth: scopeMinWidth,
       maxWidth: scopeColumnWidth,
     }),
-    [scopeColumnWidth],
+    [scopeColumnWidth, scopeMinWidth],
   );
 
   const defaultMonthWindowStart = useMemo(
@@ -472,14 +504,19 @@ export function GoalsBudgetsStep() {
     [scopeColumnWidth],
   );
 
-  const tableMinWidth = useMemo(
-    () =>
-      scopeColumnWidth +
-      GOAL_SECTION_WIDTH_PX +
+  const tableMinWidth = useMemo(() => {
+    const goalSectionWidth = scopeColumnWidth + GOAL_SECTION_WIDTH_PX;
+
+    if (isRuleBased) {
+      return goalSectionWidth;
+    }
+
+    return (
+      goalSectionWidth +
       visibleMonthIndices.length * BUDGET_MONTH_COL_WIDTH_PX +
-      FY_COLUMN_WIDTH_PX,
-    [scopeColumnWidth, visibleMonthIndices.length],
-  );
+      FY_COLUMN_WIDTH_PX
+    );
+  }, [scopeColumnWidth, visibleMonthIndices.length, isRuleBased]);
 
   const showPreviousMonths = monthWindowStart === 0;
   const showFutureMonths = monthWindowEnd === BUDGET_MONTHS.length;
@@ -605,14 +642,27 @@ export function GoalsBudgetsStep() {
       const monthlyBudgets = [...row.monthlyBudgets];
       const raw = monthlyBudgets[monthIndex]?.trim() ?? "";
       const historicValue = row.historicMonthlyBudgets[monthIndex] ?? "";
+
+      if (isBudgetFutureMonth(monthIndex) && raw === "") {
+        monthlyBudgets[monthIndex] = "";
+        const editedMonthlyBudgets = [...row.editedMonthlyBudgets];
+        editedMonthlyBudgets[monthIndex] = false;
+
+        return {
+          ...current,
+          [rowId]: { ...row, monthlyBudgets, editedMonthlyBudgets },
+        };
+      }
+
       const scopeRow = GOALS_SCOPE_ROWS.find((item) => item.id === rowId);
       const last30DayBudgetDefault = scopeRow
         ? normalizeCurrencyDisplay(
             getScopeRowDefaultMonthlyBudget(scopeRow),
           )
         : "";
-      const historicOrDefault =
-        normalizeCurrencyDisplay(historicValue) || last30DayBudgetDefault;
+      const historicOrDefault = isBudgetFutureMonth(monthIndex)
+        ? normalizeCurrencyDisplay(historicValue)
+        : normalizeCurrencyDisplay(historicValue) || last30DayBudgetDefault;
 
       monthlyBudgets[monthIndex] =
         raw === "" ? historicOrDefault : normalizeCurrencyDisplay(raw);
@@ -696,7 +746,10 @@ export function GoalsBudgetsStep() {
 
       <div
         ref={tableScrollRef}
-        className="overflow-x-auto rounded-lg border border-slate-200 bg-white"
+        className={cn(
+          "rounded-lg border border-slate-200 bg-white",
+          !isRuleBased && "overflow-x-auto",
+        )}
       >
         <table
           className="w-full table-fixed border-separate border-spacing-0 text-sm"
@@ -712,6 +765,7 @@ export function GoalsBudgetsStep() {
             <tr className="bg-slate-50 text-xs text-slate-600">
               <ScopeColumnHeader
                 width={scopeColumnWidth}
+                minWidth={scopeMinWidth}
                 onResizeStart={onScopeResizeStart}
               />
               <th

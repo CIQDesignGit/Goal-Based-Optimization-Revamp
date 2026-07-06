@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown, X } from "lucide-react";
 
 import { Label } from "@/components/ui/label";
@@ -25,6 +26,9 @@ type SetupInlineSelectProps = {
 const INLINE_SELECT_TRIGGER_BASE =
   "flex w-full items-center justify-between gap-1.5 rounded-md border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 h-10";
 
+/** Dropdown must be wide enough for label + check icon even when the trigger is compact. */
+const MENU_MIN_WIDTH_PX = 144;
+
 export function SetupInlineSelect({
   label,
   value,
@@ -36,7 +40,14 @@ export function SetupInlineSelect({
   hideLabel = false,
 }: SetupInlineSelectProps) {
   const [listOpen, setListOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
   const listId = useId();
   const triggerId = useId();
   const labelId = useId();
@@ -44,11 +55,42 @@ export function SetupInlineSelect({
   const selectedLabel =
     options.find((option) => option.value === value)?.label ?? null;
 
+  useLayoutEffect(() => {
+    if (!listOpen || !triggerRef.current) {
+      setMenuPosition(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      setMenuPosition({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: Math.max(rect.width, MENU_MIN_WIDTH_PX),
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [listOpen]);
+
   useEffect(() => {
     if (!listOpen) return;
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        !rootRef.current?.contains(target) &&
+        !menuRef.current?.contains(target)
+      ) {
         setListOpen(false);
       }
     };
@@ -67,6 +109,7 @@ export function SetupInlineSelect({
 
       <div className="relative">
         <button
+          ref={triggerRef}
           id={triggerId}
           type="button"
           role="combobox"
@@ -104,41 +147,51 @@ export function SetupInlineSelect({
           </button>
         ) : null}
 
-        {listOpen ? (
-          <ul
-            id={listId}
-            role="listbox"
-            aria-label={label}
-            className="absolute top-full left-0 z-50 mt-1 max-h-60 w-full min-w-full overflow-y-auto rounded-md border border-slate-200 bg-white p-1 shadow-md ring-1 ring-foreground/10"
-          >
-            {options.map((option) => {
-              const isSelected = value === option.value;
+        {listOpen && menuPosition
+          ? createPortal(
+              <ul
+                ref={menuRef}
+                id={listId}
+                role="listbox"
+                aria-label={label}
+                style={{
+                  position: "fixed",
+                  top: menuPosition.top,
+                  left: menuPosition.left,
+                  width: menuPosition.width,
+                }}
+                className="z-50 flex max-h-60 flex-col gap-0.5 overflow-y-auto rounded-md border border-slate-200 bg-white p-1 shadow-md ring-1 ring-foreground/10"
+              >
+                {options.map((option) => {
+                  const isSelected = value === option.value;
 
-              return (
-                <li key={option.value} role="presentation">
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={isSelected}
-                    className={cn(
-                      "relative flex w-full cursor-default items-center rounded-md py-1.5 pr-8 pl-2 text-left text-sm outline-hidden select-none hover:bg-slate-100 focus:bg-slate-100",
-                      isSelected && "bg-accent text-accent-foreground",
-                    )}
-                    onClick={() => {
-                      onValueChange(option.value);
-                      setListOpen(false);
-                    }}
-                  >
-                    {option.label}
-                    {isSelected ? (
-                      <Check className="absolute right-2 size-4 text-slate-900" />
-                    ) : null}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        ) : null}
+                  return (
+                    <li key={option.value} role="presentation">
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        className={cn(
+                          "flex w-full cursor-default items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-hidden select-none hover:bg-slate-100 focus:bg-slate-100",
+                          isSelected && "bg-accent text-accent-foreground",
+                        )}
+                        onClick={() => {
+                          onValueChange(option.value);
+                          setListOpen(false);
+                        }}
+                      >
+                        <span className="min-w-0 flex-1">{option.label}</span>
+                        {isSelected ? (
+                          <Check className="size-4 shrink-0 text-slate-900" />
+                        ) : null}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>,
+              document.body,
+            )
+          : null}
       </div>
     </div>
   );
