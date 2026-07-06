@@ -70,6 +70,13 @@ import { cn } from "@/lib/utils";
 const SPEND_CONSTRAINT_COL_COUNT = 7;
 const CAMPAIGN_CONSTRAINT_COL_COUNT = 8;
 const CAMPAIGN_TOTAL_COL_INDEX = 3;
+const RULE_BASED_FLOOR_CEILING_COL_COUNT = 4;
+const FLOOR_CEILING_FIELDS = [
+  "bidFloor",
+  "bidCeiling",
+  "budgetFloor",
+  "budgetCeiling",
+] as const;
 const SCOPE_COL_WIDTH = 200;
 const DATA_COL_WIDTH = 100;
 const HISTORY_DATA_COL_WIDTH = 128;
@@ -412,9 +419,11 @@ function HistoricValueLabel({ value }: { value: string }) {
 }
 
 function ConstraintDataColgroup({
+  isRuleBased,
   showCampaignConstraints,
   showHistoricalData,
 }: {
+  isRuleBased: boolean;
   showCampaignConstraints: boolean;
   showHistoricalData: boolean;
 }) {
@@ -427,18 +436,19 @@ function ConstraintDataColgroup({
       <col style={{ width: SCOPE_COL_WIDTH }} />
       <col style={{ width: dataWidth }} />
       <col style={{ width: dataWidth }} />
-      {Array.from({ length: SPEND_CONSTRAINT_COL_COUNT }).map((_, index) => (
-        <col
-          key={`spend-${index}`}
-          style={{
-            width:
-              index === SPEND_CONSTRAINT_COL_COUNT - 1
-                ? SPEND_TOTAL_COL_WIDTH
-                : dataWidth,
-          }}
-        />
-      ))}
-      {showCampaignConstraints &&
+      {!isRuleBased &&
+        Array.from({ length: SPEND_CONSTRAINT_COL_COUNT }).map((_, index) => (
+          <col
+            key={`spend-${index}`}
+            style={{
+              width:
+                index === SPEND_CONSTRAINT_COL_COUNT - 1
+                  ? SPEND_TOTAL_COL_WIDTH
+                  : dataWidth,
+            }}
+          />
+        ))}
+      {showCampaignConstraints && !isRuleBased &&
         Array.from({ length: CAMPAIGN_CONSTRAINT_COL_COUNT }).map((_, index) => (
           <col
             key={`campaign-${index}`}
@@ -450,6 +460,12 @@ function ConstraintDataColgroup({
             }}
           />
         ))}
+      {showCampaignConstraints && isRuleBased &&
+        Array.from({ length: RULE_BASED_FLOOR_CEILING_COL_COUNT }).map(
+          (_, index) => (
+            <col key={`floor-ceiling-${index}`} style={{ width: dataWidth }} />
+          ),
+        )}
     </colgroup>
   );
 }
@@ -668,12 +684,16 @@ export function ConstraintsStep() {
       const state = rowState[row.id];
       if (!state) return true;
 
-      if (!isPercentGroupValid(state.values, SPEND_PERCENT_FIELDS)) {
+      if (
+        !isRuleBased &&
+        !isPercentGroupValid(state.values, SPEND_PERCENT_FIELDS)
+      ) {
         return false;
       }
 
       if (
         showCampaignConstraints &&
+        !isRuleBased &&
         !isPercentGroupValid(state.values, CAMPAIGN_PERCENT_FIELDS)
       ) {
         return false;
@@ -681,7 +701,7 @@ export function ConstraintsStep() {
 
       return true;
     });
-  }, [rowState, showCampaignConstraints, pendingWarning, blockAlert]);
+  }, [rowState, showCampaignConstraints, pendingWarning, blockAlert, isRuleBased]);
 
   useEffect(() => {
     setConstraintsStepValid(constraintsStepValid);
@@ -1043,13 +1063,30 @@ export function ConstraintsStep() {
   const activeDataColClass = showHistoricalData
     ? dataColClassExpanded
     : dataColClass;
+  const tableMinWidth =
+    SCOPE_COL_WIDTH +
+    dataColWidth * 2 +
+    (isRuleBased
+      ? 0
+      : dataColWidth * (SPEND_CONSTRAINT_COL_COUNT - 1) + SPEND_TOTAL_COL_WIDTH) +
+    (showCampaignConstraints && !isRuleBased
+      ? dataColWidth * (CAMPAIGN_CONSTRAINT_COL_COUNT - 1) + SPEND_TOTAL_COL_WIDTH
+      : 0) +
+    (showCampaignConstraints && isRuleBased
+      ? dataColWidth * RULE_BASED_FLOOR_CEILING_COL_COUNT
+      : 0);
+  const scopeHeaderRowSpan = isRuleBased
+    ? showCampaignConstraints
+      ? 2
+      : 1
+    : 3;
 
   return (
     <div className="flex min-h-full flex-col gap-4 py-4">
       {isRuleBased && (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           Rule-based mode — only floor and ceiling constraints apply. Other
-          constraint types are used with Ally AI only (FR-015).
+          constraint types are used with Ally AI only.
         </p>
       )}
 
@@ -1092,9 +1129,15 @@ export function ConstraintsStep() {
         <label className="flex items-center gap-2 text-sm text-slate-600">
           <Switch
             checked={showCampaignConstraints}
-            onCheckedChange={setShowCampaignConstraints}
+            onCheckedChange={(checked) =>
+              setShowCampaignConstraints(checked === true)
+            }
           />
-          <span>Set campaign constraints</span>
+          <span>
+            {isRuleBased
+              ? "Set floor and ceiling limits"
+              : "Set campaign constraints"}
+          </span>
           <CircleHelp className="size-4 text-slate-400" />
         </label>
       </div>
@@ -1102,26 +1145,17 @@ export function ConstraintsStep() {
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
         <table
           className="w-full table-fixed border-collapse text-sm"
-          style={{
-            minWidth:
-              SCOPE_COL_WIDTH +
-              dataColWidth * 2 +
-              dataColWidth * (SPEND_CONSTRAINT_COL_COUNT - 1) +
-              SPEND_TOTAL_COL_WIDTH +
-              (showCampaignConstraints
-                ? dataColWidth * (CAMPAIGN_CONSTRAINT_COL_COUNT - 1) +
-                  SPEND_TOTAL_COL_WIDTH
-                : 0),
-          }}
+          style={{ minWidth: tableMinWidth }}
         >
           <ConstraintDataColgroup
+            isRuleBased={isRuleBased}
             showCampaignConstraints={showCampaignConstraints}
             showHistoricalData={showHistoricalData}
           />
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-600">
               <th
-                rowSpan={3}
+                rowSpan={scopeHeaderRowSpan}
                 className={cn(
                   scopeStickyHeaderClass,
                   "px-4 py-3 font-medium shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]",
@@ -1130,7 +1164,7 @@ export function ConstraintsStep() {
                 <InfoLabel label="Scope" />
               </th>
               <th
-                rowSpan={3}
+                rowSpan={scopeHeaderRowSpan}
                 className={cn(
                   activeDataColClass,
                   "border-r border-slate-200 py-3 text-center font-medium",
@@ -1139,21 +1173,24 @@ export function ConstraintsStep() {
                 <InfoLabel label="Goal" />
               </th>
               <th
-                rowSpan={3}
+                rowSpan={scopeHeaderRowSpan}
                 className={cn(
                   activeDataColClass,
                   "border-r border-slate-200 py-3 text-center font-medium",
+                  isRuleBased && !showCampaignConstraints && "border-r-0",
                 )}
               >
                 <InfoLabel label="Goal Value" />
               </th>
-              <th
-                colSpan={SPEND_CONSTRAINT_COL_COUNT}
-                className="border-b border-slate-200 px-4 py-2 text-center font-medium"
-              >
-                Spend Constraints (Optional)
-              </th>
-              {showCampaignConstraints && (
+              {!isRuleBased && (
+                <th
+                  colSpan={SPEND_CONSTRAINT_COL_COUNT}
+                  className="border-b border-slate-200 px-4 py-2 text-center font-medium"
+                >
+                  Spend Constraints (Optional)
+                </th>
+              )}
+              {showCampaignConstraints && !isRuleBased && (
                 <th
                   colSpan={CAMPAIGN_CONSTRAINT_COL_COUNT}
                   className="border-b border-l border-slate-200 px-4 py-2 text-center font-medium"
@@ -1161,108 +1198,136 @@ export function ConstraintsStep() {
                   <InfoLabel label="Campaign Constraints" />
                 </th>
               )}
+              {showCampaignConstraints && isRuleBased && (
+                <th
+                  colSpan={RULE_BASED_FLOOR_CEILING_COL_COUNT}
+                  className="border-b border-slate-200 px-4 py-2 text-center font-medium"
+                >
+                  Floor &amp; Ceiling Limits
+                </th>
+              )}
             </tr>
-            <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-600">
-              <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}>
-                Generic
-              </th>
-              <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}>
-                Client Branded
-              </th>
-              <th
-                colSpan={2}
-                className="border-r border-slate-200 px-2 py-2 text-center"
-              >
-                Competitor Branded
-              </th>
-              <th
-                rowSpan={2}
-                className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}
-              >
-                Auto
-              </th>
-              <th
-                rowSpan={2}
-                className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}
-              >
-                Others
-              </th>
-              <th
-                rowSpan={2}
-                className={cn(
-                  spendTotalColClass,
-                  totalColClass,
-                  "border-r border-slate-200 py-2",
-                  !showCampaignConstraints && "border-r-0",
+            {!isRuleBased && (
+              <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-600">
+                <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}>
+                  Generic
+                </th>
+                <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}>
+                  Client Branded
+                </th>
+                <th
+                  colSpan={2}
+                  className="border-r border-slate-200 px-2 py-2 text-center"
+                >
+                  Competitor Branded
+                </th>
+                <th
+                  rowSpan={2}
+                  className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}
+                >
+                  Auto
+                </th>
+                <th
+                  rowSpan={2}
+                  className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}
+                >
+                  Others
+                </th>
+                <th
+                  rowSpan={2}
+                  className={cn(
+                    spendTotalColClass,
+                    totalColClass,
+                    "border-r border-slate-200 py-2",
+                    !showCampaignConstraints && "border-r-0",
+                  )}
+                >
+                  Total
+                </th>
+                {showCampaignConstraints && (
+                  <>
+                    <th
+                      colSpan={4}
+                      className="border-r border-l border-slate-200 px-2 py-2 text-center"
+                    >
+                      <InfoLabel label="Campaign Type" />
+                    </th>
+                    <th colSpan={2} className="border-r border-slate-200 px-2 py-2 text-center">
+                      Bid
+                    </th>
+                    <th colSpan={2} className="px-2 py-2 text-center">
+                      Budget
+                    </th>
+                  </>
                 )}
-              >
-                Total
-              </th>
-              {showCampaignConstraints && (
-                <>
-                  <th
-                    colSpan={4}
-                    className="border-r border-l border-slate-200 px-2 py-2 text-center"
-                  >
-                    <InfoLabel label="Campaign Type" />
-                  </th>
-                  <th colSpan={2} className="border-r border-slate-200 px-2 py-2 text-center">
-                    Bid
-                  </th>
-                  <th colSpan={2} className="px-2 py-2 text-center">
-                    Budget
-                  </th>
-                </>
-              )}
-            </tr>
-            <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500">
-              <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
-                Keyword Targeting
-              </th>
-              <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
-                Keyword Targeting
-              </th>
-              <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
-                Keyword Targeting
-              </th>
-              <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
-                Product Targeting
-              </th>
-              {showCampaignConstraints && (
-                <>
-                  <th className={cn(activeDataColClass, "border-r border-l border-slate-200 py-2 text-center font-normal")}>
-                    SP
-                  </th>
-                  <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
-                    SB
-                  </th>
-                  <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
-                    SD
-                  </th>
-                  <th
-                    className={cn(
-                      spendTotalColClass,
-                      totalColClass,
-                      "border-r border-slate-200 py-2 text-center font-normal",
-                    )}
-                  >
-                    Total
-                  </th>
-                  <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
-                    Floor
-                  </th>
-                  <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
-                    Ceiling
-                  </th>
-                  <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
-                    Floor
-                  </th>
-                  <th className={cn(activeDataColClass, "py-2 text-center font-normal")}>
-                    Ceiling
-                  </th>
-                </>
-              )}
-            </tr>
+              </tr>
+            )}
+            {isRuleBased && showCampaignConstraints && (
+              <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-600">
+                <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}>
+                  Bid Floor
+                </th>
+                <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}>
+                  Bid Ceiling
+                </th>
+                <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}>
+                  Budget Floor
+                </th>
+                <th className={cn(activeDataColClass, "border-r-0 py-2 text-center")}>
+                  Budget Ceiling
+                </th>
+              </tr>
+            )}
+            {!isRuleBased && (
+              <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500">
+                <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                  Keyword Targeting
+                </th>
+                <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                  Keyword Targeting
+                </th>
+                <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                  Keyword Targeting
+                </th>
+                <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                  Product Targeting
+                </th>
+                {showCampaignConstraints && (
+                  <>
+                    <th className={cn(activeDataColClass, "border-r border-l border-slate-200 py-2 text-center font-normal")}>
+                      SP
+                    </th>
+                    <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                      SB
+                    </th>
+                    <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                      SD
+                    </th>
+                    <th
+                      className={cn(
+                        spendTotalColClass,
+                        totalColClass,
+                        "border-r border-slate-200 py-2 text-center font-normal",
+                      )}
+                    >
+                      Total
+                    </th>
+                    <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                      Floor
+                    </th>
+                    <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                      Ceiling
+                    </th>
+                    <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                      Floor
+                    </th>
+                    <th className={cn(activeDataColClass, "py-2 text-center font-normal")}>
+                      Ceiling
+                    </th>
+                  </>
+                )}
+              </tr>
+            )}
           </thead>
           <tbody>
             {CONSTRAINTS_SCOPE_ROWS.map((row: ConstraintRow) => {
@@ -1322,57 +1387,60 @@ export function ConstraintsStep() {
                       />
                     ) : null}
                   </td>
-                  {SPEND_PERCENT_FIELDS.map((field) => (
+                  {!isRuleBased &&
+                    SPEND_PERCENT_FIELDS.map((field) => (
+                      <td
+                        key={field}
+                        className={cn(activeDataColClass, "border-r border-slate-100 p-1 text-center")}
+                      >
+                        {isEditableRow && state ? (
+                          <PercentConstraintCell
+                            rowId={row.id}
+                            field={field}
+                            value={state.values[field]}
+                            state={state}
+                            onChange={(value) => updateValue(row.id, field, value)}
+                            onFocus={() =>
+                              beginEditSession(row.id, field, state.values[field])
+                            }
+                            onBlur={() => commitSpendPercent(row.id, field)}
+                            onConfirmPending={confirmPendingWarning}
+                            onDismissPending={dismissPendingWarning}
+                            pendingWarning={pendingWarning}
+                            blockAlert={blockAlert}
+                            ariaLabel={`${field} for ${row.name}`}
+                            showHistoricalData={showHistoricalData}
+                            historicDisplay={getHistoricDisplayValue(state, field)}
+                            {...buildConstraintCellTooltipProps(
+                              row.id,
+                              field,
+                              state,
+                            )}
+                          />
+                        ) : null}
+                      </td>
+                    ))}
+                  {!isRuleBased && (
                     <td
-                      key={field}
-                      className={cn(activeDataColClass, "border-r border-slate-100 p-1 text-center")}
+                      className={cn(
+                        spendTotalColClass,
+                        totalColClass,
+                        "border-r border-slate-100 py-3",
+                        !showCampaignConstraints && "border-r-0",
+                        isEditableRow &&
+                          state &&
+                          percentTotalClassName(state.values, SPEND_PERCENT_FIELDS),
+                      )}
                     >
-                      {isEditableRow && state ? (
-                        <PercentConstraintCell
-                          rowId={row.id}
-                          field={field}
-                          value={state.values[field]}
-                          state={state}
-                          onChange={(value) => updateValue(row.id, field, value)}
-                          onFocus={() =>
-                            beginEditSession(row.id, field, state.values[field])
-                          }
-                          onBlur={() => commitSpendPercent(row.id, field)}
-                          onConfirmPending={confirmPendingWarning}
-                          onDismissPending={dismissPendingWarning}
-                          pendingWarning={pendingWarning}
-                          blockAlert={blockAlert}
-                          ariaLabel={`${field} for ${row.name}`}
-                          showHistoricalData={showHistoricalData}
-                          historicDisplay={getHistoricDisplayValue(state, field)}
-                          {...buildConstraintCellTooltipProps(
-                            row.id,
-                            field,
-                            state,
-                          )}
-                        />
-                      ) : null}
+                      {isEditableRow && state
+                        ? formatPercentTotalDisplay(
+                            state.values,
+                            SPEND_PERCENT_FIELDS,
+                          )
+                        : null}
                     </td>
-                  ))}
-                  <td
-                    className={cn(
-                      spendTotalColClass,
-                      totalColClass,
-                      "border-r border-slate-100 py-3",
-                      !showCampaignConstraints && "border-r-0",
-                      isEditableRow &&
-                        state &&
-                        percentTotalClassName(state.values, SPEND_PERCENT_FIELDS),
-                    )}
-                  >
-                    {isEditableRow && state
-                      ? formatPercentTotalDisplay(
-                          state.values,
-                          SPEND_PERCENT_FIELDS,
-                        )
-                      : null}
-                  </td>
-                  {showCampaignConstraints && (
+                  )}
+                  {showCampaignConstraints && !isRuleBased && (
                     <>
                       {CAMPAIGN_PERCENT_FIELDS.map((field) => (
                         <td
@@ -1469,6 +1537,38 @@ export function ConstraintsStep() {
                       ))}
                     </>
                   )}
+                  {showCampaignConstraints &&
+                    isRuleBased &&
+                    FLOOR_CEILING_FIELDS.map((field) => (
+                      <td
+                        key={field}
+                        className={cn(
+                          activeDataColClass,
+                          "border-r border-slate-100 p-1 text-center",
+                          field === "budgetCeiling" && "border-r-0",
+                        )}
+                      >
+                        {isEditableRow && state ? (
+                          <EditableConstraintCell
+                            value={state.values[field]}
+                            onChange={(value) => updateValue(row.id, field, value)}
+                            onFocus={() =>
+                              beginEditSession(row.id, field, state.values[field])
+                            }
+                            onBlur={() => commitCurrencyField(row.id, field)}
+                            ariaLabel={`${field} for ${row.name}`}
+                            className={cellInputVisualClass(state, field)}
+                            showHistoricalData={showHistoricalData}
+                            historicDisplay={getHistoricDisplayValue(state, field)}
+                            {...buildConstraintCellTooltipProps(
+                              row.id,
+                              field,
+                              state,
+                            )}
+                          />
+                        ) : null}
+                      </td>
+                    ))}
                 </tr>
               );
             })}
@@ -1476,7 +1576,7 @@ export function ConstraintsStep() {
         </table>
       </div>
 
-      {!historicHintDismissed && (
+      {!historicHintDismissed && !isRuleBased && (
         <div className="sticky bottom-0 z-20 mt-auto shrink-0 -mx-2 border-t border-slate-200 bg-slate-50/95 px-4 py-3 shadow-[0_-4px_12px_-2px_rgba(0,0,0,0.08)] backdrop-blur-sm">
           <div className="flex items-start gap-2 text-sm text-slate-600">
             <History className="mt-0.5 size-4 shrink-0 text-slate-400" />

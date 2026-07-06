@@ -450,6 +450,12 @@ export function GoalsBudgetsStep() {
   const setHistoricHintDismissed = useSetupSessionStore(
     (state) => state.setGoalsHistoricHintDismissed,
   );
+  const ruleBasedNoticeDismissed = useSetupSessionStore(
+    (state) => state.goalsRuleBasedNoticeDismissed,
+  );
+  const setRuleBasedNoticeDismissed = useSetupSessionStore(
+    (state) => state.setGoalsRuleBasedNoticeDismissed,
+  );
   const monthWindowStart = useSetupSessionStore(
     (state) => state.monthWindowStart,
   );
@@ -700,8 +706,11 @@ export function GoalsBudgetsStep() {
 
   return (
     <div className="flex flex-col gap-3 py-4">
-      {isRuleBased && (
-        <ImpactBanner title="Rule-based — goals only">
+      {isRuleBased && !ruleBasedNoticeDismissed && (
+        <ImpactBanner
+          title="Rule-based — goals only"
+          onDismiss={() => setRuleBasedNoticeDismissed(true)}
+        >
           {RULE_BASED_OPTIMIZER_NOTICE}
         </ImpactBanner>
       )}
@@ -725,24 +734,24 @@ export function GoalsBudgetsStep() {
           </Button>
         </div>
 
-        {!isRuleBased && (
-          <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
+          {!isRuleBased && (
             <label className="flex items-center gap-2 text-sm text-slate-600">
               <Switch
                 checked={includeSeasonality}
-                onCheckedChange={setIncludeSeasonality}
+                onCheckedChange={(checked) => setIncludeSeasonality(checked === true)}
               />
               <span>Seasonality</span>
             </label>
-            <label className="flex items-center gap-2 text-sm text-slate-600">
-              <Switch
-                checked={includeConstraints}
-                onCheckedChange={setIncludeConstraints}
-              />
-              <span>Constraints</span>
-            </label>
-          </div>
-        )}
+          )}
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            <Switch
+              checked={includeConstraints}
+              onCheckedChange={(checked) => setIncludeConstraints(checked === true)}
+            />
+            <span>Constraints</span>
+          </label>
+        </div>
       </div>
 
       <div

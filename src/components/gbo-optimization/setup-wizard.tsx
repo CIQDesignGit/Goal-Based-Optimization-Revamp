@@ -36,8 +36,8 @@ function resolveStepAfterFlowChange(
   const canonicalOrder: SetupStepKey[] = [
     "general",
     "goals-budgets",
-    "constraints",
     "seasonality",
+    "constraints",
     "optimizer",
     "summary",
   ];

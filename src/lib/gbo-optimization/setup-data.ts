@@ -117,7 +117,7 @@ export function getGoalChangeImpactMessage(
 }
 
 export const RULE_BASED_OPTIMIZER_NOTICE =
-  "Rule-based mode does not include budget entry. Your flow will be Goals (targets only) → Constraints (floor/ceiling only) → Optimizer → Summary.";
+  "Rule-based mode does not include budget entry, and seasonality is not available. Your flow will be Goals (targets only) → Optimizer → Summary. Use the Constraints toggle on the Goals step to add floor/ceiling limits.";
 
 export const ALLY_AI_RECOMMENDATION_NOTICE =
   "Ally AI is recommended — it allocates spend and manages constraints automatically, with no manual rules required.";
@@ -149,12 +149,12 @@ function buildAllyAiFlow(
     { key: "goals-budgets", label: "Goals & Budgets" },
   ];
 
-  if (includeConstraints) {
-    flow.push({ key: "constraints", label: "Constraints" });
-  }
-
   if (includeSeasonality) {
     flow.push({ key: "seasonality", label: "Seasonality" });
+  }
+
+  if (includeConstraints) {
+    flow.push({ key: "constraints", label: "Constraints" });
   }
 
   flow.push({ key: "summary", label: "Summary", nextLabel: "Save & Launch" });
@@ -162,13 +162,23 @@ function buildAllyAiFlow(
   return flow;
 }
 
-const RULE_BASED_FLOW: StepDefinition[] = [
-  { key: "general", label: "General" },
-  { key: "goals-budgets", label: "Goals" },
-  { key: "constraints", label: "Constraints" },
-  { key: "optimizer", label: "Optimizer" },
-  { key: "summary", label: "Summary", nextLabel: "Save & Launch" },
-];
+function buildRuleBasedFlow(includeConstraints: boolean): StepDefinition[] {
+  const flow: StepDefinition[] = [
+    { key: "general", label: "General" },
+    { key: "goals-budgets", label: "Goals" },
+  ];
+
+  if (includeConstraints) {
+    flow.push({ key: "constraints", label: "Constraints" });
+  }
+
+  flow.push(
+    { key: "optimizer", label: "Optimizer" },
+    { key: "summary", label: "Summary", nextLabel: "Save & Launch" },
+  );
+
+  return flow;
+}
 
 /** Returns wizard steps for the selected optimizer and optional step toggles (FR-005). */
 export type SetupFlowOptions = {
@@ -183,7 +193,7 @@ export function getSetupSteps(
   const { includeSeasonality = false, includeConstraints = false } = options;
 
   if (optimizer === "rule-based") {
-    return withStepIds(RULE_BASED_FLOW);
+    return withStepIds(buildRuleBasedFlow(includeConstraints));
   }
 
   // Ally AI and Custom share the full flow (budgets, optional constraints/seasonality).
