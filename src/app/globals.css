@@ -289,3 +289,14 @@
     @apply font-sans;
   }
 }
+
+@keyframes optional-steps-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(135 91 247 / 0);
+  }
+
+  50% {
+    box-shadow: 0 0 0 2px rgb(135 91 247 / 0.22);
+  }
+}

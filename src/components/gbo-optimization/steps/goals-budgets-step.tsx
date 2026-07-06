@@ -436,6 +436,24 @@ export function GoalsBudgetsStep() {
     setIncludeConstraints,
   } = useSetupContext();
   const isRuleBased = optimizerType === "rule-based";
+  const optionalStepsHintDismissed = useSetupSessionStore(
+    (state) => state.goalsOptionalStepsHintDismissed,
+  );
+  const setOptionalStepsHintDismissed = useSetupSessionStore(
+    (state) => state.setGoalsOptionalStepsHintDismissed,
+  );
+  const showOptionalStepsHint = !isRuleBased && !optionalStepsHintDismissed;
+
+  const dismissOptionalStepsHint = useCallback(() => {
+    setOptionalStepsHintDismissed(true);
+  }, [setOptionalStepsHintDismissed]);
+
+  useEffect(() => {
+    if (!showOptionalStepsHint) return;
+
+    const timer = window.setTimeout(dismissOptionalStepsHint, 12_000);
+    return () => window.clearTimeout(timer);
+  }, [showOptionalStepsHint, dismissOptionalStepsHint]);
   const scopeMinWidth = isRuleBased
     ? SCOPE_COLUMN_RULE_BASED_MIN_WIDTH
     : SCOPE_COLUMN_MIN_WIDTH;
@@ -734,12 +752,22 @@ export function GoalsBudgetsStep() {
           </Button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4">
+        <div
+          className={cn(
+            "relative flex flex-wrap items-center gap-4 rounded-lg",
+            !isRuleBased && "border-2 border-transparent px-3 py-1.5",
+            showOptionalStepsHint &&
+              "border-brand-300/30 bg-brand-50/50 motion-safe:animate-[optional-steps-glow_2.5s_ease-in-out_3]",
+          )}
+        >
           {!isRuleBased && (
             <label className="flex items-center gap-2 text-sm text-slate-600">
               <Switch
                 checked={includeSeasonality}
-                onCheckedChange={(checked) => setIncludeSeasonality(checked === true)}
+                onCheckedChange={(checked) => {
+                  dismissOptionalStepsHint();
+                  setIncludeSeasonality(checked === true);
+                }}
               />
               <span>Seasonality</span>
             </label>
@@ -747,7 +775,10 @@ export function GoalsBudgetsStep() {
           <label className="flex items-center gap-2 text-sm text-slate-600">
             <Switch
               checked={includeConstraints}
-              onCheckedChange={(checked) => setIncludeConstraints(checked === true)}
+              onCheckedChange={(checked) => {
+                dismissOptionalStepsHint();
+                setIncludeConstraints(checked === true);
+              }}
             />
             <span>Constraints</span>
           </label>

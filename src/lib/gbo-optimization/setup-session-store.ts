@@ -289,6 +289,7 @@ type SetupSessionState = {
   monthWindowStart: number;
   monthWindowEnd: number;
   goalsHistoricHintDismissed: boolean;
+  goalsOptionalStepsHintDismissed: boolean;
   goalsRuleBasedNoticeDismissed: boolean;
   changeLedger: ChangeLedgerEntry[];
   summaryReviewed: boolean;
@@ -318,6 +319,8 @@ type SetupSessionState = {
 
   setGoalsHistoricHintDismissed: (value: boolean) => void;
 
+  setGoalsOptionalStepsHintDismissed: (value: boolean) => void;
+
   setGoalsRuleBasedNoticeDismissed: (value: boolean) => void;
 
   setSummaryReviewed: (value: boolean) => void;
@@ -337,6 +340,7 @@ function createInitialSessionState(): Pick<
   | "monthWindowStart"
   | "monthWindowEnd"
   | "goalsHistoricHintDismissed"
+  | "goalsOptionalStepsHintDismissed"
   | "goalsRuleBasedNoticeDismissed"
   | "changeLedger"
   | "summaryReviewed"
@@ -352,6 +356,7 @@ function createInitialSessionState(): Pick<
     monthWindowStart: defaultMonthWindowStart,
     monthWindowEnd: getDefaultBudgetWindowEnd(defaultMonthWindowStart),
     goalsHistoricHintDismissed: false,
+    goalsOptionalStepsHintDismissed: false,
     goalsRuleBasedNoticeDismissed: false,
     changeLedger: [],
     summaryReviewed: false,
@@ -432,6 +437,10 @@ export const useSetupSessionStore = create<SetupSessionState>((set, get) => ({
 
   setGoalsHistoricHintDismissed: (value) => {
     set({ goalsHistoricHintDismissed: value });
+  },
+
+  setGoalsOptionalStepsHintDismissed: (value) => {
+    set({ goalsOptionalStepsHintDismissed: value });
   },
 
   setGoalsRuleBasedNoticeDismissed: (value) => {
