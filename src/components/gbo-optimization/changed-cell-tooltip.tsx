@@ -5,7 +5,6 @@ import type { ReactElement, ReactNode } from "react";
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
@@ -19,11 +18,32 @@ type ChangedCellTooltipProps = {
 };
 
 /** Stable render target so table inputs are not remounted when tooltip state toggles. */
-const TOOLTIP_CELL_TRIGGER = <span className="block w-full min-w-0" />;
+const TOOLTIP_CELL_TRIGGER = (
+  <span className="block w-full min-w-0 overflow-visible" />
+);
 
-function formatDiffValue(value: string): string {
+export function formatCellDiffValue(value: string): string {
   const trimmed = value.trim();
   return trimmed || "—";
+}
+
+function normalizeDiffToken(value: string): string {
+  return value.replace(/[$,]/g, "").trim();
+}
+
+function cellValuesDiffer(from: string, to: string): boolean {
+  const normalizedFrom = normalizeDiffToken(from);
+  const normalizedTo = normalizeDiffToken(to);
+
+  if (!normalizedFrom && !normalizedTo) {
+    return false;
+  }
+
+  return normalizedFrom !== normalizedTo;
+}
+
+function formatDiffValue(value: string): string {
+  return formatCellDiffValue(value);
 }
 
 function buildTooltipContent({
@@ -66,17 +86,16 @@ export function ChangedCellTooltip({
   to,
 }: ChangedCellTooltipProps) {
   const content = buildTooltipContent({ visual, from, to });
+  const showTooltip = Boolean(content) && cellValuesDiffer(from, to);
 
   return (
-    <TooltipProvider delay={500}>
-      <Tooltip disabled={!content}>
-        <TooltipTrigger render={TOOLTIP_CELL_TRIGGER}>{children}</TooltipTrigger>
-        {content ? (
-          <TooltipContent className="max-w-xs text-left leading-snug">
-            {content}
-          </TooltipContent>
-        ) : null}
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip disabled={!showTooltip}>
+      <TooltipTrigger render={TOOLTIP_CELL_TRIGGER}>{children}</TooltipTrigger>
+      {showTooltip ? (
+        <TooltipContent className="max-w-xs text-left leading-snug">
+          {content}
+        </TooltipContent>
+      ) : null}
+    </Tooltip>
   );
 }

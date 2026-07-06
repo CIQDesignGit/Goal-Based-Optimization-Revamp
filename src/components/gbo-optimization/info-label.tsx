@@ -5,15 +5,17 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 type InfoLabelProps = {
   label: string;
   tooltip?: string;
+  className?: string;
 };
 
-export function InfoLabel({ label, tooltip }: InfoLabelProps) {
+export function InfoLabel({ label, tooltip, className }: InfoLabelProps) {
   return (
-    <span className="inline-flex items-center gap-1">
+    <span className={cn("inline-flex items-center gap-1", className)}>
       {label}
       <Tooltip>
         <TooltipTrigger

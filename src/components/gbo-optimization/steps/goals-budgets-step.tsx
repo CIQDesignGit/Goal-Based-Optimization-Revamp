@@ -14,11 +14,12 @@ import {
   useRef,
   useState,
   type FocusEvent,
+  type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 
 import { useSetupContext } from "@/components/gbo-optimization/setup-context";
-import { ChangedCellTooltip } from "@/components/gbo-optimization/changed-cell-tooltip";
+import { ChangedCellTooltip, formatCellDiffValue } from "@/components/gbo-optimization/changed-cell-tooltip";
 import { ImpactBanner } from "@/components/gbo-optimization/impact-banner";
 import { InfoLabel } from "@/components/gbo-optimization/info-label";
 import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
@@ -59,20 +60,21 @@ const HEAD_ROW_BORDER = "border-b border-slate-200";
 const NUM_HEAD =
   "border-r border-slate-200 px-3 py-2 text-right text-xs font-medium text-slate-600";
 const NUM_CELL = cn("border-r border-slate-100 p-1.5 text-right", ROW_BORDER);
-const BUDGET_COL_WIDTH_CLASS =
+const BUDGET_COL_WIDTH_NORMAL =
   "w-[6.5rem] min-w-[6.5rem] max-w-[6.5rem] whitespace-nowrap";
-const BUDGET_HEAD = cn(
-  BUDGET_COL_WIDTH_CLASS,
-  "border-r border-slate-200 px-2 py-2 text-right text-xs font-medium text-slate-600",
-);
-const BUDGET_CELL = cn(
-  BUDGET_COL_WIDTH_CLASS,
-  "border-r border-slate-100 p-1 text-right",
-);
+const BUDGET_COL_WIDTH_NUDGE =
+  "w-[9rem] min-w-[9rem] max-w-[9rem] whitespace-normal";
+const BUDGET_COL_WIDTH_CLASS = BUDGET_COL_WIDTH_NORMAL;
+const BUDGET_HEAD_BASE =
+  "border-r border-slate-200 px-2 py-2 text-right text-xs font-medium text-slate-600";
+const BUDGET_HEAD = cn(BUDGET_COL_WIDTH_CLASS, BUDGET_HEAD_BASE);
+const BUDGET_CELL_BASE =
+  "overflow-visible border-r border-slate-100 p-1 text-right";
+const BUDGET_CELL = cn(BUDGET_COL_WIDTH_CLASS, BUDGET_CELL_BASE);
 const TARGET_HEAD =
   "w-28 min-w-28 border-r border-slate-200 px-2 py-2 text-right text-xs font-medium text-slate-600";
 const TARGET_CELL = cn(
-  "w-28 min-w-28 border-r border-slate-100 p-1 text-right",
+  "w-28 min-w-28 overflow-visible border-r border-slate-100 p-1 text-right",
   ROW_BORDER,
 );
 const cellInputClass =
@@ -90,7 +92,18 @@ const LAST_30_COL_WIDTH_PX = 120;
 const GOAL_SECTION_WIDTH_PX =
   METRIC_COL_WIDTH_PX + TARGET_COL_WIDTH_PX + LAST_30_COL_WIDTH_PX;
 const BUDGET_MONTH_COL_WIDTH_PX = 104;
+const BUDGET_NUDGE_MONTH_COL_WIDTH_PX = 144;
 const FY_COLUMN_WIDTH_PX = 104;
+
+function isBudgetNudgeColumn(monthIndex: number, showNudge: boolean): boolean {
+  return showNudge && isBudgetNextMonth(monthIndex);
+}
+
+function budgetColumnWidthClass(monthIndex: number, showNudge: boolean): string {
+  return isBudgetNudgeColumn(monthIndex, showNudge)
+    ? BUDGET_COL_WIDTH_NUDGE
+    : BUDGET_COL_WIDTH_NORMAL;
+}
 const METRIC_HEAD = cn(
   "border-r border-slate-200 px-4 py-2 text-left text-xs font-medium text-slate-600",
 );
@@ -181,6 +194,13 @@ function handleGoalsInputFocus(event: FocusEvent<HTMLInputElement>) {
   });
 }
 
+function handleGoalsInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+  if (event.key !== "Enter") return;
+
+  event.preventDefault();
+  event.currentTarget.blur();
+}
+
 function parseCurrency(value: string): number {
   const cleaned = value.replace(/[$,]/g, "").trim();
   if (!cleaned) return 0;
@@ -266,24 +286,72 @@ function getBudgetMonthVisualState(
   return monthMatchesHistoric(state, monthIndex) ? "prefilled" : "edited";
 }
 
+function getBudgetCellDiff(
+  scopeId: string,
+  state: GoalsRowState,
+  monthIndex: number,
+): { from: string; to: string } {
+  const fieldKey = getGoalsBudgetFieldKey(monthIndex);
+  const entry = getLatestCellChange(scopeId, fieldKey);
+  const to = state.monthlyBudgets[monthIndex] ?? "";
+
+  if (entry) {
+    return { from: entry.from, to: entry.to };
+  }
+
+  const historicValue = state.historicMonthlyBudgets[monthIndex] ?? "";
+  const scopeRow = GOALS_SCOPE_ROWS.find((item) => item.id === scopeId);
+  const last30DayBudgetDefault = scopeRow
+    ? normalizeCurrencyDisplay(getScopeRowDefaultMonthlyBudget(scopeRow))
+    : "";
+  const from = isBudgetFutureMonth(monthIndex)
+    ? normalizeCurrencyDisplay(historicValue)
+    : normalizeCurrencyDisplay(historicValue) || last30DayBudgetDefault;
+
+  return { from, to };
+}
+
 function getBudgetCellTooltipVisual(
   state: GoalsRowState,
   monthIndex: number,
 ): "historic" | "edited" {
-  const visual = getBudgetMonthVisualState(state, monthIndex);
-  return visual === "prefilled" ? "historic" : "edited";
+  if (state.editedMonthlyBudgets[monthIndex]) {
+    return "edited";
+  }
+
+  return monthMatchesHistoric(state, monthIndex) ? "historic" : "edited";
+}
+
+function buildBudgetHoverTitle(
+  visual: "historic" | "edited",
+  from: string,
+  to: string,
+): string | undefined {
+  if (visual === "historic") {
+    return undefined;
+  }
+
+  if (normalizeCurrencyDisplay(from) === normalizeCurrencyDisplay(to)) {
+    return undefined;
+  }
+
+  return `Changed from ${formatCellDiffValue(from)} to ${formatCellDiffValue(to)}`;
 }
 
 function budgetMonthHeadClass(
   monthIndex: number,
   highlightNextMonth = false,
+  showNextMonthNudge = false,
 ): string {
   const isCurrent = isBudgetCurrentMonth(monthIndex);
   const isNextMonth = isBudgetNextMonth(monthIndex);
+  const isNudgeColumn = isBudgetNudgeColumn(monthIndex, showNextMonthNudge);
 
   return cn(
-    BUDGET_HEAD,
+    BUDGET_HEAD_BASE,
+    budgetColumnWidthClass(monthIndex, showNextMonthNudge),
     HEAD_ROW_BORDER,
+    isNudgeColumn && "overflow-visible",
     isBudgetMonthLocked(monthIndex) && "bg-slate-100 text-slate-400",
     !isBudgetMonthLocked(monthIndex) &&
       !isCurrent &&
@@ -305,20 +373,27 @@ function budgetMonthTdClass(
   visual: BudgetMonthVisual,
   monthIndex: number,
   goalLocked = false,
+  showNextMonthNudge = false,
 ): string {
   const isCurrent = isBudgetCurrentMonth(monthIndex);
 
   if (goalLocked) {
-    return cn(BUDGET_CELL, ROW_BORDER, "bg-slate-100");
+    return cn(
+      BUDGET_CELL_BASE,
+      budgetColumnWidthClass(monthIndex, showNextMonthNudge),
+      ROW_BORDER,
+      "bg-slate-100",
+    );
   }
 
   return cn(
-    BUDGET_CELL,
+    BUDGET_CELL_BASE,
+    budgetColumnWidthClass(monthIndex, showNextMonthNudge),
     ROW_BORDER,
     visual === "locked" && "bg-slate-100",
     isCurrent && visual !== "locked" && "border-r-0 bg-brand-50/40",
     visual === "edited" &&
-      "[&_input]:font-medium [&_input]:text-slate-700 [&_input]:not-italic",
+      "[&_input]:font-medium [&_input]:text-brand-600 [&_input]:not-italic",
   );
 }
 
@@ -368,7 +443,7 @@ function budgetInputVisualClass(
     budgetCellInputClass,
     visual === "prefilled" &&
       "bg-slate-50 text-slate-700 italic placeholder:text-slate-300",
-    visual === "edited" && "bg-white font-medium text-slate-700",
+    visual === "edited" && "bg-white font-medium text-brand-600",
   );
 }
 
@@ -585,6 +660,18 @@ export function GoalsBudgetsStep() {
     [monthWindowStart, monthWindowEnd],
   );
 
+  const nextMonthIndex = useMemo(() => getNextBudgetMonthIndex(), []);
+
+  const hasUnfilledNextMonthBudget = useMemo(() => {
+    if (isRuleBased || nextMonthIndex === null) return false;
+    if (!visibleMonthIndices.includes(nextMonthIndex)) return false;
+
+    return GOALS_SCOPE_ROWS.some((row) => {
+      const state = rowState[row.id];
+      return state && rowNeedsNextMonthBudget(state, nextMonthIndex);
+    });
+  }, [isRuleBased, nextMonthIndex, rowState, visibleMonthIndices]);
+
   const goalStickyOffsets = useMemo(
     () => ({
       goalSection: scopeColumnWidth,
@@ -602,12 +689,26 @@ export function GoalsBudgetsStep() {
       return goalSectionWidth;
     }
 
+    const nudgeColumnExtraWidth =
+      hasUnfilledNextMonthBudget &&
+      nextMonthIndex !== null &&
+      visibleMonthIndices.includes(nextMonthIndex)
+        ? BUDGET_NUDGE_MONTH_COL_WIDTH_PX - BUDGET_MONTH_COL_WIDTH_PX
+        : 0;
+
     return (
       goalSectionWidth +
       visibleMonthIndices.length * BUDGET_MONTH_COL_WIDTH_PX +
+      nudgeColumnExtraWidth +
       FY_COLUMN_WIDTH_PX
     );
-  }, [scopeColumnWidth, visibleMonthIndices.length, isRuleBased]);
+  }, [
+    scopeColumnWidth,
+    visibleMonthIndices,
+    isRuleBased,
+    hasUnfilledNextMonthBudget,
+    nextMonthIndex,
+  ]);
 
   const showPreviousMonths = monthWindowStart === 0;
   const showFutureMonths = monthWindowEnd === BUDGET_MONTHS.length;
@@ -790,7 +891,7 @@ export function GoalsBudgetsStep() {
         recordGoalsBudgetChange(
           rowId,
           monthIndex,
-          historicValue,
+          historicOrDefault,
           monthlyBudgets[monthIndex] ?? "",
         );
       }
@@ -816,23 +917,6 @@ export function GoalsBudgetsStep() {
       GOALS_SCOPE_ROWS.some((row) => !rowState[row.id]?.goalMetric),
     [rowState],
   );
-
-  const nextMonthIndex = useMemo(() => getNextBudgetMonthIndex(), []);
-
-  const hasUnfilledNextMonthBudget = useMemo(() => {
-    if (isRuleBased || nextMonthIndex === null) return false;
-    if (!visibleMonthIndices.includes(nextMonthIndex)) return false;
-
-    return GOALS_SCOPE_ROWS.some((row) => {
-      const state = rowState[row.id];
-      return state && rowNeedsNextMonthBudget(state, nextMonthIndex);
-    });
-  }, [isRuleBased, nextMonthIndex, rowState, visibleMonthIndices]);
-
-  const nextMonthBudgetNudgeTooltip =
-    nextMonthIndex !== null
-      ? `${BUDGET_MONTHS[nextMonthIndex]} budget isn't set yet. Enter amounts before month-end so optimization doesn't pause.`
-      : undefined;
 
   const bulkGoalMetric = useMemo(
     () => getBulkGoalMetric(rowState),
@@ -910,17 +994,15 @@ export function GoalsBudgetsStep() {
 
       </div>
 
-      <div
-        ref={tableScrollRef}
-        className={cn(
-          "rounded-lg border border-slate-200 bg-white",
-          !isRuleBased && "overflow-x-auto",
-        )}
-      >
-        <table
-          className="w-full table-fixed border-separate border-spacing-0 text-sm"
-          style={{ minWidth: tableMinWidth }}
+      <div className="rounded-lg border border-slate-200 bg-white">
+        <div
+          ref={tableScrollRef}
+          className={cn(!isRuleBased && "overflow-x-auto")}
         >
+          <table
+            className="w-full table-fixed overflow-visible border-separate border-spacing-0 text-sm"
+            style={{ minWidth: tableMinWidth }}
+          >
           <colgroup>
             <col style={{ width: scopeColumnWidth }} />
             <col style={{ width: METRIC_COL_WIDTH_PX }} />
@@ -967,14 +1049,7 @@ export function GoalsBudgetsStep() {
                       />
                     </div>
                     <span className="shrink-0 text-center text-xs font-medium text-slate-600">
-                      <div className="flex flex-col items-center gap-0.5">
-                        <InfoLabel label="Budget FY2026" />
-                        {hasUnfilledNextMonthBudget && nextMonthIndex !== null ? (
-                          <span className="text-[10px] font-normal text-slate-400">
-                            Set {BUDGET_MONTHS[nextMonthIndex]} before month-end
-                          </span>
-                        ) : null}
-                      </div>
+                      <InfoLabel label="Budget FY2026" />
                     </span>
                     <div
                       className="inline-flex rounded-md bg-slate-100 p-0.5"
@@ -1066,17 +1141,12 @@ export function GoalsBudgetsStep() {
                       className={budgetMonthHeadClass(
                         monthIndex,
                         highlightNextMonth,
+                        hasUnfilledNextMonthBudget,
                       )}
-                      title={
-                        isCurrent
-                          ? "Current month"
-                          : highlightNextMonth
-                            ? "Next month — budget needed before month-end"
-                            : undefined
-                      }
+                      title={isCurrent ? "Current month" : undefined}
                       aria-current={isCurrent ? "date" : undefined}
                     >
-                      <span className="inline-flex flex-col items-end gap-0.5">
+                      <span className="flex w-full flex-col items-end gap-1">
                         <span className="inline-flex items-center justify-end gap-1">
                           {isCurrent ? (
                             <span
@@ -1092,11 +1162,8 @@ export function GoalsBudgetsStep() {
                           {BUDGET_MONTHS[monthIndex]}
                         </span>
                         {highlightNextMonth ? (
-                          <span className="text-[10px] font-normal text-slate-500">
-                            <InfoLabel
-                              label="Up next"
-                              tooltip={nextMonthBudgetNudgeTooltip}
-                            />
+                          <span className="w-full whitespace-normal text-right text-[10px] font-normal leading-snug text-slate-500">
+                            Set {BUDGET_MONTHS[monthIndex]} before month-end
                           </span>
                         ) : null}
                       </span>
@@ -1216,6 +1283,7 @@ export function GoalsBudgetsStep() {
                           onClick={(event) =>
                             selectEditablePortion(event.currentTarget)
                           }
+                          onKeyDown={handleGoalsInputKeyDown}
                           onBlur={() => formatGoalValue(row.id)}
                           aria-label={`Target value for ${row.name}`}
                           className={goalInputVisualClass(editable, isRoasTarget)}
@@ -1254,6 +1322,19 @@ export function GoalsBudgetsStep() {
                         : "locked";
                       const budgetValue =
                         editable?.monthlyBudgets[monthIndex] ?? "";
+                      const budgetDiff = editable
+                        ? getBudgetCellDiff(row.id, editable, monthIndex)
+                        : null;
+                      const budgetTooltipVisual = editable
+                        ? getBudgetCellTooltipVisual(editable, monthIndex)
+                        : "historic";
+                      const budgetHoverTitle = budgetDiff
+                        ? buildBudgetHoverTitle(
+                            budgetTooltipVisual,
+                            budgetDiff.from,
+                            budgetDiff.to,
+                          )
+                        : undefined;
 
                       return (
                         <td
@@ -1262,6 +1343,7 @@ export function GoalsBudgetsStep() {
                             monthVisual,
                             monthIndex,
                             !canEditBudget,
+                            hasUnfilledNextMonthBudget,
                           )}
                         >
                           {editable && monthVisual === "locked" ? (
@@ -1283,22 +1365,15 @@ export function GoalsBudgetsStep() {
                             >
                               {budgetValue}
                             </span>
-                          ) : editable ? (
+                          ) : editable && budgetDiff ? (
                             <ChangedCellTooltip
-                              visual={getBudgetCellTooltipVisual(
-                                editable,
-                                monthIndex,
-                              )}
-                              {...getGoalsCellDiff(
-                                row.id,
-                                getGoalsBudgetFieldKey(monthIndex),
-                                editable.historicMonthlyBudgets[monthIndex] ??
-                                  "",
-                                editable.monthlyBudgets[monthIndex] ?? "",
-                              )}
+                              visual={budgetTooltipVisual}
+                              from={budgetDiff.from}
+                              to={budgetDiff.to}
                             >
                               <Input
                                 value={budgetValue}
+                                title={budgetHoverTitle}
                                 onChange={(event) =>
                                   updateMonthlyBudget(
                                     row.id,
@@ -1310,6 +1385,7 @@ export function GoalsBudgetsStep() {
                                 onClick={(event) =>
                                   selectEditablePortion(event.currentTarget)
                                 }
+                                onKeyDown={handleGoalsInputKeyDown}
                                 onBlur={() =>
                                   formatMonthlyBudget(row.id, monthIndex)
                                 }
@@ -1342,6 +1418,7 @@ export function GoalsBudgetsStep() {
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
       {(toastMessage || !historicHintDismissed) && (
