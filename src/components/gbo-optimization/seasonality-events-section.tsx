@@ -3,7 +3,9 @@
 import { useState, type ReactNode } from "react";
 import { CalendarDays, Pencil, Plus, Trash2, X } from "lucide-react";
 
+import { ImpactBanner } from "@/components/gbo-optimization/impact-banner";
 import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
+import { SeasonalityDateInput } from "@/components/gbo-optimization/seasonality-date-input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +19,12 @@ import {
   type SeasonalityEvent,
 } from "@/lib/gbo-optimization/setup-data";
 import { getSeasonalityBudgetContextLabel } from "@/lib/gbo-optimization/seasonality-budget-context";
+import {
+  getMidMonthSeasonalityInlineHint,
+  getMidMonthSeasonalityWarningBody,
+  MID_MONTH_SEASONALITY_WARNING_TITLE,
+  shouldWarnMidMonthSeasonalityTiming,
+} from "@/lib/gbo-optimization/mid-month-timing";
 import { useSetupSessionStore } from "@/lib/gbo-optimization/setup-session-store";
 import type { GoalsRowState } from "@/lib/gbo-optimization/setup-session-store";
 import { cn } from "@/lib/utils";
@@ -96,16 +104,16 @@ function createInitialDraftRows(): DraftEventRow[] {
 const FIELD_LABEL = "text-sm font-semibold leading-5 text-slate-900";
 const FIELD_INPUT =
   "h-10 rounded-md border border-slate-300 bg-slate-50 text-slate-700 shadow-none";
-const FIELD_FOOTER = "flex h-5 items-center text-sm";
+const FIELD_FOOTER = "flex items-start text-sm leading-snug";
 /** Grid columns: event | start | end | scope | budget (flex) | actions */
 const ROW_LAYOUT =
   "grid grid-cols-[minmax(5.5rem,0.65fr)_9.25rem_9.25rem_9rem_minmax(13rem,1fr)_6.75rem] items-start gap-x-3 gap-y-3";
 const TABLE_MIN_WIDTH = "min-w-[54rem]";
 const COL_DATE_CELL = "min-w-[9.25rem] shrink-0";
 const COL_ACTIONS = "flex shrink-0 flex-col gap-1.5";
-const DATE_INPUT = cn(
+const DATE_PICKER_TRIGGER = cn(
   FIELD_INPUT,
-  "min-w-[8.75rem] pl-8 text-sm whitespace-nowrap",
+  "min-w-[8.75rem] gap-1.5 px-2.5 text-sm whitespace-nowrap",
 );
 
 function FormFieldCell({
@@ -428,8 +436,11 @@ function SeasonalityEventFormRow({
   onSave: () => void;
   onClose: () => void;
 }) {
+  const showMidMonthWarning = shouldWarnMidMonthSeasonalityTiming(form.startDate);
+
   return (
-    <div className={ROW_LAYOUT}>
+    <div className="flex flex-col gap-1.5">
+      <div className={ROW_LAYOUT}>
       <FormFieldCell className="min-w-0">
         <Textarea
           value={form.name}
@@ -445,29 +456,23 @@ function SeasonalityEventFormRow({
       </FormFieldCell>
 
       <FormFieldCell className={COL_DATE_CELL}>
-        <div className="relative">
-          <CalendarDays className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 text-slate-400" />
-          <Input
-            value={form.startDate}
-            onChange={(event) => onChange({ startDate: event.target.value })}
-            className={DATE_INPUT}
-            placeholder="Jul 01, 2026"
-            aria-label="Start date"
-          />
-        </div>
+        <SeasonalityDateInput
+          value={form.startDate}
+          onChange={(startDate) => onChange({ startDate })}
+          className={DATE_PICKER_TRIGGER}
+          placeholder="Jul 01, 2026"
+          aria-label="Start date"
+        />
       </FormFieldCell>
 
       <FormFieldCell className={COL_DATE_CELL}>
-        <div className="relative">
-          <CalendarDays className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 text-slate-400" />
-          <Input
-            value={form.endDate}
-            onChange={(event) => onChange({ endDate: event.target.value })}
-            className={DATE_INPUT}
-            placeholder="Jul 01, 2026"
-            aria-label="End date"
-          />
-        </div>
+        <SeasonalityDateInput
+          value={form.endDate}
+          onChange={(endDate) => onChange({ endDate })}
+          className={DATE_PICKER_TRIGGER}
+          placeholder="Jul 01, 2026"
+          aria-label="End date"
+        />
       </FormFieldCell>
 
       <FormFieldCell
@@ -548,6 +553,13 @@ function SeasonalityEventFormRow({
           </Button>
         </div>
       </div>
+      </div>
+
+      {showMidMonthWarning ? (
+        <p className="text-xs leading-relaxed text-amber-700">
+          {getMidMonthSeasonalityInlineHint(form.startDate)}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -680,7 +692,16 @@ export function SeasonalityEventsSection({
   const [editingEvent, setEditingEvent] = useState<EditingSavedEventState | null>(
     null,
   );
+  const [midMonthSaveNotice, setMidMonthSaveNotice] = useState<string | null>(
+    null,
+  );
   const goalsRowState = useSetupSessionStore((state) => state.goalsRowState);
+
+  const showMidMonthSaveNotice = (startDate: string) => {
+    if (shouldWarnMidMonthSeasonalityTiming(startDate)) {
+      setMidMonthSaveNotice(getMidMonthSeasonalityWarningBody(startDate));
+    }
+  };
 
   const customRows = draftRows.filter((row) => row.kind === "custom");
   const suggestedRows = draftRows.filter((row) => row.kind === "prefilled");
@@ -731,6 +752,8 @@ export function SeasonalityEventsSection({
       sourceKind: row.kind,
       templateId: row.templateId,
     });
+
+    showMidMonthSaveNotice(row.form.startDate);
 
     setDraftRows((current) => {
       if (row.kind === "custom") {
@@ -846,6 +869,8 @@ export function SeasonalityEventsSection({
       budgetValue: editingEvent.form.budgetValue,
     });
 
+    showMidMonthSaveNotice(editingEvent.form.startDate);
+
     setEditingEvent(null);
   };
 
@@ -876,6 +901,15 @@ export function SeasonalityEventsSection({
         Add a custom event or configure the suggested holidays below. Select
         scope and budget, then save each event to add it to your plan.
       </p>
+
+      {midMonthSaveNotice ? (
+        <ImpactBanner
+          title={MID_MONTH_SEASONALITY_WARNING_TITLE}
+          onDismiss={() => setMidMonthSaveNotice(null)}
+        >
+          {midMonthSaveNotice}
+        </ImpactBanner>
+      ) : null}
 
       {events.length > 0 && (
         <SavedSeasonalityEventsList
