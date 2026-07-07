@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { CalendarDays, Pencil, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, CalendarDays, Pencil, Plus, Trash2, X } from "lucide-react";
 
-import { ImpactBanner } from "@/components/gbo-optimization/impact-banner";
 import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
-import { SeasonalityDateInput } from "@/components/gbo-optimization/seasonality-date-input";
+import {
+  parseSeasonalityDisplayDate,
+  SeasonalityDateInput,
+  syncSeasonalityEndDateWithStart,
+} from "@/components/gbo-optimization/seasonality-date-input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,8 +24,6 @@ import {
 import { getSeasonalityBudgetContextLabel } from "@/lib/gbo-optimization/seasonality-budget-context";
 import {
   getMidMonthSeasonalityInlineHint,
-  getMidMonthSeasonalityWarningBody,
-  MID_MONTH_SEASONALITY_WARNING_TITLE,
   shouldWarnMidMonthSeasonalityTiming,
 } from "@/lib/gbo-optimization/mid-month-timing";
 import { useSetupSessionStore } from "@/lib/gbo-optimization/setup-session-store";
@@ -436,10 +437,13 @@ function SeasonalityEventFormRow({
   onSave: () => void;
   onClose: () => void;
 }) {
-  const showMidMonthWarning = shouldWarnMidMonthSeasonalityTiming(form.startDate);
+  const showMidMonthWarning =
+    form.name.trim().length > 0 &&
+    shouldWarnMidMonthSeasonalityTiming(form.startDate, form.endDate);
+  const startDateValue = parseSeasonalityDisplayDate(form.startDate);
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-3">
       <div className={ROW_LAYOUT}>
       <FormFieldCell className="min-w-0">
         <Textarea
@@ -458,7 +462,19 @@ function SeasonalityEventFormRow({
       <FormFieldCell className={COL_DATE_CELL}>
         <SeasonalityDateInput
           value={form.startDate}
-          onChange={(startDate) => onChange({ startDate })}
+          onChange={(startDate) => {
+            const updates: Partial<SeasonalityDraftFormState> = { startDate };
+            const syncedEndDate = syncSeasonalityEndDateWithStart(
+              startDate,
+              form.endDate,
+            );
+
+            if (syncedEndDate) {
+              updates.endDate = syncedEndDate;
+            }
+
+            onChange(updates);
+          }}
           className={DATE_PICKER_TRIGGER}
           placeholder="Jul 01, 2026"
           aria-label="Start date"
@@ -469,6 +485,8 @@ function SeasonalityEventFormRow({
         <SeasonalityDateInput
           value={form.endDate}
           onChange={(endDate) => onChange({ endDate })}
+          minDate={startDateValue}
+          openToMonth={startDateValue}
           className={DATE_PICKER_TRIGGER}
           placeholder="Jul 01, 2026"
           aria-label="End date"
@@ -556,9 +574,12 @@ function SeasonalityEventFormRow({
       </div>
 
       {showMidMonthWarning ? (
-        <p className="text-xs leading-relaxed text-amber-700">
-          {getMidMonthSeasonalityInlineHint(form.startDate)}
-        </p>
+        <div className="flex items-start gap-2 rounded-md bg-amber-50 px-2.5 py-2 text-xs leading-relaxed text-slate-600">
+          <span className="flex size-5 shrink-0 items-center justify-center rounded bg-amber-100">
+            <AlertTriangle className="size-3 text-amber-600" />
+          </span>
+          <span>{getMidMonthSeasonalityInlineHint(form.startDate)}</span>
+        </div>
       ) : null}
     </div>
   );
@@ -692,16 +713,7 @@ export function SeasonalityEventsSection({
   const [editingEvent, setEditingEvent] = useState<EditingSavedEventState | null>(
     null,
   );
-  const [midMonthSaveNotice, setMidMonthSaveNotice] = useState<string | null>(
-    null,
-  );
   const goalsRowState = useSetupSessionStore((state) => state.goalsRowState);
-
-  const showMidMonthSaveNotice = (startDate: string) => {
-    if (shouldWarnMidMonthSeasonalityTiming(startDate)) {
-      setMidMonthSaveNotice(getMidMonthSeasonalityWarningBody(startDate));
-    }
-  };
 
   const customRows = draftRows.filter((row) => row.kind === "custom");
   const suggestedRows = draftRows.filter((row) => row.kind === "prefilled");
@@ -752,8 +764,6 @@ export function SeasonalityEventsSection({
       sourceKind: row.kind,
       templateId: row.templateId,
     });
-
-    showMidMonthSaveNotice(row.form.startDate);
 
     setDraftRows((current) => {
       if (row.kind === "custom") {
@@ -869,8 +879,6 @@ export function SeasonalityEventsSection({
       budgetValue: editingEvent.form.budgetValue,
     });
 
-    showMidMonthSaveNotice(editingEvent.form.startDate);
-
     setEditingEvent(null);
   };
 
@@ -901,15 +909,6 @@ export function SeasonalityEventsSection({
         Add a custom event or configure the suggested holidays below. Select
         scope and budget, then save each event to add it to your plan.
       </p>
-
-      {midMonthSaveNotice ? (
-        <ImpactBanner
-          title={MID_MONTH_SEASONALITY_WARNING_TITLE}
-          onDismiss={() => setMidMonthSaveNotice(null)}
-        >
-          {midMonthSaveNotice}
-        </ImpactBanner>
-      ) : null}
 
       {events.length > 0 && (
         <SavedSeasonalityEventsList

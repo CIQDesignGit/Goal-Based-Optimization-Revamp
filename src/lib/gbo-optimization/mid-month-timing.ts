@@ -1,6 +1,10 @@
+import { isValid, parse } from "date-fns";
+
 import { SEASONALITY_REFERENCE_DATE } from "@/lib/gbo-optimization/setup-data";
 
 export const MID_MONTH_SEASONALITY_WARNING_TITLE = "Mid-month seasonality";
+
+const DISPLAY_FORMAT = "MMM dd, yyyy";
 
 function parseDisplayDate(dateStr: string): Date | null {
   const trimmed = dateStr.trim();
@@ -8,8 +12,30 @@ function parseDisplayDate(dateStr: string): Date | null {
     return null;
   }
 
-  const date = new Date(trimmed);
-  return Number.isNaN(date.getTime()) ? null : date;
+  const parsed = parse(trimmed, DISPLAY_FORMAT, new Date());
+  if (isValid(parsed)) {
+    return parsed;
+  }
+
+  const fallback = new Date(trimmed);
+  return Number.isNaN(fallback.getTime()) ? null : fallback;
+}
+
+function monthIndex(date: Date): number {
+  return date.getFullYear() * 12 + date.getMonth();
+}
+
+/** Start date falls in a month after the prototype's current month. */
+export function isFutureMonth(
+  dateStr: string,
+  referenceDate: Date = SEASONALITY_REFERENCE_DATE,
+): boolean {
+  const date = parseDisplayDate(dateStr);
+  if (!date) {
+    return false;
+  }
+
+  return monthIndex(date) > monthIndex(referenceDate);
 }
 
 /** Event start falls in the prototype's current month (e.g. July 2026). */
@@ -64,8 +90,21 @@ export function isAddingSeasonalityMidMonth(
 
 export function shouldWarnMidMonthSeasonalityTiming(
   startDate: string,
+  endDate?: string,
   referenceDate: Date = SEASONALITY_REFERENCE_DATE,
 ): boolean {
+  if (isFutureMonth(startDate, referenceDate)) {
+    return false;
+  }
+
+  if (
+    endDate?.trim() &&
+    isFutureMonth(endDate, referenceDate) &&
+    !isSeasonalityInCurrentMonth(startDate, referenceDate)
+  ) {
+    return false;
+  }
+
   if (!isSeasonalityInCurrentMonth(startDate, referenceDate)) {
     return false;
   }
@@ -80,15 +119,18 @@ export function getMidMonthSeasonalityInlineHint(
   startDate: string,
   referenceDate: Date = SEASONALITY_REFERENCE_DATE,
 ): string {
+  const nudge =
+    " For even distribution, add seasonality before the start of the month.";
+
   if (isMidMonthSeasonalityStart(startDate)) {
-    return "Mid-month start — remaining budget redistributes across fewer days.";
+    return `Mid-month start — remaining budget redistributes across fewer days.${nudge}`;
   }
 
   if (isAddingSeasonalityMidMonth(startDate, referenceDate)) {
-    return "Adding mid-month — remaining budget redistributes across fewer days.";
+    return `Adding mid-month — remaining budget redistributes across fewer days.${nudge}`;
   }
 
-  return "Mid-month timing — remaining budget redistributes across fewer days.";
+  return `Mid-month timing — remaining budget redistributes across fewer days.${nudge}`;
 }
 
 export function getMidMonthSeasonalityWarningBody(
