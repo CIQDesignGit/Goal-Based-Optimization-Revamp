@@ -17,6 +17,7 @@ import {
   SETUP_CHANGE_CATEGORY_LABELS,
   useSetupSessionStore,
   type ChangeLedgerEntry,
+  type ImpactedScope,
   type SetupChangeCategory,
 } from "@/lib/gbo-optimization/setup-session-store";
 import { cn } from "@/lib/utils";
@@ -69,6 +70,106 @@ function ChangeRow({ entry }: { entry: ChangeLedgerEntry }) {
   );
 }
 
+/** FR-024 — brands/scopes affected, with downstream field and category detail. */
+function ImpactedAreasSection({
+  scopes,
+  changeLedger,
+}: {
+  scopes: ImpactedScope[];
+  changeLedger: ChangeLedgerEntry[];
+}) {
+  const categoryTotals = useMemo(() => {
+    const totals = new Map<SetupChangeCategory, number>();
+
+    for (const entry of changeLedger) {
+      totals.set(entry.category, (totals.get(entry.category) ?? 0) + 1);
+    }
+
+    return Array.from(totals.entries()).sort(
+      (left, right) => right[1] - left[1],
+    );
+  }, [changeLedger]);
+
+  return (
+    <section
+      aria-labelledby="impacted-areas-heading"
+      className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
+    >
+      <div className="border-b border-slate-200 bg-slate-100 px-4 py-3">
+        <h3
+          id="impacted-areas-heading"
+          className="text-sm font-semibold text-slate-900"
+        >
+          Impacted areas
+        </h3>
+        <p className="mt-1 text-xs text-slate-500">
+          Brands, budgets, and settings affected by your pending changes (FR-024).
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Badge variant="outline" className="border-slate-300 bg-white font-normal">
+            {scopes.length} scope{scopes.length === 1 ? "" : "s"}
+          </Badge>
+          {categoryTotals.map(([category, count]) => (
+            <Badge
+              key={category}
+              variant="secondary"
+              className={cn("font-normal", CATEGORY_BADGE_CLASS[category])}
+            >
+              {count} {SETUP_CHANGE_CATEGORY_LABELS[category].toLowerCase()}
+              {count === 1 ? "" : "s"}
+            </Badge>
+          ))}
+        </div>
+      </div>
+
+      <ul className="divide-y divide-slate-200 bg-white">
+        {scopes.map((scope) => (
+          <li key={scope.scopeId} className="px-4 py-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-slate-900">
+                  {scope.scopeName}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {scope.changeCount} pending change
+                  {scope.changeCount === 1 ? "" : "s"}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {scope.categories.map((category) => (
+                  <Badge
+                    key={`${scope.scopeId}-${category}`}
+                    variant="secondary"
+                    className={cn(
+                      "font-normal",
+                      CATEGORY_BADGE_CLASS[category],
+                    )}
+                  >
+                    {SETUP_CHANGE_CATEGORY_LABELS[category]}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+            <p className="mt-2 text-xs font-medium text-slate-600">
+              Affected fields
+            </p>
+            <ul className="mt-1 flex flex-wrap gap-1.5">
+              {scope.fields.map((field) => (
+                <li
+                  key={`${scope.scopeId}-${field}`}
+                  className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
+                >
+                  {field}
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function ChangesAccordionSection({
   label,
   entries,
@@ -81,16 +182,31 @@ function ChangesAccordionSection({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
       <button
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50"
+        className={cn(
+          "flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors",
+          "bg-slate-100 hover:bg-slate-200/70",
+          open && "border-b border-slate-200",
+        )}
       >
-        <h3 className="text-sm font-semibold text-slate-900">{label}</h3>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span
+            className="h-4 w-1 shrink-0 rounded-full bg-brand-500"
+            aria-hidden
+          />
+          <h3 className="truncate text-sm font-semibold text-slate-900">
+            {label}
+          </h3>
+        </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Badge variant="outline" className="font-normal text-slate-600">
+          <Badge
+            variant="outline"
+            className="border-slate-300 bg-white font-normal text-slate-600"
+          >
             {entries.length} change{entries.length === 1 ? "" : "s"}
           </Badge>
           <ChevronDown
@@ -104,7 +220,7 @@ function ChangesAccordionSection({
       </button>
 
       {open && (
-        <ul className="divide-y divide-slate-100 border-t border-slate-200 px-4">
+        <ul className="divide-y divide-slate-100 bg-white px-4">
           {entries.map((entry) => (
             <ChangeRow key={entry.id} entry={entry} />
           ))}
@@ -196,26 +312,10 @@ export function SummaryStep() {
           ) : (
             <div className="space-y-6">
               {impactedScopes.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    Impacted areas
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {impactedScopes.map((scope) => (
-                      <Badge
-                        key={scope.scopeId}
-                        variant="outline"
-                        className="font-normal text-slate-700"
-                        title={scope.fields.join(", ")}
-                      >
-                        {scope.scopeName}
-                        <span className="ml-1.5 text-slate-400">
-                          · {scope.changeCount}
-                        </span>
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
+                <ImpactedAreasSection
+                  scopes={impactedScopes}
+                  changeLedger={changeLedger}
+                />
               )}
 
               <div className="space-y-3">

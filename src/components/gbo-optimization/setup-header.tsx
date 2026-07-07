@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Loader } from "@/components/ui/loader";
 import { useSetupContext } from "@/components/gbo-optimization/setup-context";
 import {
   areAllGoalsBudgetsGoalsSelected,
@@ -22,6 +23,7 @@ import { SetupStepper } from "./setup-stepper";
 
 type SetupHeaderProps = {
   currentStep: SetupStepKey;
+  isLaunching?: boolean;
   onBack: () => void;
   onNext: () => void;
   onComplete: () => void;
@@ -30,6 +32,7 @@ type SetupHeaderProps = {
 
 export function SetupHeader({
   currentStep,
+  isLaunching = false,
   onBack,
   onNext,
   onComplete,
@@ -57,8 +60,14 @@ export function SetupHeader({
     isGoalsBudgetsBlocked;
   const isSaveDisabled =
     isSummaryStep && hasSessionChanges && !summaryReviewed;
+  const isPrimaryDisabled =
+    isNextDisabled || isSaveDisabled || isLaunching;
 
   const handlePrimaryAction = () => {
+    if (isLaunching) {
+      return;
+    }
+
     if (isSaveDisabled) {
       return;
     }
@@ -104,6 +113,7 @@ export function SetupHeader({
               variant="ghost"
               size="sm"
               onClick={onBack}
+              disabled={isLaunching}
               className="gap-1.5 text-slate-600"
             >
               <ArrowLeft className="size-4" />
@@ -115,8 +125,11 @@ export function SetupHeader({
         <div className="flex min-w-0 flex-1 justify-center">
           <SetupStepper
             currentStep={currentStep}
-            onStepSelect={onStepSelect}
-            className="w-full max-w-3xl"
+            onStepSelect={isLaunching ? () => {} : onStepSelect}
+            className={cn(
+              "w-full max-w-3xl",
+              isLaunching && "pointer-events-none opacity-60",
+            )}
           />
         </div>
 
@@ -130,17 +143,25 @@ export function SetupHeader({
           </Button>
           <Button
             onClick={handlePrimaryAction}
-            aria-disabled={isNextDisabled || isSaveDisabled}
+            disabled={isPrimaryDisabled}
+            aria-busy={isLaunching}
             className={cn(
               "shrink-0 gap-1.5 bg-brand-600 text-white hover:bg-brand-700",
-              (isNextDisabled || isSaveDisabled) && "cursor-not-allowed opacity-50",
+              isPrimaryDisabled && "cursor-not-allowed opacity-50",
             )}
           >
             {isSummaryStep ? (
-              <>
-                <span>Save & Launch</span>
-                <ArrowRight className="size-4" />
-              </>
+              isLaunching ? (
+                <>
+                  <Loader variant="circular" size="sm" className="border-white" />
+                  <span>Applying…</span>
+                </>
+              ) : (
+                <>
+                  <span>Save & Launch</span>
+                  <ArrowRight className="size-4" />
+                </>
+              )
             ) : (
               <>
                 <span className="hidden sm:inline">

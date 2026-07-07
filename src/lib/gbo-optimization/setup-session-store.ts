@@ -103,6 +103,7 @@ export type ImpactedScope = {
   scopeId: string;
   scopeName: string;
   fields: string[];
+  categories: SetupChangeCategory[];
   changeCount: number;
 };
 
@@ -346,6 +347,8 @@ type SetupSessionState = {
 
   getImpactedScopes: () => ImpactedScope[];
 
+  showSetupToast: (message: string) => void;
+
   triggerMissingGoalsFeedback: () => void;
 
   resetSession: () => void;
@@ -516,6 +519,9 @@ export const useSetupSessionStore = create<SetupSessionState>((set, get) => ({
         if (!existing.fields.includes(entry.fieldLabel)) {
           existing.fields.push(entry.fieldLabel);
         }
+        if (!existing.categories.includes(entry.category)) {
+          existing.categories.push(entry.category);
+        }
         existing.changeCount += 1;
         continue;
       }
@@ -524,11 +530,27 @@ export const useSetupSessionStore = create<SetupSessionState>((set, get) => ({
         scopeId: entry.scopeId,
         scopeName: entry.scopeName,
         fields: [entry.fieldLabel],
+        categories: [entry.category],
         changeCount: 1,
       });
     }
 
-    return Array.from(grouped.values());
+    return Array.from(grouped.values()).sort(
+      (left, right) => right.changeCount - left.changeCount,
+    );
+  },
+
+  showSetupToast: (message: string) => {
+    if (setupToastTimer) {
+      clearTimeout(setupToastTimer);
+    }
+
+    set({ toastMessage: message });
+
+    setupToastTimer = setTimeout(() => {
+      set({ toastMessage: null });
+      setupToastTimer = null;
+    }, 4000);
   },
 
   triggerMissingGoalsFeedback: () => {

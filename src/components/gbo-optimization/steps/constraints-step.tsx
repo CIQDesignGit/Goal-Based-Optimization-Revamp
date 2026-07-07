@@ -39,10 +39,12 @@ import {
   CAMPAIGN_PERCENT_FIELDS,
   formatPercentNumber,
   formatPercentTotalDisplay,
+  isPercentGroupBlocked,
   isPercentGroupValid,
   MAX_PERCENT_VALUE,
   parsePercent,
   PERCENT_DEVIATION_THRESHOLD,
+  rebalancePercentGroup,
   SPEND_PERCENT_FIELDS,
   sumPercentFields,
   type CampaignPercentField,
@@ -342,12 +344,23 @@ function buildConstraintCellTooltipProps(
 function percentTotalClassName(
   values: ConstraintValues,
   fields: readonly PercentField[],
+  state?: ConstraintRowState,
 ): string {
   const sum = Math.round(sumPercentFields(values, fields));
+  const blocked =
+    state &&
+    isPercentGroupBlocked(
+      values,
+      fields,
+      state.historicPercents,
+      state.overridden,
+    );
 
   return cn(
     "font-medium",
-    sum === PERCENT_TOTAL_TARGET ? "text-slate-700" : "text-destructive",
+    sum === PERCENT_TOTAL_TARGET && !blocked
+      ? "text-slate-700"
+      : "text-destructive",
   );
 }
 
@@ -383,11 +396,37 @@ function getHistoricDisplayValue(
 function HistoricValueLabel({ value }: { value: string }) {
   return (
     <span
-      className="block text-[0.65rem] leading-tight text-slate-400 tabular-nums"
+      className="shrink-0 text-[0.65rem] leading-none text-slate-400 tabular-nums"
       aria-hidden
     >
       {value}
     </span>
+  );
+}
+
+function ConstraintCellValueRow({
+  showHistoricalData,
+  historicDisplay,
+  children,
+}: {
+  showHistoricalData?: boolean;
+  historicDisplay?: string;
+  children: ReactNode;
+}) {
+  const showHistoric =
+    showHistoricalData && historicDisplay && historicDisplay !== "—";
+
+  if (!showHistoric) {
+    return (
+      <div className="flex items-center justify-center">{children}</div>
+    );
+  }
+
+  return (
+    <div className="flex min-w-0 items-center justify-center gap-1.5">
+      <div className="min-w-0 shrink">{children}</div>
+      <HistoricValueLabel value={historicDisplay} />
+    </div>
   );
 }
 
@@ -496,7 +535,10 @@ function PercentConstraintCell({
       )}
       data-constraint-cell={`${rowId}:${field}`}
     >
-      <div className="flex flex-col items-center gap-0.5">
+      <ConstraintCellValueRow
+        showHistoricalData={showHistoricalData}
+        historicDisplay={historicDisplay}
+      >
         <ChangedCellTooltip
           visual={cellVisual}
           from={diffFrom}
@@ -518,6 +560,10 @@ function PercentConstraintCell({
             aria-invalid={showBlock && !showConfirm}
             className={cn(
               cellInputVisualClass(state, field),
+              showHistoricalData &&
+                historicDisplay &&
+                historicDisplay !== "—" &&
+                "max-w-[58px] px-0.5",
               showConfirm &&
                 "!border-amber-400 bg-amber-50/50 !ring-2 !ring-amber-200 hover:!border-amber-400 hover:bg-amber-50/50 focus-visible:!border-amber-500 focus-visible:!ring-amber-200 focus-visible:bg-white",
               showBlock &&
@@ -526,10 +572,7 @@ function PercentConstraintCell({
             )}
           />
         </ChangedCellTooltip>
-        {showHistoricalData && historicDisplay ? (
-          <HistoricValueLabel value={historicDisplay} />
-        ) : null}
-      </div>
+      </ConstraintCellValueRow>
       {showConfirm && pendingWarning && (
         <FloatingCellAlert
           anchorRef={anchorRef}
@@ -610,7 +653,10 @@ function EditableConstraintCell({
   historicDisplay,
 }: EditableConstraintCellProps) {
   return (
-    <div className="flex flex-col items-center gap-0.5">
+    <ConstraintCellValueRow
+      showHistoricalData={showHistoricalData}
+      historicDisplay={historicDisplay}
+    >
       <ChangedCellTooltip
         visual={cellVisual}
         from={diffFrom}
@@ -624,13 +670,16 @@ function EditableConstraintCell({
           onKeyDown={(event) => handleConstraintInputKeyDown(event)}
           onBlur={onBlur}
           aria-label={ariaLabel}
-          className={className}
+          className={cn(
+            className,
+            showHistoricalData &&
+              historicDisplay &&
+              historicDisplay !== "—" &&
+              "max-w-[58px] px-0.5",
+          )}
         />
       </ChangedCellTooltip>
-      {showHistoricalData && historicDisplay ? (
-        <HistoricValueLabel value={historicDisplay} />
-      ) : null}
-    </div>
+    </ConstraintCellValueRow>
   );
 }
 
@@ -667,19 +716,38 @@ export function ConstraintsStep() {
       const state = rowState[row.id];
       if (!state) return true;
 
-      if (
-        !isRuleBased &&
-        !isPercentGroupValid(state.values, SPEND_PERCENT_FIELDS)
-      ) {
-        return false;
+      if (!isRuleBased) {
+        if (
+          isPercentGroupBlocked(
+            state.values,
+            SPEND_PERCENT_FIELDS,
+            state.historicPercents,
+            state.overridden,
+          )
+        ) {
+          return false;
+        }
+
+        if (!isPercentGroupValid(state.values, SPEND_PERCENT_FIELDS)) {
+          return false;
+        }
       }
 
-      if (
-        showCampaignConstraints &&
-        !isRuleBased &&
-        !isPercentGroupValid(state.values, CAMPAIGN_PERCENT_FIELDS)
-      ) {
-        return false;
+      if (showCampaignConstraints && !isRuleBased) {
+        if (
+          isPercentGroupBlocked(
+            state.values,
+            CAMPAIGN_PERCENT_FIELDS,
+            state.historicPercents,
+            state.overridden,
+          )
+        ) {
+          return false;
+        }
+
+        if (!isPercentGroupValid(state.values, CAMPAIGN_PERCENT_FIELDS)) {
+          return false;
+        }
       }
 
       return true;
@@ -690,6 +758,45 @@ export function ConstraintsStep() {
     setConstraintsStepValid(constraintsStepValid);
     return () => setConstraintsStepValid(true);
   }, [constraintsStepValid, setConstraintsStepValid]);
+
+  const applyPercentGroupRebalance = (
+    rowId: string,
+    field: PercentField,
+    group: PercentGroup,
+    rawValue: string,
+  ) => {
+    const fields =
+      group === "spend" ? SPEND_PERCENT_FIELDS : CAMPAIGN_PERCENT_FIELDS;
+
+    setRowState((current) => {
+      const row = current[rowId];
+      if (!row) return current;
+
+      const result = rebalancePercentGroup(fields, row, field, rawValue);
+
+      return {
+        ...current,
+        [rowId]: {
+          ...row,
+          values: {
+            ...row.values,
+            ...result.values,
+          },
+          overridden: result.overridden,
+          adjusted: result.adjusted,
+        },
+      };
+    });
+  };
+
+  const updatePercentValue = (
+    rowId: string,
+    field: PercentField,
+    group: PercentGroup,
+    value: string,
+  ) => {
+    applyPercentGroupRebalance(rowId, field, group, value);
+  };
 
   const updateValue = (
     rowId: string,
@@ -713,31 +820,37 @@ export function ConstraintsStep() {
     field: ConstraintValueField,
     previousValue: string,
   ) => {
-    setRowState((current) => ({
-      ...current,
-      [rowId]: {
-        ...current[rowId],
-        values: {
-          ...current[rowId].values,
-          [field]: previousValue,
+    if (!isPercentField(field)) {
+      setRowState((current) => ({
+        ...current,
+        [rowId]: {
+          ...current[rowId],
+          values: {
+            ...current[rowId].values,
+            [field]: previousValue,
+          },
         },
-      },
-    }));
+      }));
+      return;
+    }
+
+    const group: PercentGroup = SPEND_PERCENT_FIELDS.includes(
+      field as SpendPercentField,
+    )
+      ? "spend"
+      : "campaign";
+    applyPercentGroupRebalance(rowId, field, group, previousValue);
   };
 
-  /**
-   * Constraints step — percent row commit:
-   * Save the edited cell as-is (formatted). Other columns are left unchanged so
-   * the user can keep adjusting until the row total reaches 100%. Next stays
-   * disabled until each percent group sums to 100%.
-   */
+  /** Commit a percent edit, rebalance unlocked defaults, and track session changes. */
   const applyPercentCommit = (
     rowId: string,
     field: PercentField,
-    _group: PercentGroup,
+    group: PercentGroup,
     editedValue: number,
   ) => {
     const row = rowState[rowId];
+    const formattedValue = formatPercentNumber(editedValue);
 
     if (row && editedValue !== row.historicPercents[field]) {
       markMidMonthConstraintActivity();
@@ -745,39 +858,11 @@ export function ConstraintsStep() {
         rowId,
         field,
         formatPercentNumber(row.historicPercents[field]),
-        formatPercentNumber(editedValue),
+        formattedValue,
       );
     }
 
-    setRowState((current) => {
-      const row = current[rowId];
-      if (!row) return current;
-
-      const nextOverridden = { ...row.overridden };
-      if (editedValue === row.historicPercents[field]) {
-        delete nextOverridden[field];
-      } else {
-        nextOverridden[field] = true;
-      }
-
-      const nextAdjusted = { ...row.adjusted };
-      delete nextAdjusted[field];
-
-      const committedValues = {
-        ...row.values,
-        [field]: formatPercentNumber(editedValue),
-      };
-
-      return {
-        ...current,
-        [rowId]: {
-          ...row,
-          overridden: nextOverridden,
-          adjusted: nextAdjusted,
-          values: committedValues,
-        },
-      };
-    });
+    applyPercentGroupRebalance(rowId, field, group, formattedValue);
   };
 
   const beginEditSession = (
@@ -1300,7 +1385,9 @@ export function ConstraintsStep() {
                             field={field}
                             value={state.values[field]}
                             state={state}
-                            onChange={(value) => updateValue(row.id, field, value)}
+                            onChange={(value) =>
+                              updatePercentValue(row.id, field, "spend", value)
+                            }
                             onFocus={() =>
                               beginEditSession(row.id, field, state.values[field])
                             }
@@ -1330,7 +1417,11 @@ export function ConstraintsStep() {
                         !showCampaignConstraints && "border-r-0",
                         isEditableRow &&
                           state &&
-                          percentTotalClassName(state.values, SPEND_PERCENT_FIELDS),
+                          percentTotalClassName(
+                            state.values,
+                            SPEND_PERCENT_FIELDS,
+                            state,
+                          ),
                       )}
                     >
                       {isEditableRow && state
@@ -1358,7 +1449,9 @@ export function ConstraintsStep() {
                               field={field}
                               value={state.values[field]}
                               state={state}
-                              onChange={(value) => updateValue(row.id, field, value)}
+                              onChange={(value) =>
+                                updatePercentValue(row.id, field, "campaign", value)
+                              }
                               onFocus={() =>
                                 beginEditSession(row.id, field, state.values[field])
                               }
@@ -1389,6 +1482,7 @@ export function ConstraintsStep() {
                             percentTotalClassName(
                               state.values,
                               CAMPAIGN_PERCENT_FIELDS,
+                              state,
                             ),
                         )}
                       >
@@ -1484,10 +1578,9 @@ export function ConstraintsStep() {
             <p className="flex-1 pr-2">
               Gray italic values are based on your{" "}
               <span className="font-medium text-slate-700">last 30 days</span> of
-              spend distribution. Edit any cell to override it — adjust cells until
-              the row total reaches{" "}
-              <span className="font-medium text-slate-700">100%</span> before
-              continuing.
+              spend distribution. Edit any cell to override it — other default cells
+              in that row rebalance automatically to keep the total at{" "}
+              <span className="font-medium text-slate-700">100%</span>.
             </p>
             <button
               type="button"

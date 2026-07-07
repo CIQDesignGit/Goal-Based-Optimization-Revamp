@@ -74,6 +74,188 @@ export function isPercentGroupValid(
   return Math.round(sumPercentFields(values, fields)) === MAX_PERCENT_VALUE;
 }
 
+/** Locked manual values alone exceed 100%, or every column is manual and sum ≠ 100. */
+export function isPercentGroupBlocked(
+  values: Record<string, string>,
+  fields: readonly PercentField[],
+  historic: Record<PercentField, number>,
+  overridden: Partial<Record<PercentField, boolean>>,
+): boolean {
+  const locked = buildLockedPercentMap(
+    fields,
+    values,
+    historic,
+    overridden,
+    null,
+    "",
+  );
+  const lockedSum = sumLockedPercents(locked);
+
+  if (lockedSum > MAX_PERCENT_VALUE) {
+    return true;
+  }
+
+  const allManual = fields.every((field) => Boolean(overridden[field]));
+  return allManual && !isPercentGroupValid(values, fields);
+}
+
+export function buildLockedPercentMap(
+  fields: readonly PercentField[],
+  values: Record<string, string>,
+  historic: Record<PercentField, number>,
+  overridden: Partial<Record<PercentField, boolean>>,
+  activeField: PercentField | null,
+  activeRawValue: string,
+): Partial<Record<PercentField, number>> {
+  const locked: Partial<Record<PercentField, number>> = {};
+
+  for (const field of fields) {
+    if (field === activeField) {
+      continue;
+    }
+
+    if (overridden[field]) {
+      locked[field] = parsePercent(values[field] ?? "");
+    }
+  }
+
+  if (!activeField) {
+    return locked;
+  }
+
+  const activeTrimmed = activeRawValue.trim().replace(/%/g, "");
+  const hasActiveParse =
+    activeTrimmed !== "" && !Number.isNaN(Number.parseFloat(activeTrimmed));
+
+  if (hasActiveParse) {
+    const activeValue = parsePercent(activeRawValue);
+    if (overridden[activeField] || activeValue !== historic[activeField]) {
+      locked[activeField] = activeValue;
+    }
+  } else if (overridden[activeField]) {
+    locked[activeField] = parsePercent(values[activeField] ?? "");
+  }
+
+  return locked;
+}
+
+export type PercentGroupRebalanceResult = {
+  values: Record<PercentField, string>;
+  overridden: Partial<Record<PercentField, boolean>>;
+  adjusted: Partial<Record<PercentField, boolean>>;
+  lockedSum: number;
+  totalSum: number;
+  blocked: boolean;
+  valid: boolean;
+};
+
+/** Rebalance unlocked fields by historic weight; keep manual (overridden) values fixed. */
+export function rebalancePercentGroup(
+  fields: readonly PercentField[],
+  row: {
+    values: Record<string, string>;
+    historicPercents: Record<PercentField, number>;
+    overridden: Partial<Record<PercentField, boolean>>;
+    adjusted: Partial<Record<PercentField, boolean>>;
+  },
+  activeField: PercentField,
+  activeRawValue: string,
+): PercentGroupRebalanceResult {
+  const locked = buildLockedPercentMap(
+    fields,
+    row.values,
+    row.historicPercents,
+    row.overridden,
+    activeField,
+    activeRawValue,
+  );
+  const lockedSum = sumLockedPercents(locked);
+  const activeTrimmed = activeRawValue.trim().replace(/%/g, "");
+  const hasActiveParse =
+    activeTrimmed !== "" && !Number.isNaN(Number.parseFloat(activeTrimmed));
+
+  const nextOverridden = { ...row.overridden };
+  if (hasActiveParse) {
+    const activeValue = parsePercent(activeRawValue);
+    if (activeValue === row.historicPercents[activeField]) {
+      delete nextOverridden[activeField];
+    } else {
+      nextOverridden[activeField] = true;
+    }
+  } else if (activeRawValue.trim() === "") {
+    delete nextOverridden[activeField];
+  }
+
+  const mergedValues = {
+    ...row.values,
+    [activeField]: activeRawValue,
+  };
+
+  if (lockedSum > MAX_PERCENT_VALUE) {
+    return {
+      values: pickPercentValues(mergedValues, fields),
+      overridden: nextOverridden,
+      adjusted: {},
+      lockedSum,
+      totalSum: Math.round(sumPercentFields(mergedValues, fields)),
+      blocked: true,
+      valid: false,
+    };
+  }
+
+  const redistributed = redistributePercentFields(
+    fields,
+    row.historicPercents,
+    locked,
+  );
+
+  const nextValues = {
+    ...row.values,
+    ...redistributed,
+    [activeField]: hasActiveParse
+      ? formatPercentNumber(parsePercent(activeRawValue))
+      : activeRawValue,
+  };
+
+  const nextAdjusted: Partial<Record<PercentField, boolean>> = {};
+  for (const field of fields) {
+    if (locked[field] !== undefined) {
+      continue;
+    }
+
+    const newVal = parsePercent(nextValues[field] ?? "");
+    const oldVal = parsePercent(row.values[field] ?? "");
+    if (newVal !== oldVal) {
+      nextAdjusted[field] = true;
+    }
+  }
+
+  const totalSum = Math.round(sumPercentFields(nextValues, fields));
+  const allManual = fields.every((field) => Boolean(nextOverridden[field]));
+  const blocked =
+    lockedSum > MAX_PERCENT_VALUE ||
+    (allManual && totalSum !== MAX_PERCENT_VALUE);
+
+  return {
+    values: pickPercentValues(nextValues, fields),
+    overridden: nextOverridden,
+    adjusted: nextAdjusted,
+    lockedSum,
+    totalSum,
+    blocked,
+    valid: totalSum === MAX_PERCENT_VALUE && !blocked,
+  };
+}
+
+function pickPercentValues(
+  values: Record<string, string>,
+  fields: readonly PercentField[],
+): Record<PercentField, string> {
+  return Object.fromEntries(
+    fields.map((field) => [field, values[field] ?? ""]),
+  ) as Record<PercentField, string>;
+}
+
 /** Lock every manually edited field in the group plus the field being committed. */
 export function buildManualLockedPercents(
   fields: readonly PercentField[],
