@@ -18,6 +18,7 @@ import {
   LEVEL_1_OPTIONS,
   SEASONALITY_CHART_DATA,
   type SeasonalityEvent,
+  type SuggestedSeasonalityEventTemplate,
 } from "@/lib/gbo-optimization/setup-data";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +39,8 @@ function formatCurrency(value: number) {
 
 export function SeasonalityStep() {
   const [events, setEvents] = useState<SeasonalityEvent[]>([]);
+  const [prefillRequest, setPrefillRequest] =
+    useState<SuggestedSeasonalityEventTemplate | null>(null);
   const [viewMode, setViewMode] = useState<"entire-business" | "portfolio">(
     "entire-business",
   );
@@ -55,6 +58,8 @@ export function SeasonalityStep() {
       <SeasonalityEventsSection
         events={events}
         onAddEvent={(event) => setEvents((current) => [...current, event])}
+        prefillRequest={prefillRequest}
+        onPrefillHandled={() => setPrefillRequest(null)}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -194,7 +199,9 @@ export function SeasonalityStep() {
         </CardContent>
       </Card>
 
-      <SuggestedSeasonalityEvents />
+      <SuggestedSeasonalityEvents
+        onSelectSuggestion={(template) => setPrefillRequest(template)}
+      />
     </div>
   );
 }

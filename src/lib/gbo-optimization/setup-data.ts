@@ -271,6 +271,101 @@ export type SuggestedSeasonalityEventTemplate = {
   description: string;
 };
 
+export type SeasonalityDraftFormState = {
+  name: string;
+  startDate: string;
+  endDate: string;
+  scope: string | null;
+  budgetMode: SeasonalityBudgetMode;
+  budgetValue: string;
+};
+
+export const BLANK_SEASONALITY_FORM: SeasonalityDraftFormState = {
+  name: "",
+  startDate: "Jul 01, 2026",
+  endDate: "Jul 01, 2026",
+  scope: null,
+  budgetMode: "percent",
+  budgetValue: "0",
+};
+
+export type SeasonalityDraftRowTemplate = {
+  id: string;
+  kind: "custom" | "prefilled";
+  form: SeasonalityDraftFormState;
+};
+
+/** Holiday event drafts shown together in the Suggested section. */
+export const PREFILLED_HOLIDAY_SEASONALITY_DRAFTS: SeasonalityDraftRowTemplate[] = [
+  {
+    id: "halloween",
+    kind: "prefilled",
+    form: {
+      name: "Halloween",
+      startDate: "Oct 29, 2026",
+      endDate: "Oct 31, 2026",
+      scope: null,
+      budgetMode: "percent",
+      budgetValue: "0",
+    },
+  },
+  {
+    id: "thanksgiving",
+    kind: "prefilled",
+    form: {
+      name: "Thanksgiving",
+      startDate: "Nov 26, 2026",
+      endDate: "Nov 28, 2026",
+      scope: null,
+      budgetMode: "percent",
+      budgetValue: "0",
+    },
+  },
+  {
+    id: "christmas",
+    kind: "prefilled",
+    form: {
+      name: "Christmas",
+      startDate: "Dec 24, 2026",
+      endDate: "Dec 26, 2026",
+      scope: null,
+      budgetMode: "percent",
+      budgetValue: "0",
+    },
+  },
+  {
+    id: "new-years",
+    kind: "prefilled",
+    form: {
+      name: "New Year's",
+      startDate: "Dec 31, 2026",
+      endDate: "Jan 01, 2027",
+      scope: null,
+      budgetMode: "percent",
+      budgetValue: "0",
+    },
+  },
+];
+
+/** @deprecated Use BLANK_SEASONALITY_FORM + PREFILLED_HOLIDAY_SEASONALITY_DRAFTS */
+export const DEFAULT_SEASONALITY_DRAFT_ROWS: SeasonalityDraftRowTemplate[] = [
+  { id: "custom", kind: "custom", form: BLANK_SEASONALITY_FORM },
+  ...PREFILLED_HOLIDAY_SEASONALITY_DRAFTS,
+];
+
+export function suggestedTemplateToDraftForm(
+  template: Pick<SuggestedSeasonalityEventTemplate, "name" | "startDate" | "endDate">,
+): SeasonalityDraftFormState {
+  return {
+    name: template.name,
+    startDate: template.startDate,
+    endDate: template.endDate,
+    scope: null,
+    budgetMode: "percent",
+    budgetValue: "0",
+  };
+}
+
 /** Prototype "today" — keeps suggested events aligned with the 2026 demo data. */
 export const SEASONALITY_REFERENCE_DATE = new Date(2026, 6, 6);
 

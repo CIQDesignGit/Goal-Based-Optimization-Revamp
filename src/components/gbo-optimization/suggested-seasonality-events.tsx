@@ -7,6 +7,7 @@ import {
   getSuggestedSeasonalityEvents,
   type SuggestedSeasonalityEventTemplate,
 } from "@/lib/gbo-optimization/setup-data";
+import { cn } from "@/lib/utils";
 
 function formatDateRange(startDate: string, endDate: string) {
   if (startDate === endDate) {
@@ -18,11 +19,20 @@ function formatDateRange(startDate: string, endDate: string) {
 
 function SuggestedEventTile({
   template,
+  onSelect,
 }: {
   template: SuggestedSeasonalityEventTemplate;
+  onSelect: (template: SuggestedSeasonalityEventTemplate) => void;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+    <button
+      type="button"
+      onClick={() => onSelect(template)}
+      className={cn(
+        "rounded-lg border border-slate-200 bg-white px-4 py-3 text-left transition-colors",
+        "hover:border-brand-300 hover:bg-brand-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500",
+      )}
+    >
       <div className="min-w-0 space-y-1">
         <p className="text-sm font-medium text-slate-900">{template.name}</p>
         <p className="flex items-center gap-1.5 text-xs text-slate-500">
@@ -31,11 +41,17 @@ function SuggestedEventTile({
         </p>
         <p className="text-xs text-slate-500">{template.description}</p>
       </div>
-    </div>
+    </button>
   );
 }
 
-export function SuggestedSeasonalityEvents() {
+type SuggestedSeasonalityEventsProps = {
+  onSelectSuggestion: (template: SuggestedSeasonalityEventTemplate) => void;
+};
+
+export function SuggestedSeasonalityEvents({
+  onSelectSuggestion,
+}: SuggestedSeasonalityEventsProps) {
   const suggestions = getSuggestedSeasonalityEvents();
   const monthLabel = formatSeasonalityMonthLabel();
 
@@ -50,14 +66,18 @@ export function SuggestedSeasonalityEvents() {
           Upcoming events in {monthLabel}
         </h3>
         <p className="text-sm text-slate-500">
-          Known retail moments for the upcoming month. Use the form above to add
-          any that apply to your seasonality plan.
+          Tap an event to prefill a draft row above. Select scope and budget,
+          then save to add it to your seasonality plan.
         </p>
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">
         {suggestions.map((template) => (
-          <SuggestedEventTile key={template.id} template={template} />
+          <SuggestedEventTile
+            key={template.id}
+            template={template}
+            onSelect={onSelectSuggestion}
+          />
         ))}
       </div>
     </section>
