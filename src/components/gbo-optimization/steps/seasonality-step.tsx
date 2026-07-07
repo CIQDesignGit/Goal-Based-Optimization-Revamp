@@ -6,7 +6,6 @@ import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 
 import { SeasonalityEventsSection } from "@/components/gbo-optimization/seasonality-events-section";
 import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
-import { SuggestedSeasonalityEvents } from "@/components/gbo-optimization/suggested-seasonality-events";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -14,11 +13,11 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { Label } from "@/components/ui/label";
 import {
   LEVEL_1_OPTIONS,
   SEASONALITY_CHART_DATA,
   type SeasonalityEvent,
-  type SuggestedSeasonalityEventTemplate,
 } from "@/lib/gbo-optimization/setup-data";
 import { cn } from "@/lib/utils";
 
@@ -39,8 +38,6 @@ function formatCurrency(value: number) {
 
 export function SeasonalityStep() {
   const [events, setEvents] = useState<SeasonalityEvent[]>([]);
-  const [prefillRequest, setPrefillRequest] =
-    useState<SuggestedSeasonalityEventTemplate | null>(null);
   const [viewMode, setViewMode] = useState<"entire-business" | "portfolio">(
     "entire-business",
   );
@@ -58,18 +55,26 @@ export function SeasonalityStep() {
       <SeasonalityEventsSection
         events={events}
         onAddEvent={(event) => setEvents((current) => [...current, event])}
-        prefillRequest={prefillRequest}
-        onPrefillHandled={() => setPrefillRequest(null)}
+        onUpdateEvent={(updatedEvent) =>
+          setEvents((current) =>
+            current.map((event) =>
+              event.id === updatedEvent.id ? updatedEvent : event,
+            ),
+          )
+        }
+        onRemoveEvent={(eventId) =>
+          setEvents((current) => current.filter((event) => event.id !== eventId))
+        }
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-md border border-slate-200 bg-white p-0.5">
+          <div className="inline-flex h-10 rounded-md border border-slate-200 bg-white p-0.5">
             <button
               type="button"
               onClick={() => setViewMode("entire-business")}
               className={cn(
-                "rounded px-3 py-1.5 text-sm font-medium transition-colors",
+                "flex h-full items-center rounded px-3 text-sm font-medium transition-colors",
                 viewMode === "entire-business"
                   ? "border border-brand-600 text-brand-600"
                   : "text-slate-600 hover:text-slate-900",
@@ -81,7 +86,7 @@ export function SeasonalityStep() {
               type="button"
               onClick={() => setViewMode("portfolio")}
               className={cn(
-                "flex items-center gap-1 rounded px-3 py-1.5 text-sm font-medium transition-colors",
+                "flex h-full items-center gap-1 rounded px-3 text-sm font-medium transition-colors",
                 viewMode === "portfolio"
                   ? "border border-brand-600 text-brand-600"
                   : "text-slate-600 hover:text-slate-900",
@@ -96,6 +101,7 @@ export function SeasonalityStep() {
             <div className="w-44">
               <SetupInlineSelect
                 label="Portfolio"
+                hideLabel
                 value={portfolio}
                 options={LEVEL_1_OPTIONS}
                 placeholder="Select portfolio"
@@ -119,32 +125,35 @@ export function SeasonalityStep() {
       <Card className="border-slate-200 shadow-none">
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="inline-flex rounded-md bg-slate-100 p-0.5">
-              <button
-                type="button"
-                onClick={() => setChartMode("absolute")}
-                className={cn(
-                  "rounded px-3 py-1.5 text-sm font-medium transition-colors",
-                  chartMode === "absolute"
-                    ? "bg-brand-600 text-white"
-                    : "text-slate-600 hover:text-slate-900",
-                )}
-              >
-                Absolute
-              </button>
-              <button
-                type="button"
-                onClick={() => setChartMode("cumulative")}
-                className={cn(
-                  "rounded px-3 py-1.5 text-sm font-medium transition-colors",
-                  chartMode === "cumulative"
-                    ? "bg-brand-600 text-white"
-                    : "text-slate-600 hover:text-slate-900",
-                )}
-              >
-                Cumulative
-              </button>
-            </div>
+            <fieldset className="m-0 flex flex-wrap items-center gap-6 border-0 p-0">
+              <legend className="shrink-0 text-sm font-medium text-slate-700">
+                Chart view
+              </legend>
+              <div className="flex flex-wrap items-center gap-6">
+                <Label className="cursor-pointer font-normal text-slate-700">
+                  <input
+                    type="radio"
+                    name="chart-mode"
+                    value="absolute"
+                    checked={chartMode === "absolute"}
+                    onChange={() => setChartMode("absolute")}
+                    className="size-4 border-slate-300 text-brand-600 focus:ring-2 focus:ring-brand-500/30"
+                  />
+                  Absolute
+                </Label>
+                <Label className="cursor-pointer font-normal text-slate-700">
+                  <input
+                    type="radio"
+                    name="chart-mode"
+                    value="cumulative"
+                    checked={chartMode === "cumulative"}
+                    onChange={() => setChartMode("cumulative")}
+                    className="size-4 border-slate-300 text-brand-600 focus:ring-2 focus:ring-brand-500/30"
+                  />
+                  Cumulative
+                </Label>
+              </div>
+            </fieldset>
 
             <Button
               variant="outline"
@@ -198,10 +207,6 @@ export function SeasonalityStep() {
           </ChartContainer>
         </CardContent>
       </Card>
-
-      <SuggestedSeasonalityEvents
-        onSelectSuggestion={(template) => setPrefillRequest(template)}
-      />
     </div>
   );
 }

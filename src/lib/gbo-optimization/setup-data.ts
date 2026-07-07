@@ -261,6 +261,8 @@ export type SeasonalityEvent = {
   scope: string;
   budgetMode: SeasonalityBudgetMode;
   budgetValue: string;
+  sourceKind?: "custom" | "prefilled";
+  templateId?: string;
 };
 
 export type SuggestedSeasonalityEventTemplate = {

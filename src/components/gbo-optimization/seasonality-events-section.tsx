@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import { CalendarDays, Plus, X } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { CalendarDays, Pencil, Plus, Trash2, X } from "lucide-react";
 
 import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
 import { Badge } from "@/components/ui/badge";
@@ -13,18 +13,17 @@ import {
   BLANK_SEASONALITY_FORM,
   PREFILLED_HOLIDAY_SEASONALITY_DRAFTS,
   SEASONALITY_SCOPE_OPTIONS,
-  suggestedTemplateToDraftForm,
   type SeasonalityDraftFormState,
   type SeasonalityEvent,
-  type SuggestedSeasonalityEventTemplate,
 } from "@/lib/gbo-optimization/setup-data";
 import { getSeasonalityBudgetContextLabel } from "@/lib/gbo-optimization/seasonality-budget-context";
 import { useSetupSessionStore } from "@/lib/gbo-optimization/setup-session-store";
+import type { GoalsRowState } from "@/lib/gbo-optimization/setup-session-store";
 import { cn } from "@/lib/utils";
 
 type BudgetMode = "percent" | "absolute";
 
-type DraftRowKind = "custom" | "prefilled" | "suggestion";
+type DraftRowKind = "custom" | "prefilled";
 
 type DraftEventRow = {
   id: string;
@@ -61,6 +60,32 @@ function createBlankDraftRow(id = crypto.randomUUID()): DraftEventRow {
   };
 }
 
+function getPrefilledTemplateIdForEvent(event: SeasonalityEvent): string | null {
+  if (event.templateId) {
+    return event.templateId;
+  }
+
+  const match = PREFILLED_HOLIDAY_SEASONALITY_DRAFTS.find(
+    (template) =>
+      template.form.name === event.name &&
+      template.form.startDate === event.startDate &&
+      template.form.endDate === event.endDate,
+  );
+
+  return match?.id ?? null;
+}
+
+function eventToDraftForm(event: SeasonalityEvent): SeasonalityDraftFormState {
+  return {
+    name: event.name,
+    startDate: event.startDate,
+    endDate: event.endDate,
+    scope: event.scope,
+    budgetMode: event.budgetMode,
+    budgetValue: event.budgetValue,
+  };
+}
+
 function createInitialDraftRows(): DraftEventRow[] {
   return [
     createBlankDraftRow("custom"),
@@ -70,7 +95,7 @@ function createInitialDraftRows(): DraftEventRow[] {
 
 const FIELD_LABEL = "text-sm font-semibold leading-5 text-slate-900";
 const FIELD_INPUT =
-  "h-10 rounded-md border-slate-200 bg-white text-slate-700 shadow-none";
+  "h-10 rounded-md border border-slate-300 bg-slate-50 text-slate-700 shadow-none";
 const FIELD_FOOTER = "flex h-5 items-center text-sm";
 /** Grid columns: event | start | end | scope | budget (flex) | actions */
 const ROW_LAYOUT =
@@ -95,10 +120,230 @@ function FormFieldCell({
   return (
     <div className={cn("flex min-w-0 flex-col gap-1.5", className)}>
       {children}
-      <div className={FIELD_FOOTER}>
-        {footer ?? <span className="invisible select-none">.</span>}
+      {footer ? <div className={FIELD_FOOTER}>{footer}</div> : null}
+    </div>
+  );
+}
+
+const SAVED_ROW_LAYOUT = cn(ROW_LAYOUT, "items-center");
+
+function formatSeasonalityBudgetDisplay(
+  budgetMode: BudgetMode,
+  budgetValue: string,
+): string {
+  const trimmed = budgetValue.trim();
+
+  if (!trimmed) {
+    return budgetMode === "percent" ? "0%" : "$0";
+  }
+
+  if (budgetMode === "percent") {
+    const num = Number.parseFloat(trimmed);
+    return Number.isFinite(num) ? `${num}%` : `${trimmed}%`;
+  }
+
+  const num = Number.parseFloat(trimmed.replace(/[$,\s]/g, ""));
+  if (Number.isFinite(num)) {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 0,
+    }).format(num);
+  }
+
+  return trimmed.startsWith("$") ? trimmed : `$${trimmed}`;
+}
+
+function SavedSeasonalityEventRow({
+  event,
+  goalsRowState,
+  onEdit,
+  onDelete,
+}: {
+  event: SeasonalityEvent;
+  goalsRowState: Record<string, GoalsRowState>;
+  onEdit: (event: SeasonalityEvent) => void;
+  onDelete: (event: SeasonalityEvent) => void;
+}) {
+  const scopeLabel =
+    SEASONALITY_SCOPE_OPTIONS.find((option) => option.value === event.scope)
+      ?.label ?? event.scope;
+
+  const budgetLabel = formatSeasonalityBudgetDisplay(
+    event.budgetMode,
+    event.budgetValue,
+  );
+
+  const budgetContextLabel = getSeasonalityBudgetContextLabel(
+    event.startDate,
+    event.budgetMode,
+    goalsRowState,
+  );
+
+  return (
+    <div
+      className={cn(
+        SAVED_ROW_LAYOUT,
+        "border-b border-slate-100 px-4 py-3 last:border-b-0",
+      )}
+    >
+      <p className="min-w-0 font-semibold text-slate-900">{event.name}</p>
+
+      <p className="flex items-center gap-1.5 text-sm whitespace-nowrap text-slate-600">
+        <CalendarDays className="size-3.5 shrink-0 text-slate-400" />
+        {event.startDate}
+      </p>
+
+      <p className="flex items-center gap-1.5 text-sm whitespace-nowrap text-slate-600">
+        <CalendarDays className="size-3.5 shrink-0 text-slate-400" />
+        {event.endDate}
+      </p>
+
+      <Badge
+        variant="outline"
+        className="h-6 rounded-md border-slate-200 bg-slate-50 px-2 text-xs font-medium text-slate-700"
+      >
+        {scopeLabel}
+      </Badge>
+
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="inline-flex h-7 shrink-0 items-center rounded-md bg-brand-50 px-2.5 text-sm font-semibold text-brand-700 tabular-nums ring-1 ring-brand-200/80 ring-inset">
+          {budgetLabel}
+        </span>
+        <span className="min-w-0 truncate text-sm text-slate-500">
+          {budgetContextLabel}
+        </span>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => onEdit(event)}
+          className="text-slate-500 hover:text-slate-900"
+          aria-label={`Edit ${event.name}`}
+        >
+          <Pencil className="size-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => onDelete(event)}
+          className="text-slate-500 hover:text-error-600"
+          aria-label={`Delete ${event.name}`}
+        >
+          <Trash2 className="size-4" />
+        </Button>
       </div>
     </div>
+  );
+}
+
+function SavedSeasonalityEventsList({
+  events,
+  goalsRowState,
+  editingEventId,
+  editingForm,
+  editingScopeError,
+  onStartEdit,
+  onUpdateEditingForm,
+  onSaveEdit,
+  onCancelEdit,
+  onDelete,
+}: {
+  events: SeasonalityEvent[];
+  goalsRowState: Record<string, GoalsRowState>;
+  editingEventId: string | null;
+  editingForm: SeasonalityDraftFormState | null;
+  editingScopeError: boolean;
+  onStartEdit: (event: SeasonalityEvent) => void;
+  onUpdateEditingForm: (updates: Partial<SeasonalityDraftFormState>) => void;
+  onSaveEdit: (event: SeasonalityEvent) => void;
+  onCancelEdit: () => void;
+  onDelete: (event: SeasonalityEvent) => void;
+}) {
+  return (
+    <section className="overflow-hidden rounded-md border border-slate-200 border-l-4 border-l-emerald-500 bg-white shadow-sm">
+      <div className="flex items-start justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-900">Saved events</p>
+          <p className="text-sm text-slate-500">
+            {events.length === 1
+              ? "1 event added to your plan"
+              : `${events.length} events added to your plan`}
+          </p>
+        </div>
+        <span className="inline-flex h-6 shrink-0 items-center rounded-full bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200/80 ring-inset">
+          {events.length}
+        </span>
+      </div>
+
+      <SeasonalityEventTable>
+        <div
+          className={cn(
+            SAVED_ROW_LAYOUT,
+            "border-b border-slate-100 px-4 py-2.5",
+          )}
+        >
+          <span className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+            Event name
+          </span>
+          <span className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+            Start date
+          </span>
+          <span className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+            End date
+          </span>
+          <span className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+            Scope
+          </span>
+          <span className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+            Budget
+          </span>
+          <span className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+            Actions
+          </span>
+        </div>
+
+        {events.map((event) => {
+          const isEditing = editingEventId === event.id && editingForm !== null;
+
+          if (isEditing) {
+            return (
+              <div
+                key={event.id}
+                className="border-b border-slate-100 bg-brand-50/30 px-4 py-3 ring-2 ring-inset ring-brand-500/20 last:border-b-0"
+              >
+                <SeasonalityEventFormRow
+                  form={editingForm}
+                  scopeError={editingScopeError}
+                  budgetContextLabel={getSeasonalityBudgetContextLabel(
+                    editingForm.startDate,
+                    editingForm.budgetMode,
+                    goalsRowState,
+                  )}
+                  onChange={onUpdateEditingForm}
+                  onSave={() => onSaveEdit(event)}
+                  onClose={onCancelEdit}
+                />
+              </div>
+            );
+          }
+
+          return (
+            <SavedSeasonalityEventRow
+              key={event.id}
+              event={event}
+              goalsRowState={goalsRowState}
+              onEdit={onStartEdit}
+              onDelete={onDelete}
+            />
+          );
+        })}
+      </SeasonalityEventTable>
+    </section>
   );
 }
 
@@ -110,7 +355,7 @@ function SeasonalityEventFormHeader() {
       <Label className={FIELD_LABEL}>End date</Label>
       <Label className={FIELD_LABEL}>Scope</Label>
       <Label className={FIELD_LABEL}>Budget</Label>
-      <div aria-hidden className="h-5" />
+      <div aria-hidden />
     </div>
   );
 }
@@ -242,7 +487,6 @@ function SeasonalityEventFormRow({
           onValueChange={(scope) => onChange({ scope })}
           triggerClassName={cn(
             FIELD_INPUT,
-            "border-slate-200 bg-white text-slate-700",
             scopeError && "border-error-500",
           )}
         />
@@ -303,9 +547,6 @@ function SeasonalityEventFormRow({
             <X className="size-4" />
           </Button>
         </div>
-        <div className={FIELD_FOOTER} aria-hidden>
-          <span className="invisible select-none">.</span>
-        </div>
       </div>
     </div>
   );
@@ -329,7 +570,8 @@ function CustomEventsSection({
   }
 
   return (
-    <section className="rounded-md border border-slate-200 bg-white p-4">
+    <section className="rounded-md border border-slate-200 bg-white p-4 shadow-xs">
+      <p className="mb-3 text-sm font-medium text-slate-900">Custom event</p>
       <SeasonalityEventTable>
         <SeasonalityEventFormHeader />
         <div className="mt-3 flex flex-col gap-4">
@@ -376,18 +618,19 @@ function SuggestedHolidayEventsSection({
   }
 
   return (
-    <section className="rounded-md border border-slate-200 border-l-2 border-l-brand-200 bg-white p-4">
-      <div className="mb-4 space-y-0.5">
-        <p className="text-sm font-semibold text-slate-900">Suggested</p>
-        <p className="text-sm text-slate-500">
-          Holiday events ready to configure. Select scope and budget for each,
+    <section className="overflow-hidden rounded-md border border-slate-200 border-l-4 border-l-cyan-500 bg-white shadow-sm">
+      <div className="border-b border-brand-100 bg-brand-50 px-4 py-3">
+        <p className="text-sm font-semibold text-slate-700">Suggested holidays</p>
+        <p className="text-sm text-slate-600">
+          Prefilled events ready to configure. Select scope and budget for each,
           then save to add them to your plan.
         </p>
       </div>
 
-      <SeasonalityEventTable>
+      <div className="p-4">
+        <SeasonalityEventTable>
         <SeasonalityEventFormHeader />
-        <div className="mt-3 flex flex-col gap-4">
+        <div className="mt-3 flex flex-col gap-6">
           {rows.map((row) => (
             <div
               key={row.id}
@@ -409,6 +652,7 @@ function SuggestedHolidayEventsSection({
           ))}
         </div>
       </SeasonalityEventTable>
+      </div>
     </section>
   );
 }
@@ -416,81 +660,30 @@ function SuggestedHolidayEventsSection({
 type SeasonalityEventsSectionProps = {
   events: SeasonalityEvent[];
   onAddEvent: (event: SeasonalityEvent) => void;
-  prefillRequest?: SuggestedSeasonalityEventTemplate | null;
-  onPrefillHandled?: () => void;
+  onUpdateEvent: (event: SeasonalityEvent) => void;
+  onRemoveEvent: (eventId: string) => void;
+};
+
+type EditingSavedEventState = {
+  eventId: string;
+  form: SeasonalityDraftFormState;
+  scopeError: boolean;
 };
 
 export function SeasonalityEventsSection({
   events,
   onAddEvent,
-  prefillRequest,
-  onPrefillHandled,
+  onUpdateEvent,
+  onRemoveEvent,
 }: SeasonalityEventsSectionProps) {
   const [draftRows, setDraftRows] = useState<DraftEventRow[]>(createInitialDraftRows);
+  const [editingEvent, setEditingEvent] = useState<EditingSavedEventState | null>(
+    null,
+  );
   const goalsRowState = useSetupSessionStore((state) => state.goalsRowState);
 
-  const customRows = draftRows.filter(
-    (row) => row.kind === "custom" || row.kind === "suggestion",
-  );
+  const customRows = draftRows.filter((row) => row.kind === "custom");
   const suggestedRows = draftRows.filter((row) => row.kind === "prefilled");
-
-  useEffect(() => {
-    if (!prefillRequest) {
-      return;
-    }
-
-    const nextForm = suggestedTemplateToDraftForm(prefillRequest);
-    let targetRowId: string | null = null;
-
-    setDraftRows((current) => {
-      const blankRowIndex = current.findIndex(
-        (row) => row.kind === "custom" && !row.form.name.trim(),
-      );
-
-      if (blankRowIndex >= 0) {
-        targetRowId = current[blankRowIndex].id;
-        return current.map((row, index) =>
-          index === blankRowIndex
-            ? {
-                ...row,
-                form: nextForm,
-                isHighlighted: true,
-                scopeError: false,
-              }
-            : row,
-        );
-      }
-
-      const newRow: DraftEventRow = {
-        id: crypto.randomUUID(),
-        kind: "suggestion",
-        templateId: prefillRequest.id,
-        initialForm: nextForm,
-        form: nextForm,
-        isHighlighted: true,
-        scopeError: false,
-      };
-      targetRowId = newRow.id;
-
-      return [...current, newRow];
-    });
-
-    onPrefillHandled?.();
-
-    const highlightTimer = window.setTimeout(() => {
-      if (!targetRowId) {
-        return;
-      }
-
-      setDraftRows((current) =>
-        current.map((row) =>
-          row.id === targetRowId ? { ...row, isHighlighted: false } : row,
-        ),
-      );
-    }, 1000);
-
-    return () => window.clearTimeout(highlightTimer);
-  }, [prefillRequest, onPrefillHandled]);
 
   const updateDraftRow = (rowId: string, updates: Partial<SeasonalityDraftFormState>) => {
     setDraftRows((current) =>
@@ -535,6 +728,8 @@ export function SeasonalityEventsSection({
       scope,
       budgetMode: row.form.budgetMode as BudgetMode,
       budgetValue: row.form.budgetValue,
+      sourceKind: row.kind,
+      templateId: row.templateId,
     });
 
     setDraftRows((current) => {
@@ -563,11 +758,6 @@ export function SeasonalityEventsSection({
       return;
     }
 
-    if (row.kind === "suggestion") {
-      setDraftRows((current) => current.filter((draft) => draft.id !== rowId));
-      return;
-    }
-
     setDraftRows((current) =>
       current.map((draft) =>
         draft.id === rowId
@@ -586,52 +776,120 @@ export function SeasonalityEventsSection({
     setDraftRows((current) => [...current, createBlankDraftRow()]);
   };
 
+  const restorePrefilledDraftRow = (templateId: string) => {
+    const template = PREFILLED_HOLIDAY_SEASONALITY_DRAFTS.find(
+      (item) => item.id === templateId,
+    );
+
+    if (!template) {
+      return;
+    }
+
+    const restoredRow = createPrefilledDraftRow(template);
+
+    setDraftRows((current) => {
+      if (current.some((draft) => draft.id === templateId)) {
+        return current.map((draft) =>
+          draft.id === templateId ? restoredRow : draft,
+        );
+      }
+
+      return [...current, restoredRow];
+    });
+  };
+
+  const handleStartEditSavedEvent = (event: SeasonalityEvent) => {
+    setEditingEvent({
+      eventId: event.id,
+      form: eventToDraftForm(event),
+      scopeError: false,
+    });
+  };
+
+  const handleUpdateEditingForm = (
+    updates: Partial<SeasonalityDraftFormState>,
+  ) => {
+    setEditingEvent((current) =>
+      current
+        ? {
+            ...current,
+            form: { ...current.form, ...updates },
+            scopeError: updates.scope ? false : current.scopeError,
+          }
+        : null,
+    );
+  };
+
+  const handleSaveInlineEdit = (event: SeasonalityEvent) => {
+    if (!editingEvent || editingEvent.eventId !== event.id) {
+      return;
+    }
+
+    const scope = editingEvent.form.scope;
+    const hasName = editingEvent.form.name.trim().length > 0;
+
+    if (!hasName || !scope) {
+      setEditingEvent({
+        ...editingEvent,
+        scopeError: !scope && hasName,
+      });
+      return;
+    }
+
+    onUpdateEvent({
+      ...event,
+      name: editingEvent.form.name.trim(),
+      startDate: editingEvent.form.startDate,
+      endDate: editingEvent.form.endDate,
+      scope,
+      budgetMode: editingEvent.form.budgetMode,
+      budgetValue: editingEvent.form.budgetValue,
+    });
+
+    setEditingEvent(null);
+  };
+
+  const handleCancelInlineEdit = () => {
+    setEditingEvent(null);
+  };
+
+  const handleDeleteSavedEvent = (event: SeasonalityEvent) => {
+    if (editingEvent?.eventId === event.id) {
+      setEditingEvent(null);
+    }
+
+    onRemoveEvent(event.id);
+
+    const templateId = getPrefilledTemplateIdForEvent(event);
+
+    if (
+      (event.sourceKind === "prefilled" || templateId) &&
+      templateId
+    ) {
+      restorePrefilledDraftRow(templateId);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
-        <Badge
-          variant="secondary"
-          className="shrink-0 border border-slate-200 bg-slate-100 font-semibold text-slate-700"
-        >
-          Seasonality
-        </Badge>
-        <p className="text-sm text-slate-500">
-          Add a custom event or configure the suggested holidays below. Select
-          scope and budget, then save each event to add it to your plan.
-        </p>
-      </div>
+      <p className="text-sm text-slate-500">
+        Add a custom event or configure the suggested holidays below. Select
+        scope and budget, then save each event to add it to your plan.
+      </p>
 
       {events.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Saved events
-          </p>
-          {events.map((event) => {
-            const scopeLabel =
-              SEASONALITY_SCOPE_OPTIONS.find(
-                (option) => option.value === event.scope,
-              )?.label ?? event.scope;
-
-            const budgetLabel =
-              event.budgetMode === "percent"
-                ? `${event.budgetValue}%`
-                : `$${event.budgetValue}`;
-
-            return (
-              <div
-                key={event.id}
-                className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm"
-              >
-                <span className="font-medium text-slate-900">{event.name}</span>
-                <span className="text-slate-500">
-                  {event.startDate} – {event.endDate}
-                </span>
-                <span className="text-slate-500">{scopeLabel}</span>
-                <span className="text-slate-700">{budgetLabel}</span>
-              </div>
-            );
-          })}
-        </div>
+        <SavedSeasonalityEventsList
+          events={events}
+          goalsRowState={goalsRowState}
+          editingEventId={editingEvent?.eventId ?? null}
+          editingForm={editingEvent?.form ?? null}
+          editingScopeError={editingEvent?.scopeError ?? false}
+          onStartEdit={handleStartEditSavedEvent}
+          onUpdateEditingForm={handleUpdateEditingForm}
+          onSaveEdit={handleSaveInlineEdit}
+          onCancelEdit={handleCancelInlineEdit}
+          onDelete={handleDeleteSavedEvent}
+        />
       )}
 
       <div className="flex flex-col gap-3">
