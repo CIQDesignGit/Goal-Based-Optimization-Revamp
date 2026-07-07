@@ -14,6 +14,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import {
+  AlertTriangle,
   ChevronDown,
   CircleHelp,
   Eye,
@@ -53,6 +54,10 @@ import {
   CONSTRAINTS_SCOPE_ROWS,
   type ConstraintRow,
 } from "@/lib/gbo-optimization/setup-data";
+import {
+  getMidMonthConstraintInlineHint,
+  shouldWarnMidMonthConstraintTiming,
+} from "@/lib/gbo-optimization/mid-month-timing";
 import {
   getLatestCellChange,
   recordConstraintFieldChange,
@@ -643,6 +648,17 @@ export function ConstraintsStep() {
   const [blockAlert, setBlockAlert] = useState<InlineBlockAlert | null>(null);
   const [historicHintDismissed, setHistoricHintDismissed] = useState(false);
   const [showHistoricalData, setShowHistoricalData] = useState(false);
+  const [constraintMidMonthActivity, setConstraintMidMonthActivity] =
+    useState(false);
+
+  const markMidMonthConstraintActivity = () => {
+    if (shouldWarnMidMonthConstraintTiming()) {
+      setConstraintMidMonthActivity(true);
+    }
+  };
+
+  const showMidMonthWarning =
+    shouldWarnMidMonthConstraintTiming() && constraintMidMonthActivity;
 
   const constraintsStepValid = useMemo(() => {
     if (pendingWarning || blockAlert) return false;
@@ -724,6 +740,7 @@ export function ConstraintsStep() {
     const row = rowState[rowId];
 
     if (row && editedValue !== row.historicPercents[field]) {
+      markMidMonthConstraintActivity();
       recordConstraintFieldChange(
         rowId,
         field,
@@ -927,6 +944,7 @@ export function ConstraintsStep() {
     if (
       normalizeCurrencyDisplay(historic) !== normalizeCurrencyDisplay(formatted)
     ) {
+      markMidMonthConstraintActivity();
       recordConstraintFieldChange(rowId, field, historic, formatted);
     }
 
@@ -991,6 +1009,15 @@ export function ConstraintsStep() {
         </p>
       )}
 
+      {showMidMonthWarning ? (
+        <div className="flex items-start gap-2 rounded-md bg-amber-50 px-2.5 py-2 text-xs leading-relaxed text-slate-600">
+          <span className="flex size-5 shrink-0 items-center justify-center rounded bg-amber-100">
+            <AlertTriangle className="size-3 text-amber-600" />
+          </span>
+          <span>{getMidMonthConstraintInlineHint()}</span>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center justify-between gap-4 px-2">
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative w-72">
@@ -1030,9 +1057,12 @@ export function ConstraintsStep() {
         <label className="flex items-center gap-2 text-sm text-slate-600">
           <Switch
             checked={showCampaignConstraints}
-            onCheckedChange={(checked) =>
-              setShowCampaignConstraints(checked === true)
-            }
+            onCheckedChange={(checked) => {
+              if (checked === true) {
+                markMidMonthConstraintActivity();
+              }
+              setShowCampaignConstraints(checked === true);
+            }}
           />
           <span>
             {isRuleBased

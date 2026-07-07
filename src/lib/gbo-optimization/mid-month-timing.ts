@@ -3,6 +3,7 @@ import { isValid, parse } from "date-fns";
 import { SEASONALITY_REFERENCE_DATE } from "@/lib/gbo-optimization/setup-data";
 
 export const MID_MONTH_SEASONALITY_WARNING_TITLE = "Mid-month seasonality";
+export const MID_MONTH_CONSTRAINT_WARNING_TITLE = "Mid-month constraints";
 
 const DISPLAY_FORMAT = "MMM dd, yyyy";
 
@@ -156,4 +157,31 @@ export function getMidMonthSeasonalityWarningBody(
   }
 
   return `Remaining budget will be redistributed across fewer days. ${recommendation}`;
+}
+
+/** Prototype "today" is after the first day of the month. */
+export function isMidMonthConstraintTiming(
+  referenceDate: Date = SEASONALITY_REFERENCE_DATE,
+): boolean {
+  return referenceDate.getDate() > 1;
+}
+
+/** User is adding or editing constraints partway through the current month. */
+export function shouldWarnMidMonthConstraintTiming(
+  referenceDate: Date = SEASONALITY_REFERENCE_DATE,
+): boolean {
+  return isMidMonthConstraintTiming(referenceDate);
+}
+
+export function getMidMonthConstraintInlineHint(
+  referenceDate: Date = SEASONALITY_REFERENCE_DATE,
+): string {
+  const nudge =
+    " For even distribution, add constraints before the start of the month.";
+
+  if (isMidMonthConstraintTiming(referenceDate)) {
+    return `Adding constraints mid-month — remaining budget will be redistributed across fewer days.${nudge}`;
+  }
+
+  return `Remaining budget will be redistributed across fewer days.${nudge}`;
 }
