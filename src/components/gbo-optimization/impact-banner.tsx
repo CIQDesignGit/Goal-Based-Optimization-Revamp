@@ -15,7 +15,7 @@ type ImpactBannerProps = {
 
 /** Non-blocking guidance banner for goal-change and compatibility messages (FR-004, FR-006). */
 export function ImpactBanner({
-  title = "Heads up",
+  title,
   children,
   onDismiss,
   className,
@@ -30,7 +30,9 @@ export function ImpactBanner({
     >
       <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
       <div className="min-w-0 flex-1 space-y-1">
-        <p className="font-medium text-amber-900">{title}</p>
+        {title ? (
+          <p className="font-medium text-amber-900">{title}</p>
+        ) : null}
         <div className="leading-relaxed text-amber-900/90">{children}</div>
       </div>
       {onDismiss ? (

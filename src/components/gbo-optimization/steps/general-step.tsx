@@ -118,6 +118,10 @@ export function GeneralStep() {
     }
   }, [isSovSelected, optimizerType, setOptimizerType]);
 
+  const showGoalChangeImpact =
+    generalConfig.showGoalChangeImpact && generalConfig.goalType;
+  const showGoalGuidance = isSovSelected || showGoalChangeImpact;
+
   const handleGoalTypeChange = (goalType: GoalType) => {
     setGoalType(goalType);
 
@@ -289,24 +293,55 @@ export function GeneralStep() {
             ) : null}
           </div>
 
-          {isSovSelected && (
-            <ImpactBanner title="SOV is not supported with Ally AI">
-              Share of Voice goals work with rule-based optimization only.{" "}
-              {ALLY_AI_SOV_DISABLED_MESSAGE}
-            </ImpactBanner>
-          )}
-
-          {generalConfig.showGoalChangeImpact && generalConfig.goalType && (
+          {showGoalGuidance ? (
             <ImpactBanner
-              title="Goal change impact"
-              onDismiss={dismissGoalChangeImpact}
+              title={
+                isSovSelected && showGoalChangeImpact
+                  ? undefined
+                  : isSovSelected
+                    ? "SOV is not supported with Ally AI"
+                    : "Goal change impact"
+              }
+              onDismiss={
+                showGoalChangeImpact ? dismissGoalChangeImpact : undefined
+              }
             >
-              {getGoalChangeImpactMessage(
-                optimizerType,
-                generalConfig.goalType,
+              {isSovSelected && showGoalChangeImpact ? (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <p className="font-medium text-amber-900">
+                      SOV is not supported with Ally AI
+                    </p>
+                    <p>
+                      Share of Voice goals work with rule-based optimization
+                      only. {ALLY_AI_SOV_DISABLED_MESSAGE}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-medium text-amber-900">
+                      Goal change impact
+                    </p>
+                    <p>
+                      {getGoalChangeImpactMessage(
+                        optimizerType,
+                        generalConfig.goalType!,
+                      )}
+                    </p>
+                  </div>
+                </div>
+              ) : isSovSelected ? (
+                <p>
+                  Share of Voice goals work with rule-based optimization only.{" "}
+                  {ALLY_AI_SOV_DISABLED_MESSAGE}
+                </p>
+              ) : (
+                getGoalChangeImpactMessage(
+                  optimizerType,
+                  generalConfig.goalType!,
+                )
               )}
             </ImpactBanner>
-          )}
+          ) : null}
 
         </CardContent>
       </Card>
