@@ -26,6 +26,12 @@
 - All pages share AppShell: left icon sidebar + main content area.
 - Keep pages under 300 lines. Extract into `src/components/`.
 
+## GBO setup flow
+- Wizard step order (Ally AI): General → Goals & Budgets → Seasonality (optional) → Constraints (optional) → **Optimizer (always)** → Summary.
+- Wizard step order (rule-based): General → Goals → Constraints (optional) → **Optimizer (always)** → Summary.
+- Do not gate Optimizer behind a switch — it is always present before Summary.
+- **Day Parting** in Optimizer is a clickable tile (not a free-text field). Click opens a right side panel to configure the hourly bid strategy.
+
 ## Typography
 - Inter (sans), JetBrains Mono (code).
 - Headings: `font-semibold` or `font-bold`.

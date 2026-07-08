@@ -1,111 +1,216 @@
 "use client";
 
+import { useState } from "react";
 import {
   ChevronDown,
-  Eye,
   Plus,
-  RefreshCw,
   Search,
-  Sparkles,
+  Settings2,
 } from "lucide-react";
 
+import {
+  DayPartingTile,
+  HourlyBidderPanel,
+} from "@/components/gbo-optimization/hourly-bidder-panel";
 import { InfoLabel } from "@/components/gbo-optimization/info-label";
-import { Badge } from "@/components/ui/badge";
+import {
+  getAggregateOptimizerMode,
+  OptimizerModeChip,
+  type OptimizerColumnMode,
+} from "@/components/gbo-optimization/optimizer-mode-chip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { OPTIMIZER_SCOPE_ROWS } from "@/lib/gbo-optimization/setup-data";
 import { cn } from "@/lib/utils";
 
-function AllyBadge() {
-  return (
-    <Badge
-      variant="secondary"
-      className="gap-1 border border-brand-200 bg-brand-50 font-normal text-brand-700 hover:bg-brand-50"
-    >
-      <Sparkles className="size-3 text-brand-500" />
-      Ally
-    </Badge>
-  );
+type OptimizerScopeRow = (typeof OPTIMIZER_SCOPE_ROWS)[number];
+
+const DEFAULT_DAY_PARTING_LABEL = "Hourly Bid...";
+
+type RowOptimizerModes = {
+  budget: OptimizerColumnMode;
+  bid: OptimizerColumnMode;
+};
+
+function createInitialRowModes(): Record<string, RowOptimizerModes> {
+  const initial: Record<string, RowOptimizerModes> = {};
+  for (const row of OPTIMIZER_SCOPE_ROWS) {
+    if ("allyMode" in row && row.allyMode) {
+      initial[row.id] = { budget: "ally", bid: "ally" };
+    }
+  }
+  return initial;
+}
+
+/** Ally-mode brands start with a day-parting strategy already set (prototype). */
+function createInitialDayPartingLabels(): Record<string, string> {
+  const initial: Record<string, string> = {};
+  for (const row of OPTIMIZER_SCOPE_ROWS) {
+    if ("allyMode" in row && row.allyMode) {
+      initial[row.id] = DEFAULT_DAY_PARTING_LABEL;
+    }
+  }
+  return initial;
 }
 
 function OptimizerCell({
   row,
   column,
+  dayPartingLabel,
+  onOpenDayParting,
+  onResetDayParting,
+  onAddDayParting,
+  budgetMode,
+  bidMode,
+  onBudgetModeChange,
+  onBidModeChange,
 }: {
-  row: (typeof OPTIMIZER_SCOPE_ROWS)[number];
-  column:
-    | "mode"
-    | "budget"
-    | "bid"
-    | "dayParting"
-    | "targeting";
+  row: OptimizerScopeRow;
+  column: "mode" | "budget" | "bid" | "dayParting" | "targeting";
+  dayPartingLabel?: string;
+  onOpenDayParting?: () => void;
+  onResetDayParting?: () => void;
+  /** Opens the "add day parting strategy" side panel from the Day Parting column. */
+  onAddDayParting?: () => void;
+  budgetMode?: OptimizerColumnMode;
+  bidMode?: OptimizerColumnMode;
+  onBudgetModeChange?: (mode: OptimizerColumnMode) => void;
+  onBidModeChange?: (mode: OptimizerColumnMode) => void;
 }) {
-  if (!("allyMode" in row) || !row.allyMode) {
-    return null;
-  }
-
-  if (column === "dayParting") {
-    return (
-      <div className="flex items-center gap-1.5">
-        <div className="relative min-w-[7rem] flex-1">
-          <Search className="absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-slate-400" />
-          <Input
-            defaultValue="Hourly Bid..."
-            className="h-8 border-slate-200 bg-white pl-7 text-xs shadow-none"
-          />
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Reset day parting"
-          className="text-slate-400 hover:text-slate-600"
-        >
-          <RefreshCw className="size-3.5" />
-        </Button>
-      </div>
-    );
-  }
-
+  // Targeting: always show add (+) — including rows without Ally mode.
   if (column === "targeting") {
     return (
       <Button
         type="button"
         variant="ghost"
         size="icon-xs"
-        aria-label="Reset targeting"
+        aria-label={`Add targeting for ${row.name}`}
+        title="Add targeting"
         className="text-slate-400 hover:text-slate-600"
       >
-        <RefreshCw className="size-3.5" />
+        <Plus className="size-3.5" />
       </Button>
     );
   }
 
-  if (column === "bid") {
+  if (!("allyMode" in row) || !row.allyMode) {
+    return null;
+  }
+
+  if (column === "dayParting") {
     return (
-      <div className="flex items-center gap-2">
-        <AllyBadge />
-        <span className="flex size-4 items-center justify-center rounded-full bg-emerald-100">
-          <RefreshCw className="size-2.5 text-emerald-600" />
-        </span>
-      </div>
+      <DayPartingTile
+        scopeName={row.name}
+        label={dayPartingLabel ?? DEFAULT_DAY_PARTING_LABEL}
+        hasStrategy={Boolean(dayPartingLabel)}
+        onOpen={onOpenDayParting ?? (() => {})}
+        onAdd={onAddDayParting ?? (() => {})}
+        onReset={onResetDayParting ?? (() => {})}
+      />
     );
   }
 
-  return <AllyBadge />;
+  // Mode = read-only aggregate of Budget + Bid (no chevron / no dropdown).
+  if (column === "mode") {
+    const aggregate = getAggregateOptimizerMode(
+      budgetMode ?? "ally",
+      bidMode ?? "ally",
+    );
+    return <OptimizerModeChip mode={aggregate} selectable={false} />;
+  }
+
+  if (column === "bid") {
+    return (
+      <OptimizerModeChip
+        mode={bidMode ?? "ally"}
+        selectable
+        showBoost
+        onChange={onBidModeChange}
+      />
+    );
+  }
+
+  // Budget Optimization — selectable Ally / Rule Based / None
+  return (
+    <OptimizerModeChip
+      mode={budgetMode ?? "ally"}
+      selectable
+      onChange={onBudgetModeChange}
+    />
+  );
 }
 
 export function OptimizerStep() {
+  // Per-row Budget / Bid modes (Mode column is derived from these).
+  const [rowModes, setRowModes] = useState(createInitialRowModes);
+
+  // Which brand row the side panel is editing/adding (null = closed).
+  const [activeDayPartingRowId, setActiveDayPartingRowId] = useState<
+    string | null
+  >(null);
+  // edit = Day Parting tile; add = Bid Optimization "+" button.
+  const [dayPartingPanelMode, setDayPartingPanelMode] = useState<
+    "edit" | "add"
+  >("edit");
+  // Tile label per row — key present means a strategy exists for that row.
+  const [dayPartingLabels, setDayPartingLabels] = useState(
+    createInitialDayPartingLabels,
+  );
+
+  const openDayPartingPanel = (rowId: string, mode: "edit" | "add") => {
+    setDayPartingPanelMode(mode);
+    setActiveDayPartingRowId(rowId);
+  };
+
+  const setBudgetMode = (rowId: string, mode: OptimizerColumnMode) => {
+    setRowModes((current) => ({
+      ...current,
+      [rowId]: {
+        budget: mode,
+        bid: current[rowId]?.bid ?? "ally",
+      },
+    }));
+  };
+
+  const setBidMode = (rowId: string, mode: OptimizerColumnMode) => {
+    setRowModes((current) => ({
+      ...current,
+      [rowId]: {
+        budget: current[rowId]?.budget ?? "ally",
+        bid: mode,
+      },
+    }));
+  };
+
+  const activeRow = OPTIMIZER_SCOPE_ROWS.find(
+    (row) => row.id === activeDayPartingRowId,
+  );
+  const activeLabel =
+    (activeDayPartingRowId && dayPartingLabels[activeDayPartingRowId]) ||
+    DEFAULT_DAY_PARTING_LABEL;
+
   return (
     <div className="flex flex-col gap-4 py-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative w-72">
           <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
-          <Input placeholder="Search" className="h-9 border-slate-200 pl-9 shadow-none" />
+          <Input
+            placeholder="Search"
+            className="h-9 border-slate-200 pl-9 shadow-none"
+          />
         </div>
         <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-slate-600">
           <Plus className="size-4" />
           Add Filters
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Optimizer settings"
+          className="ml-auto text-slate-500 hover:text-slate-700"
+        >
+          <Settings2 className="size-4" />
         </Button>
       </div>
 
@@ -124,7 +229,10 @@ export function OptimizerStep() {
               </th>
               <th className="border-r border-slate-200 px-4 py-3 font-medium">
                 <div className="flex items-center justify-between gap-2">
-                  <InfoLabel label="Mode" />
+                  <InfoLabel
+                    label="Mode"
+                    tooltip="Shows the combined mode from Budget Optimization and Bid Optimization."
+                  />
                   <button
                     type="button"
                     className="text-xs font-medium text-brand-600 hover:text-brand-700"
@@ -148,7 +256,13 @@ export function OptimizerStep() {
             </tr>
           </thead>
           <tbody>
-            {OPTIMIZER_SCOPE_ROWS.map((row) => (
+            {OPTIMIZER_SCOPE_ROWS.map((row) => {
+              const modes = rowModes[row.id] ?? {
+                budget: "ally" as const,
+                bid: "ally" as const,
+              };
+
+              return (
                 <tr
                   key={row.id}
                   className="border-b border-slate-100 hover:bg-slate-50/50"
@@ -171,32 +285,86 @@ export function OptimizerStep() {
                   </td>
                   <td className="border-r border-slate-100 px-4 py-3">
                     {"value" in row && row.value ? (
-                      <span className="inline-flex items-center gap-1.5 font-medium text-brand-600">
+                      <span className="font-medium text-brand-600">
                         {row.value}
-                        <Eye className="size-3.5 text-brand-400" />
                       </span>
                     ) : null}
                   </td>
                   <td className="border-r border-slate-100 px-4 py-3">
-                    <OptimizerCell row={row} column="mode" />
+                    <OptimizerCell
+                      row={row}
+                      column="mode"
+                      budgetMode={modes.budget}
+                      bidMode={modes.bid}
+                    />
                   </td>
                   <td className="border-r border-slate-100 px-4 py-3">
-                    <OptimizerCell row={row} column="budget" />
+                    <OptimizerCell
+                      row={row}
+                      column="budget"
+                      budgetMode={modes.budget}
+                      onBudgetModeChange={(mode) => setBudgetMode(row.id, mode)}
+                    />
                   </td>
                   <td className="border-r border-slate-100 px-4 py-3">
-                    <OptimizerCell row={row} column="bid" />
+                    <OptimizerCell
+                      row={row}
+                      column="bid"
+                      bidMode={modes.bid}
+                      onBidModeChange={(mode) => setBidMode(row.id, mode)}
+                    />
                   </td>
                   <td className="border-r border-slate-100 px-4 py-3">
-                    <OptimizerCell row={row} column="dayParting" />
+                    <OptimizerCell
+                      row={row}
+                      column="dayParting"
+                      dayPartingLabel={dayPartingLabels[row.id]}
+                      onOpenDayParting={() =>
+                        openDayPartingPanel(row.id, "edit")
+                      }
+                      onAddDayParting={() =>
+                        openDayPartingPanel(row.id, "add")
+                      }
+                      onResetDayParting={() =>
+                        setDayPartingLabels((current) => {
+                          const next = { ...current };
+                          delete next[row.id];
+                          return next;
+                        })
+                      }
+                    />
                   </td>
                   <td className="px-4 py-3">
                     <OptimizerCell row={row} column="targeting" />
                   </td>
                 </tr>
-              ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
+
+      {/* Side panel: Day Parting tile (edit) or Bid Optimization "+" (add) */}
+      <HourlyBidderPanel
+        open={activeDayPartingRowId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setActiveDayPartingRowId(null);
+          }
+        }}
+        mode={dayPartingPanelMode}
+        scopeName={activeRow?.name ?? "Selected scope"}
+        strategyLabel={activeLabel}
+        onApply={(label) => {
+          if (!activeDayPartingRowId) {
+            return;
+          }
+          setDayPartingLabels((current) => ({
+            ...current,
+            [activeDayPartingRowId]: label,
+          }));
+        }}
+      />
     </div>
   );
 }

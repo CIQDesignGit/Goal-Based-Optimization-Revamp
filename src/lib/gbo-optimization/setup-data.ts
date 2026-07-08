@@ -117,7 +117,7 @@ export function getGoalChangeImpactMessage(
 }
 
 export const RULE_BASED_OPTIMIZER_NOTICE =
-  "Rule-based mode does not include budget entry, and seasonality is not available. Your flow will be Goals (targets only) → Optimizer → Summary. Use the Constraints toggle on the Goals step to add floor/ceiling limits.";
+  "Rule-based mode does not include budget entry, and seasonality is not available. Your flow will be Goals (targets only) → Optimizer → Summary (plus Constraints if you enable the toggle for floor/ceiling). The Optimizer step is always included before Summary.";
 
 export const ALLY_AI_RECOMMENDATION_NOTICE =
   "Ally AI is recommended — it allocates spend and manages constraints automatically, with no manual rules required.";
@@ -157,7 +157,11 @@ function buildAllyAiFlow(
     flow.push({ key: "constraints", label: "Constraints" });
   }
 
-  flow.push({ key: "summary", label: "Summary", nextLabel: "Save & Launch" });
+  // Optimizer is always in the flow (no toggle) — after Constraints, before Summary.
+  flow.push(
+    { key: "optimizer", label: "Optimizer" },
+    { key: "summary", label: "Summary", nextLabel: "Save & Launch" },
+  );
 
   return flow;
 }
@@ -202,7 +206,7 @@ export function getSetupSteps(
   );
 }
 
-/** Default Ally AI flow — optional steps off, optimizer before summary. */
+/** Default Ally AI flow — optional steps off; Optimizer always sits before Summary. */
 export const SETUP_STEPS = getSetupSteps("ally-ai");
 
 export type SeasonalityChartPoint = {

@@ -127,7 +127,7 @@ export function SetupHeader({
             currentStep={currentStep}
             onStepSelect={isLaunching ? () => {} : onStepSelect}
             className={cn(
-              "w-full max-w-3xl",
+              "w-full max-w-4xl",
               isLaunching && "pointer-events-none opacity-60",
             )}
           />

@@ -58,12 +58,14 @@ This PRD covers the changes that make GBO easier to understand and use: clearer 
 
 ### Ally AI
 
-`General` → `Goals & Budgets` → `Constraints` → `Seasonality` → `Summary`
+`General` → `Goals & Budgets` → `Seasonality` (optional toggle) → `Constraints` (optional toggle) → `Optimizer` → `Summary`
 
 ### Rule-based
 
-`General` → `Goals` (no budgets) → `Constraints` (floor/ceiling only) → `Optimizer` → `Summary`
+`General` → `Goals` (no budgets) → `Constraints` (optional toggle; floor/ceiling only) → `Optimizer` → `Summary`
 
+> **Note:** The **Optimizer** step is always present in both flows (no toggle). It sits after Constraints when Constraints is included, and always immediately before Summary.
+>
 > **Note:** People should be able to select Ally AI / rule-based at the **brand level** as well as portfolio level.
 
 ---
@@ -118,6 +120,7 @@ This PRD covers the changes that make GBO easier to understand and use: clearer 
 
 | ID | Requirement |
 | -- | ----------- |
+| **FR-019a** | The flow **MUST** always include an Optimizer step after Constraints (when Constraints is in the flow) and immediately before Summary. The Optimizer step **MUST NOT** be gated behind a toggle for Ally AI or rule-based. |
 | **FR-020** | The optimizer screen **MUST** relabel the current refresh/reset control and show an explicit warning that all draft strategies will be lost before the reset proceeds. |
 | **FR-022** | The optimizer screen **MUST** show a loading indicator while draft strategies are loading. |
 
@@ -141,8 +144,9 @@ This PRD covers the changes that make GBO easier to understand and use: clearer 
 
 - **Ally AI** is recommended at portfolio level; prompt to switch when user picks rule-based.
 - **SOV** blocks Ally AI selection — show inline explanation.
-- **Constraints + seasonality** → Ally AI only (floor/ceiling excepted for rule-based).
-- **Rule-based** → no budget step; constraints limited to floor/ceiling; ends at Optimizer then Summary.
+- **Constraints + seasonality** → Ally AI only (floor/ceiling excepted for rule-based); both are optional toggles on Goals & Budgets.
+- **Optimizer** → always in the flow for Ally AI and rule-based (no toggle); after Constraints when present, always immediately before Summary.
+- **Rule-based** → no budget step; constraints limited to floor/ceiling; then Optimizer → Summary.
 - **Goal target value** is optional only for Ally AI.
 - **Never silently fail** — warn on incompatible settings, missing budgets, mid-month timing, and destructive resets.
 - **Always end with Summary** — list changes, show impacted areas, require explicit approval before commit.
