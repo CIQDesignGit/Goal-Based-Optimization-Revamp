@@ -56,8 +56,7 @@ export function SetupHeader({
     currentStep === "goals-budgets" && !goalsBudgetsStepValid;
   const isNextDisabled =
     (currentStep === "general" && !isGeneralConfigComplete(generalConfig)) ||
-    (currentStep === "constraints" && !constraintsStepValid) ||
-    isGoalsBudgetsBlocked;
+    (currentStep === "constraints" && !constraintsStepValid);
   const isSaveDisabled =
     isSummaryStep && hasSessionChanges && !summaryReviewed;
   const isPrimaryDisabled =

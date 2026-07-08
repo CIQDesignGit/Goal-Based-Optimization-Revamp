@@ -15,8 +15,11 @@ import {
   BUDGET_CURRENT_MONTH_INDEX,
   BUDGET_MONTHS,
   CONSTRAINTS_SCOPE_ROWS,
+  ENTIRE_BUSINESS_SCOPE_ID,
   getDefaultBudgetWindowEnd,
   getDefaultBudgetWindowStart,
+  getGoalTypeLabel,
+  GOALS_GOAL_EDITABLE_ROWS,
   GOALS_SCOPE_ROWS,
   resolveInitialMonthlyBudgets,
   type AggressivenessLevel,
@@ -143,15 +146,17 @@ export function isGeneralConfigComplete(_config: GeneralConfig): boolean {
 export function areAllGoalsBudgetsGoalsSelected(
   rowState: Record<string, GoalsRowState>,
 ): boolean {
-  return GOALS_SCOPE_ROWS.every((row) => rowState[row.id]?.goalMetric != null);
+  return GOALS_GOAL_EDITABLE_ROWS.every(
+    (row) => rowState[row.id]?.goalMetric != null,
+  );
 }
 
 export function getMissingGoalRowIds(
   rowState: Record<string, GoalsRowState>,
 ): string[] {
-  return GOALS_SCOPE_ROWS.filter((row) => !rowState[row.id]?.goalMetric).map(
-    (row) => row.id,
-  );
+  return GOALS_GOAL_EDITABLE_ROWS.filter(
+    (row) => !rowState[row.id]?.goalMetric,
+  ).map((row) => row.id);
 }
 
 // ---------------------------------------------------------------------------
@@ -310,6 +315,7 @@ type SetupSessionState = {
   changeLedger: ChangeLedgerEntry[];
   summaryReviewed: boolean;
   toastMessage: string | null;
+  toastVariant: "warning" | "success";
   missingGoalHighlightRowIds: string[];
 
   setGoalType: (goalType: GoalType | null) => void;
@@ -347,7 +353,10 @@ type SetupSessionState = {
 
   getImpactedScopes: () => ImpactedScope[];
 
-  showSetupToast: (message: string) => void;
+  showSetupToast: (
+    message: string,
+    options?: { variant?: "warning" | "success" },
+  ) => void;
 
   triggerMissingGoalsFeedback: () => void;
 
@@ -367,6 +376,7 @@ function createInitialSessionState(): Pick<
   | "changeLedger"
   | "summaryReviewed"
   | "toastMessage"
+  | "toastVariant"
   | "missingGoalHighlightRowIds"
 > {
   const defaultMonthWindowStart = getDefaultBudgetWindowStart(
@@ -385,6 +395,7 @@ function createInitialSessionState(): Pick<
     changeLedger: [],
     summaryReviewed: false,
     toastMessage: null,
+    toastVariant: "warning",
     missingGoalHighlightRowIds: [],
   };
 }
@@ -403,7 +414,9 @@ export const useSetupSessionStore = create<SetupSessionState>((set, get) => ({
       const goalsRowState = Object.fromEntries(
         Object.entries(state.goalsRowState).map(([rowId, row]) => [
           rowId,
-          { ...row, goalMetric: goalType },
+          rowId === ENTIRE_BUSINESS_SCOPE_ID
+            ? row
+            : { ...row, goalMetric: goalType },
         ]),
       );
 
@@ -540,15 +553,18 @@ export const useSetupSessionStore = create<SetupSessionState>((set, get) => ({
     );
   },
 
-  showSetupToast: (message: string) => {
+  showSetupToast: (message, options) => {
     if (setupToastTimer) {
       clearTimeout(setupToastTimer);
     }
 
-    set({ toastMessage: message });
+    set({
+      toastMessage: message,
+      toastVariant: options?.variant ?? "warning",
+    });
 
     setupToastTimer = setTimeout(() => {
-      set({ toastMessage: null });
+      set({ toastMessage: null, toastVariant: "warning" });
       setupToastTimer = null;
     }, 4000);
   },
@@ -570,18 +586,19 @@ export const useSetupSessionStore = create<SetupSessionState>((set, get) => ({
 
     set({
       toastMessage: "Goal must be selected to enter budgets.",
+      toastVariant: "warning",
       missingGoalHighlightRowIds: missingIds,
     });
 
     missingGoalHighlightTimer = setTimeout(() => {
       set({ missingGoalHighlightRowIds: [] });
       missingGoalHighlightTimer = null;
-    }, 2000);
+    }, 4000);
 
     setupToastTimer = setTimeout(() => {
       set({ toastMessage: null });
       setupToastTimer = null;
-    }, 3000);
+    }, 4000);
   },
 
   resetSession: () => {
@@ -730,6 +747,27 @@ export function recordGoalsGoalChange(
     fieldLabel: "Target value",
     from,
     to,
+    category: "goal",
+  });
+}
+
+export function recordGoalsGoalMetricChange(
+  rowId: string,
+  from: GoalType | null,
+  to: GoalType | null,
+): void {
+  const { recordChange } = useSetupSessionStore.getState();
+  const formatMetric = (metric: GoalType | null) =>
+    metric ? getGoalTypeLabel(metric) : "None";
+
+  recordChange({
+    step: "goals-budgets",
+    scopeId: rowId,
+    scopeName: resolveScopeName(rowId),
+    field: "goalMetric",
+    fieldLabel: "Goal",
+    from: formatMetric(from),
+    to: formatMetric(to),
     category: "goal",
   });
 }

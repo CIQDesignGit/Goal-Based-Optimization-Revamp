@@ -630,6 +630,9 @@ export function resolveInitialMonthlyBudgets(row: ScopeRow): string[] {
   });
 }
 
+/** Parent rollup row — goals are set on child brands only. */
+export const ENTIRE_BUSINESS_SCOPE_ID = "entire-business";
+
 export const GOALS_SCOPE_ROWS: ScopeRow[] = [
   {
     id: "entire-business",
@@ -857,6 +860,15 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
     fyTotal: "$14,400",
   },
 ];
+
+/** Brand rows where users pick goals — excludes the Entire Business rollup row. */
+export const GOALS_GOAL_EDITABLE_ROWS = GOALS_SCOPE_ROWS.filter(
+  (row) => row.id !== ENTIRE_BUSINESS_SCOPE_ID,
+);
+
+export function isGoalEditableScopeRow(scopeId: string): boolean {
+  return scopeId !== ENTIRE_BUSINESS_SCOPE_ID;
+}
 
 export type ConstraintLast30Days = {
   goalValue?: string;

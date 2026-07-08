@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
 import { ImpactBanner } from "@/components/gbo-optimization/impact-banner";
 import { useSetupContext } from "@/components/gbo-optimization/setup-context";
@@ -10,6 +12,7 @@ import {
   BUDGET_GRANULARITIES,
   getGoalChangeImpactMessage,
   GOAL_TYPE_OPTIONS,
+  GOALS_GOAL_EDITABLE_ROWS,
   isSovGoal,
   LEVEL_1_OPTIONS,
   LEVEL_2_OPTIONS,
@@ -79,9 +82,13 @@ function RadioIndicator({
   );
 }
 
+const ALLY_AI_SOV_DISABLED_MESSAGE =
+  "Ally AI is disabled for the SoV goal.";
+
 export function GeneralStep() {
   const { optimizerType, setOptimizerType } = useSetupContext();
   const generalConfig = useSetupSessionStore((state) => state.generalConfig);
+  const goalsRowState = useSetupSessionStore((state) => state.goalsRowState);
   const setGoalType = useSetupSessionStore((state) => state.setGoalType);
   const setAggressiveness = useSetupSessionStore(
     (state) => state.setAggressiveness,
@@ -93,10 +100,23 @@ export function GeneralStep() {
     (state) => state.dismissGoalChangeImpact,
   );
 
-  const isSovSelected = isSovGoal(generalConfig.goalType);
+  const isSovSelected =
+    isSovGoal(generalConfig.goalType) ||
+    GOALS_GOAL_EDITABLE_ROWS.some(
+      (row) => goalsRowState[row.id]?.goalMetric === "sov",
+    );
+  const showAggressiveness =
+    optimizerType === "rule-based" || optimizerType === "custom";
   const selectedGoalOption = GOAL_TYPE_OPTIONS.find(
     (option) => option.value === generalConfig.goalType,
   );
+
+  // SOV cannot use Ally AI — switch away if it was selected (FR-004).
+  useEffect(() => {
+    if (isSovSelected && optimizerType === "ally-ai") {
+      setOptimizerType("rule-based");
+    }
+  }, [isSovSelected, optimizerType, setOptimizerType]);
 
   const handleGoalTypeChange = (goalType: GoalType) => {
     setGoalType(goalType);
@@ -237,7 +257,7 @@ export function GeneralStep() {
         </CardContent>
       </Card>
 
-      {/* Goal type + aggressiveness (FR-001) */}
+      {/* Goal type (FR-001) */}
       <Card className="border border-slate-200 shadow-none">
         <CardContent className="space-y-4">
           <div className="space-y-1">
@@ -245,8 +265,8 @@ export function GeneralStep() {
               What is your optimization goal?
             </h2>
             <p className="text-sm text-slate-500">
-              Optional portfolio-wide goal and aggressiveness before budgets,
-              constraints, and seasonality.
+              Optional portfolio-wide goal before budgets, constraints, and
+              seasonality.
             </p>
           </div>
 
@@ -271,8 +291,8 @@ export function GeneralStep() {
 
           {isSovSelected && (
             <ImpactBanner title="SOV is not supported with Ally AI">
-              Share of Voice goals work with rule-based optimization only. Ally AI
-              is disabled for this portfolio.
+              Share of Voice goals work with rule-based optimization only.{" "}
+              {ALLY_AI_SOV_DISABLED_MESSAGE}
             </ImpactBanner>
           )}
 
@@ -288,44 +308,6 @@ export function GeneralStep() {
             </ImpactBanner>
           )}
 
-          <div className="space-y-2 border-t border-slate-100 pt-4">
-            <h3 className="text-sm font-semibold text-slate-900">
-              Aggressiveness
-            </h3>
-            <div className="grid grid-cols-2 gap-2">
-              {AGGRESSIVENESS_OPTIONS.map((option) => {
-                const isSelected =
-                  generalConfig.aggressiveness === option.value;
-
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    title={option.description}
-                    onClick={() =>
-                      setAggressiveness(isSelected ? null : option.value)
-                    }
-                    className={cn(
-                      "flex items-start gap-2 rounded-md border px-2.5 py-2 text-left transition-colors",
-                      isSelected
-                        ? "border-brand-600 bg-brand-50"
-                        : "border-slate-200 bg-white hover:bg-slate-50",
-                    )}
-                  >
-                    <RadioIndicator selected={isSelected} compact />
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold leading-snug text-slate-900 sm:text-sm">
-                        {option.label}
-                      </p>
-                      <p className="mt-0.5 line-clamp-2 text-[0.6875rem] leading-tight text-slate-500">
-                        {option.description}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
         </CardContent>
       </Card>
 
@@ -346,8 +328,9 @@ export function GeneralStep() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {OPTIMIZER_OPTIONS.map((option) => {
               const isSelected = optimizerType === option.value;
-              const isDisabled =
-                option.value === "ally-ai" && isSovSelected;
+              const isAllyAiOption = option.value === "ally-ai";
+              const isDisabled = isAllyAiOption && isSovSelected;
+              const showAsSelected = isSelected && !isDisabled;
 
               return (
                 <button
@@ -359,18 +342,17 @@ export function GeneralStep() {
                     "flex gap-3 rounded-lg border p-4 text-left transition-colors",
                     isDisabled &&
                       "cursor-not-allowed border-slate-200 bg-slate-50 opacity-60",
-                    !isDisabled && isSelected
+                    showAsSelected
                       ? "border-brand-600 bg-brand-50"
                       : !isDisabled &&
                           "border-slate-200 bg-white hover:bg-slate-50",
                   )}
                   title={
-                    isDisabled
-                      ? "SOV is not supported with Ally AI"
-                      : undefined
+                    isDisabled ? ALLY_AI_SOV_DISABLED_MESSAGE : undefined
                   }
+                  aria-disabled={isDisabled}
                 >
-                  <RadioIndicator selected={isSelected && !isDisabled} />
+                  <RadioIndicator selected={showAsSelected} />
                   <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p
@@ -388,7 +370,9 @@ export function GeneralStep() {
                       )}
                     </div>
                     <p className="text-sm leading-relaxed text-slate-500">
-                      {option.description}
+                      {isDisabled
+                        ? ALLY_AI_SOV_DISABLED_MESSAGE
+                        : option.description}
                     </p>
                   </div>
                 </button>
@@ -401,6 +385,47 @@ export function GeneralStep() {
               {RULE_BASED_OPTIMIZER_NOTICE}
             </ImpactBanner>
           )}
+
+          {showAggressiveness ? (
+            <div className="space-y-2 border-t border-slate-100 pt-4">
+              <h3 className="text-sm font-semibold text-slate-900">
+                Aggressiveness
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                {AGGRESSIVENESS_OPTIONS.map((option) => {
+                  const isSelected =
+                    generalConfig.aggressiveness === option.value;
+
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      title={option.description}
+                      onClick={() =>
+                        setAggressiveness(isSelected ? null : option.value)
+                      }
+                      className={cn(
+                        "flex items-start gap-2 rounded-md border px-2.5 py-2 text-left transition-colors",
+                        isSelected
+                          ? "border-brand-600 bg-brand-50"
+                          : "border-slate-200 bg-white hover:bg-slate-50",
+                      )}
+                    >
+                      <RadioIndicator selected={isSelected} compact />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold leading-snug text-slate-900 sm:text-sm">
+                          {option.label}
+                        </p>
+                        <p className="mt-0.5 line-clamp-2 text-[0.6875rem] leading-tight text-slate-500">
+                          {option.description}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </div>

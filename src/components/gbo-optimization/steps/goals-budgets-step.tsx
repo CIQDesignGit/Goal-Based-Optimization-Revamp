@@ -5,7 +5,6 @@ import {
   Info,
   Plus,
   Search,
-  X,
 } from "lucide-react";
 import {
   useCallback,
@@ -22,9 +21,7 @@ import { useSetupContext } from "@/components/gbo-optimization/setup-context";
 import { ChangedCellTooltip, formatCellDiffValue } from "@/components/gbo-optimization/changed-cell-tooltip";
 import { ImpactBanner } from "@/components/gbo-optimization/impact-banner";
 import { InfoLabel } from "@/components/gbo-optimization/info-label";
-import { MonthlyBudgetDistributionCalendar } from "@/components/gbo-optimization/monthly-budget-distribution-calendar";
 import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
-import { SetupToast } from "@/components/gbo-optimization/setup-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -35,12 +32,15 @@ import {
   getDefaultBudgetWindowStart,
   getNextBudgetMonthIndex,
   getScopeRowDefaultMonthlyBudget,
+  GOALS_GOAL_EDITABLE_ROWS,
   GOALS_SCOPE_ROWS,
+  ENTIRE_BUSINESS_SCOPE_ID,
   GOAL_TYPE_OPTIONS,
   isBudgetMonthLocked,
   isBudgetCurrentMonth,
   isBudgetFutureMonth,
   isBudgetNextMonth,
+  getGoalTypeLabel,
   isRoasGoalMetric,
   RULE_BASED_OPTIMIZER_NOTICE,
   type GoalType,
@@ -50,6 +50,7 @@ import {
   getLatestCellChange,
   recordGoalsBudgetChange,
   recordGoalsGoalChange,
+  recordGoalsGoalMetricChange,
   useSetupSessionStore,
   type GoalsRowState,
 } from "@/lib/gbo-optimization/setup-session-store";
@@ -93,8 +94,12 @@ const SCOPE_COLUMN_RULE_BASED_DEFAULT_WIDTH = 148;
 const METRIC_COL_WIDTH_PX = 220;
 const TARGET_COL_WIDTH_PX = 112;
 const LAST_30_COL_WIDTH_PX = 120;
-const GOAL_SECTION_WIDTH_PX =
-  METRIC_COL_WIDTH_PX + TARGET_COL_WIDTH_PX + LAST_30_COL_WIDTH_PX;
+/** Sticky Goal group: metric only until a goal unlocks target + last-30. */
+function getGoalSectionWidthPx(showGoalDetailColumns: boolean): number {
+  return showGoalDetailColumns
+    ? METRIC_COL_WIDTH_PX + TARGET_COL_WIDTH_PX + LAST_30_COL_WIDTH_PX
+    : METRIC_COL_WIDTH_PX;
+}
 const BUDGET_MONTH_COL_WIDTH_PX = 104;
 const BUDGET_NUDGE_MONTH_COL_WIDTH_PX = 144;
 const FY_COLUMN_WIDTH_PX = 104;
@@ -150,6 +155,12 @@ const STICKY_FY_CELL =
 const BUDGET_LOCKED_HINT = "Past months are locked and cannot be edited.";
 const BUDGET_GOAL_REQUIRED_HINT =
   "Select a goal before entering budget.";
+const HISTORIC_PREFILL_TOAST =
+  "Prefilled values are based on your last 30 days performance. Click on the cell to edit them.";
+const PARENT_BUDGET_VALUE_CLASS = "font-semibold text-slate-700";
+/** Shown when Next is clicked without goals on every row. */
+const MISSING_GOAL_HIGHLIGHT_CLASS =
+  "bg-amber-50 ring-2 ring-inset ring-amber-200";
 
 function rowNeedsNextMonthBudget(
   row: GoalsRowState,
@@ -162,7 +173,7 @@ function rowNeedsNextMonthBudget(
 function getBulkGoalMetric(
   rowState: Record<string, GoalsRowState>,
 ): GoalType | null | typeof BULK_CLEAR_GOAL_VALUE {
-  const metrics = GOALS_SCOPE_ROWS.map(
+  const metrics = GOALS_GOAL_EDITABLE_ROWS.map(
     (row) => rowState[row.id]?.goalMetric ?? null,
   );
 
@@ -425,20 +436,42 @@ function goalInputVisualClass(
 
   return cn(
     cellInputClass,
-    "bg-white text-slate-900 not-italic placeholder:text-slate-400",
-    visual === "edited" && "font-medium",
+    "bg-white not-italic placeholder:text-slate-400",
+    // Match budget/constraint edited styling (blue = user changed).
+    visual === "edited"
+      ? "font-medium text-brand-600"
+      : "text-slate-900",
+  );
+}
+
+/** Goal metric starts empty — selecting one is a session change (blue). */
+function getGoalMetricVisualState(
+  state: GoalsRowState,
+): "historic" | "edited" {
+  return state.goalMetric ? "edited" : "historic";
+}
+
+function goalMetricTriggerClass(state: GoalsRowState): string {
+  const visual = getGoalMetricVisualState(state);
+
+  return cn(
+    METRIC_SELECT_TRIGGER_CLASS,
+    "w-full min-w-0",
+    visual === "edited" && "font-medium text-brand-600",
   );
 }
 
 function budgetInputVisualClass(
   state: GoalsRowState,
   monthIndex: number,
+  isAggregateRow = false,
 ): string {
   const value = state.monthlyBudgets[monthIndex]?.trim() ?? "";
   if (isBudgetFutureMonth(monthIndex) && !value) {
     return cn(
       budgetCellInputClass,
       "bg-white text-slate-700 placeholder:text-slate-300",
+      isAggregateRow && PARENT_BUDGET_VALUE_CLASS,
     );
   }
 
@@ -449,6 +482,8 @@ function budgetInputVisualClass(
     visual === "prefilled" &&
       "bg-slate-50 text-slate-700 italic placeholder:text-slate-300",
     visual === "edited" && "bg-white font-medium text-brand-600",
+    isAggregateRow && visual !== "edited" && PARENT_BUDGET_VALUE_CLASS,
+    isAggregateRow && visual === "edited" && "font-semibold",
   );
 }
 
@@ -606,6 +641,7 @@ export function GoalsBudgetsStep() {
   const missingGoalHighlightRowIds = useSetupSessionStore(
     (state) => state.missingGoalHighlightRowIds,
   );
+  const hasMissingGoalHighlight = missingGoalHighlightRowIds.length > 0;
   const setRowState = useSetupSessionStore((state) => state.setGoalsRowState);
   const historicHintDismissed = useSetupSessionStore(
     (state) => state.goalsHistoricHintDismissed,
@@ -613,7 +649,7 @@ export function GoalsBudgetsStep() {
   const setHistoricHintDismissed = useSetupSessionStore(
     (state) => state.setGoalsHistoricHintDismissed,
   );
-  const toastMessage = useSetupSessionStore((state) => state.toastMessage);
+  const showSetupToast = useSetupSessionStore((state) => state.showSetupToast);
   const ruleBasedNoticeDismissed = useSetupSessionStore(
     (state) => state.goalsRuleBasedNoticeDismissed,
   );
@@ -667,15 +703,48 @@ export function GoalsBudgetsStep() {
 
   const nextMonthIndex = useMemo(() => getNextBudgetMonthIndex(), []);
 
+  // At least one row has a goal → unlock Target / Last 30 / Budget columns.
+  const hasAnyGoalSelected = useMemo(
+    () =>
+      GOALS_GOAL_EDITABLE_ROWS.some((row) =>
+        Boolean(rowState[row.id]?.goalMetric),
+      ),
+    [rowState],
+  );
+  const showGoalDetailColumns = hasAnyGoalSelected;
+  const showBudgetColumns = !isRuleBased && hasAnyGoalSelected;
+
+  // After the first goal is set, toast the prefill tip once from the bottom.
+  useEffect(() => {
+    if (!hasAnyGoalSelected || historicHintDismissed || isRuleBased) {
+      return;
+    }
+
+    // Mark dismissed first so React Strict Mode cannot fire the toast twice.
+    setHistoricHintDismissed(true);
+    showSetupToast(HISTORIC_PREFILL_TOAST);
+  }, [
+    hasAnyGoalSelected,
+    historicHintDismissed,
+    isRuleBased,
+    showSetupToast,
+    setHistoricHintDismissed,
+  ]);
+
   const hasUnfilledNextMonthBudget = useMemo(() => {
-    if (isRuleBased || nextMonthIndex === null) return false;
+    if (!showBudgetColumns || nextMonthIndex === null) return false;
     if (!visibleMonthIndices.includes(nextMonthIndex)) return false;
 
-    return GOALS_SCOPE_ROWS.some((row) => {
+    return GOALS_GOAL_EDITABLE_ROWS.some((row) => {
       const state = rowState[row.id];
       return state && rowNeedsNextMonthBudget(state, nextMonthIndex);
     });
-  }, [isRuleBased, nextMonthIndex, rowState, visibleMonthIndices]);
+  }, [
+    showBudgetColumns,
+    nextMonthIndex,
+    rowState,
+    visibleMonthIndices,
+  ]);
 
   const goalStickyOffsets = useMemo(
     () => ({
@@ -688,9 +757,10 @@ export function GoalsBudgetsStep() {
   );
 
   const tableMinWidth = useMemo(() => {
-    const goalSectionWidth = scopeColumnWidth + GOAL_SECTION_WIDTH_PX;
+    const goalSectionWidth =
+      scopeColumnWidth + getGoalSectionWidthPx(showGoalDetailColumns);
 
-    if (isRuleBased) {
+    if (!showBudgetColumns) {
       return goalSectionWidth;
     }
 
@@ -710,7 +780,8 @@ export function GoalsBudgetsStep() {
   }, [
     scopeColumnWidth,
     visibleMonthIndices,
-    isRuleBased,
+    showGoalDetailColumns,
+    showBudgetColumns,
     hasUnfilledNextMonthBudget,
     nextMonthIndex,
   ]);
@@ -746,40 +817,69 @@ export function GoalsBudgetsStep() {
 
   const updateGoalValue = (rowId: string, value: string) => {
     setRowState((current) => {
-      if (!current[rowId]?.goalMetric) return current;
+      const row = current[rowId];
+      if (!row?.goalMetric) return current;
+
+      const isRoasTarget = isRoasGoalMetric(row.goalMetric);
+      const nextRow: GoalsRowState = {
+        ...row,
+        goalValue: value,
+        // Mark edited while typing so blue styling shows immediately.
+        editedGoalValue: true,
+      };
+      nextRow.editedGoalValue = !goalMatchesHistoric(nextRow, isRoasTarget);
 
       return {
         ...current,
-        [rowId]: { ...current[rowId], goalValue: value },
+        [rowId]: nextRow,
       };
     });
   };
 
   const updateGoalMetric = (rowId: string, value: string) => {
+    const previous = rowState[rowId]?.goalMetric ?? null;
+    const nextMetric = value as GoalType;
+
     setRowState((current) => ({
       ...current,
       [rowId]: {
         ...current[rowId],
-        goalMetric: value as GoalType,
+        goalMetric: nextMetric,
       },
     }));
+
+    if (previous !== nextMetric) {
+      recordGoalsGoalMetricChange(rowId, previous, nextMetric);
+    }
   };
 
   const applyGoalToAllRows = (value: string) => {
+    const nextMetric =
+      value === BULK_CLEAR_GOAL_VALUE ? null : (value as GoalType);
+    const previousByRow = GOALS_GOAL_EDITABLE_ROWS.map((row) => ({
+      rowId: row.id,
+      previous: rowState[row.id]?.goalMetric ?? null,
+    }));
+
     setRowState((current) => {
       const next = { ...current };
 
-      for (const row of GOALS_SCOPE_ROWS) {
+      for (const row of GOALS_GOAL_EDITABLE_ROWS) {
         if (!next[row.id]) continue;
         next[row.id] = {
           ...next[row.id],
-          goalMetric:
-            value === BULK_CLEAR_GOAL_VALUE ? null : (value as GoalType),
+          goalMetric: nextMetric,
         };
       }
 
       return next;
     });
+
+    for (const { rowId, previous } of previousByRow) {
+      if (previous !== nextMetric) {
+        recordGoalsGoalMetricChange(rowId, previous, nextMetric);
+      }
+    }
   };
 
   const formatGoalValue = (rowId: string) => {
@@ -919,24 +1019,9 @@ export function GoalsBudgetsStep() {
 
   const hasMissingGoals = useMemo(
     () =>
-      GOALS_SCOPE_ROWS.some((row) => !rowState[row.id]?.goalMetric),
+      GOALS_GOAL_EDITABLE_ROWS.some((row) => !rowState[row.id]?.goalMetric),
     [rowState],
   );
-
-  const currentMonthBudget = useMemo(() => {
-    const parentBudget =
-      rowState["entire-business"]?.monthlyBudgets[BUDGET_CURRENT_MONTH_INDEX] ??
-      "";
-    const parentTotal = parseCurrency(parentBudget);
-    if (parentTotal > 0) return parentTotal;
-
-    return GOALS_SCOPE_ROWS.reduce((total, row) => {
-      if (row.id === "entire-business") return total;
-      const budget =
-        rowState[row.id]?.monthlyBudgets[BUDGET_CURRENT_MONTH_INDEX] ?? "";
-      return total + parseCurrency(budget);
-    }, 0);
-  }, [rowState]);
 
   const bulkGoalMetric = useMemo(
     () => getBulkGoalMetric(rowState),
@@ -1000,35 +1085,24 @@ export function GoalsBudgetsStep() {
           </div>
         </div>
 
-        {!isRuleBased && (
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {hasMissingGoals ? (
-              <p
-                role="status"
-                className="flex items-center gap-2 text-sm text-slate-600"
-              >
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-100">
-                  <Info className="size-3.5 text-amber-600" aria-hidden />
-                </span>
-                Goals must be selected to add or edit budgets.
-              </p>
-            ) : (
-              <span className="flex-1" aria-hidden />
-            )}
-            <MonthlyBudgetDistributionCalendar
-              monthIndex={BUDGET_CURRENT_MONTH_INDEX}
-              monthlyBudget={currentMonthBudget}
-              monthLabel={BUDGET_MONTHS[BUDGET_CURRENT_MONTH_INDEX]}
-            />
-          </div>
-        )}
+        {!isRuleBased && hasMissingGoals ? (
+          <p
+            role="status"
+            className="flex items-center gap-2 text-sm text-slate-600"
+          >
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-100">
+              <Info className="size-3.5 text-amber-600" aria-hidden />
+            </span>
+            Goals must be selected to add or edit budgets.
+          </p>
+        ) : null}
 
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white">
         <div
           ref={tableScrollRef}
-          className={cn(!isRuleBased && "overflow-x-auto")}
+          className={cn(showBudgetColumns && "overflow-x-auto")}
         >
           <table
             className="w-full table-fixed overflow-visible border-separate border-spacing-0 text-sm"
@@ -1037,8 +1111,12 @@ export function GoalsBudgetsStep() {
           <colgroup>
             <col style={{ width: scopeColumnWidth }} />
             <col style={{ width: METRIC_COL_WIDTH_PX }} />
-            <col style={{ width: TARGET_COL_WIDTH_PX }} />
-            <col style={{ width: LAST_30_COL_WIDTH_PX }} />
+            {showGoalDetailColumns ? (
+              <>
+                <col style={{ width: TARGET_COL_WIDTH_PX }} />
+                <col style={{ width: LAST_30_COL_WIDTH_PX }} />
+              </>
+            ) : null}
           </colgroup>
           <thead>
             <tr className="bg-slate-50 text-xs text-slate-600">
@@ -1048,10 +1126,10 @@ export function GoalsBudgetsStep() {
                 onResizeStart={onScopeResizeStart}
               />
               <th
-                colSpan={3}
+                colSpan={showGoalDetailColumns ? 3 : 1}
                 style={stickyColumnStyle(
                   goalStickyOffsets.goalSection,
-                  GOAL_SECTION_WIDTH_PX,
+                  getGoalSectionWidthPx(showGoalDetailColumns),
                 )}
                 className={cn(
                   "border-r border-slate-200 px-4 py-2 text-center font-medium",
@@ -1062,7 +1140,7 @@ export function GoalsBudgetsStep() {
               >
                 Goal
               </th>
-              {!isRuleBased && (
+              {showBudgetColumns && (
                 <th
                   colSpan={visibleMonthIndices.length + 1}
                   className={cn("px-4 py-2 font-medium", HEAD_ROW_BORDER)}
@@ -1108,6 +1186,8 @@ export function GoalsBudgetsStep() {
                   HEAD_ROW_BORDER,
                   STICKY_GOAL_HEAD,
                   "overflow-visible",
+                  !showGoalDetailColumns && STICKY_GOAL_EDGE,
+                  hasMissingGoalHighlight && MISSING_GOAL_HIGHLIGHT_CLASS,
                 )}
               >
                 <div className="flex flex-col gap-1.5">
@@ -1124,42 +1204,46 @@ export function GoalsBudgetsStep() {
                   />
                 </div>
               </th>
-              <th
-                style={stickyColumnStyle(
-                  goalStickyOffsets.target,
-                  TARGET_COL_WIDTH_PX,
-                )}
-                className={cn(TARGET_HEAD, HEAD_ROW_BORDER, STICKY_GOAL_HEAD)}
-              >
-                <span className="inline-flex w-full justify-end">
-                  <InfoLabel
-                    label="Target value (Optional)"
-                    tooltip="The goal value is indicative only and does not change Ally AI optimization logic."
-                  />
-                </span>
-                <div className="mt-0.5 flex items-center justify-end gap-1 font-normal text-slate-500">
-                  <span className="font-medium text-slate-600">Abs</span>
-                  <span className="text-slate-300">|</span>
-                  <span className="text-slate-400">%</span>
-                </div>
-              </th>
-              <th
-                style={stickyColumnStyle(
-                  goalStickyOffsets.last30,
-                  LAST_30_COL_WIDTH_PX,
-                )}
-                className={cn(
-                  LAST_30_HEAD,
-                  HEAD_ROW_BORDER,
-                  STICKY_GOAL_HEAD,
-                  STICKY_GOAL_EDGE,
-                )}
-              >
-                <span className="inline-flex w-full justify-end">
-                  <InfoLabel label="Last 30 days performance" />
-                </span>
-              </th>
-              {!isRuleBased &&
+              {showGoalDetailColumns ? (
+                <>
+                  <th
+                    style={stickyColumnStyle(
+                      goalStickyOffsets.target,
+                      TARGET_COL_WIDTH_PX,
+                    )}
+                    className={cn(TARGET_HEAD, HEAD_ROW_BORDER, STICKY_GOAL_HEAD)}
+                  >
+                    <span className="inline-flex w-full justify-end">
+                      <InfoLabel
+                        label="Target value (Optional)"
+                        tooltip="The goal value is indicative only and does not change Ally AI optimization logic."
+                      />
+                    </span>
+                    <div className="mt-0.5 flex items-center justify-end gap-1 font-normal text-slate-500">
+                      <span className="font-medium text-slate-600">Abs</span>
+                      <span className="text-slate-300">|</span>
+                      <span className="text-slate-400">%</span>
+                    </div>
+                  </th>
+                  <th
+                    style={stickyColumnStyle(
+                      goalStickyOffsets.last30,
+                      LAST_30_COL_WIDTH_PX,
+                    )}
+                    className={cn(
+                      LAST_30_HEAD,
+                      HEAD_ROW_BORDER,
+                      STICKY_GOAL_HEAD,
+                      STICKY_GOAL_EDGE,
+                    )}
+                  >
+                    <span className="inline-flex w-full justify-end">
+                      <InfoLabel label="Last 30 days performance" />
+                    </span>
+                  </th>
+                </>
+              ) : null}
+              {showBudgetColumns &&
                 visibleMonthIndices.map((monthIndex) => {
                   const isCurrent = isBudgetCurrentMonth(monthIndex);
                   const isNextMonth = isBudgetNextMonth(monthIndex);
@@ -1225,7 +1309,7 @@ export function GoalsBudgetsStep() {
                     </th>
                   );
                 })}
-              {!isRuleBased && (
+              {showBudgetColumns && (
                 <th className={cn(BUDGET_HEAD, "border-r-0", HEAD_ROW_BORDER, STICKY_FY_HEAD)}>
                   <span className="inline-flex justify-end">
                     <InfoLabel label="FY 2026" />
@@ -1236,16 +1320,19 @@ export function GoalsBudgetsStep() {
           </thead>
           <tbody>
             {GOALS_SCOPE_ROWS.map((row) => {
-              const isParent = row.id === "entire-business";
+              const isParent = row.id === ENTIRE_BUSINESS_SCOPE_ID;
               const editable = rowState[row.id];
               const fyTotal = fyTotals[row.id] ?? 0;
+              const canEditGoal = !isParent;
               const isRoasTarget = editable?.goalMetric
                 ? isRoasGoalMetric(editable.goalMetric)
                 : true;
-              const canEditBudget = Boolean(editable?.goalMetric);
-              const isMissingGoalHighlighted = missingGoalHighlightRowIds.includes(
-                row.id,
-              );
+              const canEditBudget = isParent
+                ? showBudgetColumns
+                : Boolean(editable?.goalMetric);
+              const isMissingGoalHighlighted =
+                canEditGoal &&
+                missingGoalHighlightRowIds.includes(row.id);
 
               return (
                 <tr key={row.id} className="group hover:bg-slate-50/50">
@@ -1282,96 +1369,130 @@ export function GoalsBudgetsStep() {
                       METRIC_CELL,
                       STICKY_GOAL_CELL,
                       "overflow-visible",
-                      isMissingGoalHighlighted &&
-                        "bg-amber-50 ring-2 ring-inset ring-amber-300 motion-safe:animate-pulse",
+                      !showGoalDetailColumns && STICKY_GOAL_EDGE,
+                      !canEditGoal && "bg-slate-100 group-hover:bg-slate-100",
+                      isMissingGoalHighlighted && MISSING_GOAL_HIGHLIGHT_CLASS,
                     )}
                   >
-                    {editable ? (
+                    {editable && canEditGoal ? (
                       <div className="min-w-0">
-                        <SetupInlineSelect
-                          hideLabel
-                          label={`Metric to optimize for ${row.name}`}
-                          value={editable.goalMetric}
-                          options={GOAL_METRIC_SELECT_OPTIONS}
-                          placeholder="Select goal"
-                          menuMinWidth={GOAL_METRIC_MENU_MIN_WIDTH_PX}
-                          onValueChange={(value) =>
-                            updateGoalMetric(row.id, value)
-                          }
-                          triggerClassName={cn(
-                            METRIC_SELECT_TRIGGER_CLASS,
-                            "w-full min-w-0",
+                        <ChangedCellTooltip
+                          visual={getGoalMetricVisualState(editable)}
+                          {...getGoalsCellDiff(
+                            row.id,
+                            "goalMetric",
+                            "None",
+                            editable.goalMetric
+                              ? getGoalTypeLabel(editable.goalMetric)
+                              : "None",
                           )}
-                        />
+                        >
+                          <SetupInlineSelect
+                            hideLabel
+                            label={`Metric to optimize for ${row.name}`}
+                            value={editable.goalMetric}
+                            options={GOAL_METRIC_SELECT_OPTIONS}
+                            placeholder="Select goal"
+                            menuMinWidth={GOAL_METRIC_MENU_MIN_WIDTH_PX}
+                            onValueChange={(value) =>
+                              updateGoalMetric(row.id, value)
+                            }
+                            triggerClassName={goalMetricTriggerClass(editable)}
+                          />
+                        </ChangedCellTooltip>
                       </div>
                     ) : null}
                   </td>
-                  <td
-                    style={stickyColumnStyle(
-                      goalStickyOffsets.target,
-                      TARGET_COL_WIDTH_PX,
-                    )}
-                    className={cn(
-                      TARGET_CELL,
-                      STICKY_GOAL_CELL,
-                      canEditBudget
-                        ? "bg-white group-hover:bg-white"
-                        : "bg-slate-100 group-hover:bg-slate-100",
-                    )}
-                  >
-                    {editable && canEditBudget ? (
-                      <ChangedCellTooltip
-                        visual={getGoalCellVisualState(editable, isRoasTarget)}
-                        {...getGoalsCellDiff(
-                          row.id,
-                          "goalValue",
-                          editable.historicGoalValue,
-                          editable.goalValue,
+                  {showGoalDetailColumns ? (
+                    <>
+                      <td
+                        style={stickyColumnStyle(
+                          goalStickyOffsets.target,
+                          TARGET_COL_WIDTH_PX,
+                        )}
+                        className={cn(
+                          TARGET_CELL,
+                          STICKY_GOAL_CELL,
+                          canEditGoal && canEditBudget
+                            ? "bg-white group-hover:bg-white"
+                            : "bg-slate-100 group-hover:bg-slate-100",
                         )}
                       >
-                        <Input
-                          value={editable.goalValue}
-                          onChange={(event) =>
-                            updateGoalValue(row.id, event.target.value)
-                          }
-                          onFocus={handleGoalsInputFocus}
-                          onClick={(event) =>
-                            selectEditablePortion(event.currentTarget)
-                          }
-                          onKeyDown={handleGoalsInputKeyDown}
-                          onBlur={() => formatGoalValue(row.id)}
-                          aria-label={`Target value for ${row.name}`}
-                          className={goalInputVisualClass(editable, isRoasTarget)}
-                        />
-                      </ChangedCellTooltip>
-                    ) : editable ? (
-                      <span
-                        className="block h-8 px-1.5 py-1.5"
-                        title={BUDGET_GOAL_REQUIRED_HINT}
-                        aria-label={`Target value for ${row.name} (select a goal first)`}
-                      />
-                    ) : null}
-                  </td>
-                  <td
-                    style={stickyColumnStyle(
-                      goalStickyOffsets.last30,
-                      LAST_30_COL_WIDTH_PX,
-                    )}
-                    className={cn(
-                      LAST_30_CELL,
-                      STICKY_GOAL_CELL,
-                      STICKY_GOAL_EDGE,
-                      canEditBudget
-                        ? "bg-white group-hover:bg-slate-50"
-                        : "bg-slate-100 group-hover:bg-slate-100",
-                    )}
-                  >
-                    <span className="block px-2 py-1.5 tabular-nums text-slate-700">
-                      {canEditBudget ? row.last30Days : ""}
-                    </span>
-                  </td>
-                  {!isRuleBased &&
+                        {editable && canEditGoal && canEditBudget ? (
+                          <ChangedCellTooltip
+                            visual={getGoalCellVisualState(editable, isRoasTarget)}
+                            {...getGoalsCellDiff(
+                              row.id,
+                              "goalValue",
+                              editable.historicGoalValue,
+                              editable.goalValue,
+                            )}
+                          >
+                            <Input
+                              value={editable.goalValue}
+                              onChange={(event) =>
+                                updateGoalValue(row.id, event.target.value)
+                              }
+                              onFocus={handleGoalsInputFocus}
+                              onClick={(event) =>
+                                selectEditablePortion(event.currentTarget)
+                              }
+                              onKeyDown={handleGoalsInputKeyDown}
+                              onBlur={() => formatGoalValue(row.id)}
+                              aria-label={`Target value for ${row.name}`}
+                              className={goalInputVisualClass(
+                                editable,
+                                isRoasTarget,
+                              )}
+                            />
+                          </ChangedCellTooltip>
+                        ) : editable && canEditGoal ? (
+                          <span
+                            className="block h-8 px-1.5 py-1.5"
+                            title={BUDGET_GOAL_REQUIRED_HINT}
+                            aria-label={`Target value for ${row.name} (select a goal first)`}
+                          />
+                        ) : null}
+                      </td>
+                      <td
+                        style={stickyColumnStyle(
+                          goalStickyOffsets.last30,
+                          LAST_30_COL_WIDTH_PX,
+                        )}
+                        className={cn(
+                          LAST_30_CELL,
+                          STICKY_GOAL_CELL,
+                          STICKY_GOAL_EDGE,
+                          canEditGoal && canEditBudget
+                            ? "bg-white group-hover:bg-slate-50"
+                            : "bg-slate-100 group-hover:bg-slate-100",
+                        )}
+                      >
+                        <span className="block px-2 py-1.5 tabular-nums text-slate-700">
+                          {canEditGoal && canEditBudget ? row.last30Days : ""}
+                        </span>
+                      </td>
+                    </>
+                  ) : null}
+                  {showBudgetColumns &&
                     visibleMonthIndices.map((monthIndex) => {
+                      // No goal on this row → keep month cells empty (headers may still show).
+                      if (!canEditBudget) {
+                        return (
+                          <td
+                            key={`${row.id}-${monthIndex}`}
+                            className={budgetMonthTdClass(
+                              "locked",
+                              monthIndex,
+                              true,
+                              hasUnfilledNextMonthBudget,
+                            )}
+                            title={BUDGET_GOAL_REQUIRED_HINT}
+                            aria-label={`${BUDGET_MONTHS[monthIndex]} budget for ${row.name} (select a goal first)`}
+                          />
+                        );
+                      }
+
                       const monthVisual = editable
                         ? getBudgetMonthVisualState(editable, monthIndex)
                         : "locked";
@@ -1397,28 +1518,20 @@ export function GoalsBudgetsStep() {
                           className={budgetMonthTdClass(
                             monthVisual,
                             monthIndex,
-                            !canEditBudget,
+                            false,
                             hasUnfilledNextMonthBudget,
                           )}
                         >
                           {editable && monthVisual === "locked" ? (
                             <span
-                              className="block px-2 py-1.5 tabular-nums text-slate-500"
+                              className={cn(
+                                "block px-2 py-1.5 tabular-nums text-slate-500",
+                                isParent && PARENT_BUDGET_VALUE_CLASS,
+                              )}
                               title={BUDGET_LOCKED_HINT}
                               aria-label={`${BUDGET_MONTHS[monthIndex]} budget for ${row.name} (locked)`}
                             >
                               {budgetValue || "—"}
-                            </span>
-                          ) : editable && !canEditBudget ? (
-                            <span
-                              className={cn(
-                                "block px-2 py-1.5 tabular-nums text-slate-400",
-                                budgetValue.trim() && "text-slate-500 not-italic",
-                              )}
-                              title={BUDGET_GOAL_REQUIRED_HINT}
-                              aria-label={`${BUDGET_MONTHS[monthIndex]} budget for ${row.name} (select a goal first)`}
-                            >
-                              {budgetValue}
                             </span>
                           ) : editable && budgetDiff ? (
                             <ChangedCellTooltip
@@ -1448,6 +1561,7 @@ export function GoalsBudgetsStep() {
                                 className={budgetInputVisualClass(
                                   editable,
                                   monthIndex,
+                                  isParent,
                                 )}
                               />
                             </ChangedCellTooltip>
@@ -1455,17 +1569,20 @@ export function GoalsBudgetsStep() {
                         </td>
                       );
                     })}
-                  {!isRuleBased && (
+                  {showBudgetColumns && (
                     <td
                       className={cn(
                         BUDGET_CELL,
                         "border-r-0 px-2 py-2.5 tabular-nums text-slate-900",
                         ROW_BORDER,
                         STICKY_FY_CELL,
-                        isParent && "font-semibold",
+                        isParent && PARENT_BUDGET_VALUE_CLASS,
+                        !canEditBudget &&
+                          !isParent &&
+                          "bg-slate-100 text-transparent group-hover:bg-slate-100",
                       )}
                     >
-                      {formatCurrency(fyTotal) || "—"}
+                      {canEditBudget ? formatCurrency(fyTotal) || "—" : ""}
                     </td>
                   )}
                 </tr>
@@ -1475,44 +1592,6 @@ export function GoalsBudgetsStep() {
         </table>
         </div>
       </div>
-
-      {(toastMessage || !historicHintDismissed) && (
-        <div className="sticky bottom-0 z-[60] flex shrink-0 flex-col items-start gap-2 -mx-2">
-          {toastMessage ? <SetupToast className="ml-2" /> : null}
-
-          {!historicHintDismissed && (
-            <div className="w-full rounded-t-lg border border-slate-200 bg-slate-50/95 px-4 py-3 shadow-[0_-4px_12px_-2px_rgba(0,0,0,0.08),0_4px_16px_-4px_rgba(0,0,0,0.12)] backdrop-blur-sm">
-              <div className="flex items-start gap-2 text-sm text-slate-600">
-                <p className="flex-1 pr-2">
-                  Gray italic values in editable months are based on your{" "}
-                  <span className="font-medium text-slate-700">last 30 days</span>{" "}
-                  of performance — edit any cell to override.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setHistoricHintDismissed(true)}
-                  className="shrink-0 rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-200/80 hover:text-slate-600"
-                  aria-label="Dismiss hint"
-                >
-                  <X className="size-4" />
-                </button>
-              </div>
-              <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-slate-500">
-                <input
-                  type="checkbox"
-                  className="size-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-                  onChange={(event) => {
-                    if (event.target.checked) {
-                      setHistoricHintDismissed(true);
-                    }
-                  }}
-                />
-                Don&apos;t show me this again
-              </label>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

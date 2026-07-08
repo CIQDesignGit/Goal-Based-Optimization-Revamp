@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -12,6 +13,7 @@ import {
 
 import {
   getSetupSteps,
+  GOALS_GOAL_EDITABLE_ROWS,
   isSovGoal,
   type OptimizerType,
   type SetupStepConfig,
@@ -52,6 +54,16 @@ export function SetupProvider({ children }: { children: ReactNode }) {
     constraints: false,
   });
   const goalType = useSetupSessionStore((state) => state.generalConfig.goalType);
+  const goalsRowState = useSetupSessionStore((state) => state.goalsRowState);
+
+  const hasSovGoal = useMemo(
+    () =>
+      isSovGoal(goalType) ||
+      GOALS_GOAL_EDITABLE_ROWS.some(
+        (row) => goalsRowState[row.id]?.goalMetric === "sov",
+      ),
+    [goalType, goalsRowState],
+  );
 
   const steps = useMemo(
     () =>
@@ -64,7 +76,7 @@ export function SetupProvider({ children }: { children: ReactNode }) {
 
   const setOptimizerType = useCallback(
     (value: OptimizerType) => {
-      if (value === "ally-ai" && isSovGoal(goalType)) {
+      if (value === "ally-ai" && hasSovGoal) {
         return;
       }
 
@@ -90,8 +102,15 @@ export function SetupProvider({ children }: { children: ReactNode }) {
         return value;
       });
     },
-    [goalType, includeSeasonality, includeConstraints],
+    [hasSovGoal, includeSeasonality, includeConstraints],
   );
+
+  // SOV goals cannot use Ally AI at the portfolio level (FR-004).
+  useEffect(() => {
+    if (hasSovGoal && optimizerType === "ally-ai") {
+      setOptimizerType("rule-based");
+    }
+  }, [hasSovGoal, optimizerType, setOptimizerType]);
 
   const setConstraintsStepValid = useCallback((value: boolean) => {
     setConstraintsStepValidState(value);

@@ -126,7 +126,8 @@ export function SetupInlineSelect({
           <span
             className={cn(
               "flex flex-1 text-left text-sm",
-              selectedLabel ? "text-slate-700" : "text-slate-400",
+              // Inherit trigger color so edited (blue) styling can apply.
+              selectedLabel ? "text-inherit" : "text-slate-400",
             )}
           >
             {selectedLabel ?? placeholder}
