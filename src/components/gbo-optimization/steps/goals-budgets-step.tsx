@@ -52,7 +52,6 @@ import {
   recordGoalsBudgetChange,
   recordGoalsGoalChange,
   recordGoalsGoalMetricChange,
-  rowNeedsPerformanceGateGoalValue,
   useSetupSessionStore,
   type GoalsRowState,
 } from "@/lib/gbo-optimization/setup-session-store";
@@ -163,13 +162,8 @@ const PARENT_BUDGET_VALUE_CLASS = "font-semibold text-slate-700";
 /** Shown when Next is clicked without goals on every row. */
 const MISSING_GOAL_HIGHLIGHT_CLASS =
   "bg-amber-50 ring-2 ring-inset ring-amber-200";
-const PERFORMANCE_GATE_TARGET_HIGHLIGHT_CLASS =
-  "bg-amber-50/40 ring-1 ring-inset ring-amber-200";
-const PERFORMANCE_GATE_REQUIRED_MESSAGE = "Goal required to gate";
-
-function rowNeedsPerformanceGateGoal(editable: GoalsRowState | undefined): boolean {
-  return rowNeedsPerformanceGateGoalValue(editable);
-}
+const PERFORMANCE_GATE_HEADER_WARNING =
+  "Goal value required to gate performance";
 
 function PerformanceGateNewBadge() {
   return (
@@ -1057,6 +1051,14 @@ export function GoalsBudgetsStep() {
     [rowState],
   );
 
+  const hasPerformanceGateGoalGap = useMemo(() => {
+    if (!includePerformanceGate) return false;
+
+    return GOALS_GOAL_EDITABLE_ROWS.some(
+      (row) => !rowState[row.id]?.goalMetric,
+    );
+  }, [includePerformanceGate, rowState]);
+
   return (
     <div className="flex flex-col gap-3 py-4">
       {isRuleBased && !ruleBasedNoticeDismissed && (
@@ -1199,7 +1201,18 @@ export function GoalsBudgetsStep() {
                   STICKY_GOAL_EDGE,
                 )}
               >
-                Goal
+                <div className="flex flex-col items-center gap-1">
+                  <span>Goal</span>
+                  {hasPerformanceGateGoalGap ? (
+                    <span
+                      role="status"
+                      className="inline-flex items-center gap-1 text-xs font-normal text-amber-600"
+                    >
+                      <Info className="size-3 shrink-0" aria-hidden />
+                      {PERFORMANCE_GATE_HEADER_WARNING}
+                    </span>
+                  ) : null}
+                </div>
               </th>
               {showBudgetColumns && (
                 <th
@@ -1381,11 +1394,6 @@ export function GoalsBudgetsStep() {
               const isMissingGoalHighlighted =
                 canEditGoal &&
                 missingGoalHighlightRowIds.includes(row.id);
-              const isPerformanceGateDimmed =
-                includePerformanceGate &&
-                canEditGoal &&
-                rowNeedsPerformanceGateGoal(editable);
-              const showPerformanceGateRequiredMessage = isPerformanceGateDimmed;
 
               return (
                 <tr key={row.id} className="group hover:bg-slate-50/50">
@@ -1485,8 +1493,6 @@ export function GoalsBudgetsStep() {
                           canEditGoal && canEditBudget
                             ? "bg-white group-hover:bg-white"
                             : "bg-slate-100 group-hover:bg-slate-100",
-                          showPerformanceGateRequiredMessage &&
-                            PERFORMANCE_GATE_TARGET_HIGHLIGHT_CLASS,
                         )}
                       >
                         {editable && canEditGoal ? (
@@ -1529,11 +1535,6 @@ export function GoalsBudgetsStep() {
                                 aria-label={`Target value for ${row.name} (select a goal first)`}
                               />
                             )}
-                            {showPerformanceGateRequiredMessage ? (
-                              <span className="px-1.5 text-xs text-slate-500">
-                                {PERFORMANCE_GATE_REQUIRED_MESSAGE}
-                              </span>
-                            ) : null}
                           </div>
                         ) : null}
                       </td>
