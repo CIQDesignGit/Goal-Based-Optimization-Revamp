@@ -159,6 +159,16 @@ export function getMissingGoalRowIds(
   ).map((row) => row.id);
 }
 
+export const PERFORMANCE_GATE_DEFAULT_MIN_SPEND_FLOOR = 70;
+
+/** True when a goal is selected but the target value needed for gating is missing. */
+export function rowNeedsPerformanceGateGoalValue(
+  state: GoalsRowState | undefined,
+): boolean {
+  if (!state?.goalMetric) return false;
+  return !Boolean(state.goalValue.trim());
+}
+
 // ---------------------------------------------------------------------------
 // Initial state factories
 // ---------------------------------------------------------------------------
@@ -317,6 +327,8 @@ type SetupSessionState = {
   toastMessage: string | null;
   toastVariant: "warning" | "success";
   missingGoalHighlightRowIds: string[];
+  includePerformanceGate: boolean;
+  performanceGateMinSpendFloor: number;
 
   setGoalType: (goalType: GoalType | null) => void;
   setAggressiveness: (level: AggressivenessLevel | null) => void;
@@ -346,6 +358,10 @@ type SetupSessionState = {
   setGoalsOptionalStepsHintDismissed: (value: boolean) => void;
 
   setGoalsRuleBasedNoticeDismissed: (value: boolean) => void;
+
+  setIncludePerformanceGate: (value: boolean) => void;
+
+  setPerformanceGateMinSpendFloor: (value: number) => void;
 
   setSummaryReviewed: (value: boolean) => void;
 
@@ -378,6 +394,8 @@ function createInitialSessionState(): Pick<
   | "toastMessage"
   | "toastVariant"
   | "missingGoalHighlightRowIds"
+  | "includePerformanceGate"
+  | "performanceGateMinSpendFloor"
 > {
   const defaultMonthWindowStart = getDefaultBudgetWindowStart(
     BUDGET_CURRENT_MONTH_INDEX,
@@ -397,6 +415,8 @@ function createInitialSessionState(): Pick<
     toastMessage: null,
     toastVariant: "warning",
     missingGoalHighlightRowIds: [],
+    includePerformanceGate: false,
+    performanceGateMinSpendFloor: PERFORMANCE_GATE_DEFAULT_MIN_SPEND_FLOOR,
   };
 }
 
@@ -496,6 +516,15 @@ export const useSetupSessionStore = create<SetupSessionState>((set, get) => ({
 
   setGoalsRuleBasedNoticeDismissed: (value) => {
     set({ goalsRuleBasedNoticeDismissed: value });
+  },
+
+  setIncludePerformanceGate: (value) => {
+    set({ includePerformanceGate: value });
+  },
+
+  setPerformanceGateMinSpendFloor: (value) => {
+    const clamped = Math.min(99, Math.max(1, Math.round(value)));
+    set({ performanceGateMinSpendFloor: clamped });
   },
 
   setSummaryReviewed: (value) => {

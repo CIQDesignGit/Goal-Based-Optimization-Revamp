@@ -21,6 +21,7 @@ import { useSetupContext } from "@/components/gbo-optimization/setup-context";
 import { ChangedCellTooltip, formatCellDiffValue } from "@/components/gbo-optimization/changed-cell-tooltip";
 import { ImpactBanner } from "@/components/gbo-optimization/impact-banner";
 import { InfoLabel } from "@/components/gbo-optimization/info-label";
+import { PerformanceGateSettingsStrip } from "@/components/gbo-optimization/performance-gate-settings-strip";
 import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +52,7 @@ import {
   recordGoalsBudgetChange,
   recordGoalsGoalChange,
   recordGoalsGoalMetricChange,
+  rowNeedsPerformanceGateGoalValue,
   useSetupSessionStore,
   type GoalsRowState,
 } from "@/lib/gbo-optimization/setup-session-store";
@@ -161,6 +163,21 @@ const PARENT_BUDGET_VALUE_CLASS = "font-semibold text-slate-700";
 /** Shown when Next is clicked without goals on every row. */
 const MISSING_GOAL_HIGHLIGHT_CLASS =
   "bg-amber-50 ring-2 ring-inset ring-amber-200";
+const PERFORMANCE_GATE_TARGET_HIGHLIGHT_CLASS =
+  "bg-amber-50/40 ring-1 ring-inset ring-amber-200";
+const PERFORMANCE_GATE_REQUIRED_MESSAGE = "Goal required to gate";
+
+function rowNeedsPerformanceGateGoal(editable: GoalsRowState | undefined): boolean {
+  return rowNeedsPerformanceGateGoalValue(editable);
+}
+
+function PerformanceGateNewBadge() {
+  return (
+    <span className="rounded-full border border-purple-200/60 bg-linear-to-r from-purple-100 to-cyan-100 px-2 py-0.5 text-[10px] font-medium tracking-wide text-purple-700 uppercase shadow-sm">
+      New
+    </span>
+  );
+}
 
 function rowNeedsNextMonthBudget(
   row: GoalsRowState,
@@ -663,6 +680,18 @@ export function GoalsBudgetsStep() {
   const setMonthWindowRange = useSetupSessionStore(
     (state) => state.setMonthWindowRange,
   );
+  const includePerformanceGate = useSetupSessionStore(
+    (state) => state.includePerformanceGate,
+  );
+  const setIncludePerformanceGate = useSetupSessionStore(
+    (state) => state.setIncludePerformanceGate,
+  );
+  const performanceGateMinSpendFloor = useSetupSessionStore(
+    (state) => state.performanceGateMinSpendFloor,
+  );
+  const setPerformanceGateMinSpendFloor = useSetupSessionStore(
+    (state) => state.setPerformanceGateMinSpendFloor,
+  );
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const {
     width: scopeColumnWidth,
@@ -1057,6 +1086,19 @@ export function GoalsBudgetsStep() {
               <Plus className="size-4" />
               Add Filters
             </Button>
+            {!isRuleBased && (
+              <label className="flex items-center gap-2 text-sm text-slate-600">
+                <Switch
+                  checked={includePerformanceGate}
+                  onCheckedChange={(checked) => {
+                    dismissToggleHint();
+                    setIncludePerformanceGate(checked === true);
+                  }}
+                />
+                <span className={toggleLabelClass}>Performance gate</span>
+                <PerformanceGateNewBadge />
+              </label>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-4">
@@ -1069,7 +1111,11 @@ export function GoalsBudgetsStep() {
                     setIncludeSeasonality(checked === true);
                   }}
                 />
-                <span className={toggleLabelClass}>Seasonality</span>
+                <InfoLabel
+                  label="Seasonality"
+                  tooltip="Add optional time-bound events (e.g. holidays, Black Friday) that adjust Ally AI optimization."
+                  className={toggleLabelClass}
+                />
               </label>
             )}
             <label className="flex items-center gap-2 text-sm text-slate-600">
@@ -1080,21 +1126,36 @@ export function GoalsBudgetsStep() {
                   setIncludeConstraints(checked === true);
                 }}
               />
-              <span className={toggleLabelClass}>Constraints</span>
+              <InfoLabel
+                label="Constraints"
+                tooltip={
+                  isRuleBased
+                    ? "Add optional floor and ceiling limits for rule-based optimization."
+                    : "Add optional spend limits and rules that apply during Ally AI optimization."
+                }
+                className={toggleLabelClass}
+              />
             </label>
           </div>
         </div>
 
         {!isRuleBased && hasMissingGoals ? (
-          <p
+          <div
             role="status"
-            className="flex items-center gap-2 text-sm text-slate-600"
+            className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
           >
             <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-100">
               <Info className="size-3.5 text-amber-600" aria-hidden />
             </span>
             Goals must be selected to add or edit budgets.
-          </p>
+          </div>
+        ) : null}
+
+        {!isRuleBased && includePerformanceGate ? (
+          <PerformanceGateSettingsStrip
+            minSpendFloor={performanceGateMinSpendFloor}
+            onMinSpendFloorChange={setPerformanceGateMinSpendFloor}
+          />
         ) : null}
 
       </div>
@@ -1187,22 +1248,9 @@ export function GoalsBudgetsStep() {
                   STICKY_GOAL_HEAD,
                   "overflow-visible",
                   !showGoalDetailColumns && STICKY_GOAL_EDGE,
-                  hasMissingGoalHighlight && MISSING_GOAL_HIGHLIGHT_CLASS,
                 )}
               >
-                <div className="flex flex-col gap-1.5">
-                  <InfoLabel label="Metric to optimize" />
-                  <SetupInlineSelect
-                    hideLabel
-                    label="Apply goal to all rows"
-                    value={bulkGoalMetric}
-                    options={BULK_GOAL_METRIC_SELECT_OPTIONS}
-                    placeholder="Apply to all"
-                    menuMinWidth={GOAL_METRIC_MENU_MIN_WIDTH_PX}
-                    onValueChange={applyGoalToAllRows}
-                    triggerClassName={BULK_METRIC_SELECT_TRIGGER_CLASS}
-                  />
-                </div>
+                <InfoLabel label="Metric to optimize" />
               </th>
               {showGoalDetailColumns ? (
                 <>
@@ -1333,6 +1381,11 @@ export function GoalsBudgetsStep() {
               const isMissingGoalHighlighted =
                 canEditGoal &&
                 missingGoalHighlightRowIds.includes(row.id);
+              const isPerformanceGateDimmed =
+                includePerformanceGate &&
+                canEditGoal &&
+                rowNeedsPerformanceGateGoal(editable);
+              const showPerformanceGateRequiredMessage = isPerformanceGateDimmed;
 
               return (
                 <tr key={row.id} className="group hover:bg-slate-50/50">
@@ -1371,10 +1424,26 @@ export function GoalsBudgetsStep() {
                       "overflow-visible",
                       !showGoalDetailColumns && STICKY_GOAL_EDGE,
                       !canEditGoal && "bg-slate-100 group-hover:bg-slate-100",
-                      isMissingGoalHighlighted && MISSING_GOAL_HIGHLIGHT_CLASS,
+                      isParent &&
+                        hasMissingGoalHighlight &&
+                        MISSING_GOAL_HIGHLIGHT_CLASS,
+                      !isParent &&
+                        isMissingGoalHighlighted &&
+                        MISSING_GOAL_HIGHLIGHT_CLASS,
                     )}
                   >
-                    {editable && canEditGoal ? (
+                    {isParent ? (
+                      <SetupInlineSelect
+                        hideLabel
+                        label="Apply goal to all rows"
+                        value={bulkGoalMetric}
+                        options={BULK_GOAL_METRIC_SELECT_OPTIONS}
+                        placeholder="Apply to all"
+                        menuMinWidth={GOAL_METRIC_MENU_MIN_WIDTH_PX}
+                        onValueChange={applyGoalToAllRows}
+                        triggerClassName={BULK_METRIC_SELECT_TRIGGER_CLASS}
+                      />
+                    ) : editable && canEditGoal ? (
                       <div className="min-w-0">
                         <ChangedCellTooltip
                           visual={getGoalMetricVisualState(editable)}
@@ -1416,42 +1485,56 @@ export function GoalsBudgetsStep() {
                           canEditGoal && canEditBudget
                             ? "bg-white group-hover:bg-white"
                             : "bg-slate-100 group-hover:bg-slate-100",
+                          showPerformanceGateRequiredMessage &&
+                            PERFORMANCE_GATE_TARGET_HIGHLIGHT_CLASS,
                         )}
                       >
-                        {editable && canEditGoal && canEditBudget ? (
-                          <ChangedCellTooltip
-                            visual={getGoalCellVisualState(editable, isRoasTarget)}
-                            {...getGoalsCellDiff(
-                              row.id,
-                              "goalValue",
-                              editable.historicGoalValue,
-                              editable.goalValue,
+                        {editable && canEditGoal ? (
+                          <div className="flex min-w-0 flex-col gap-1">
+                            {canEditBudget ? (
+                              <ChangedCellTooltip
+                                visual={getGoalCellVisualState(
+                                  editable,
+                                  isRoasTarget,
+                                )}
+                                {...getGoalsCellDiff(
+                                  row.id,
+                                  "goalValue",
+                                  editable.historicGoalValue,
+                                  editable.goalValue,
+                                )}
+                              >
+                                <Input
+                                  value={editable.goalValue}
+                                  onChange={(event) =>
+                                    updateGoalValue(row.id, event.target.value)
+                                  }
+                                  onFocus={handleGoalsInputFocus}
+                                  onClick={(event) =>
+                                    selectEditablePortion(event.currentTarget)
+                                  }
+                                  onKeyDown={handleGoalsInputKeyDown}
+                                  onBlur={() => formatGoalValue(row.id)}
+                                  aria-label={`Target value for ${row.name}`}
+                                  className={goalInputVisualClass(
+                                    editable,
+                                    isRoasTarget,
+                                  )}
+                                />
+                              </ChangedCellTooltip>
+                            ) : (
+                              <span
+                                className="block h-8 px-1.5 py-1.5"
+                                title={BUDGET_GOAL_REQUIRED_HINT}
+                                aria-label={`Target value for ${row.name} (select a goal first)`}
+                              />
                             )}
-                          >
-                            <Input
-                              value={editable.goalValue}
-                              onChange={(event) =>
-                                updateGoalValue(row.id, event.target.value)
-                              }
-                              onFocus={handleGoalsInputFocus}
-                              onClick={(event) =>
-                                selectEditablePortion(event.currentTarget)
-                              }
-                              onKeyDown={handleGoalsInputKeyDown}
-                              onBlur={() => formatGoalValue(row.id)}
-                              aria-label={`Target value for ${row.name}`}
-                              className={goalInputVisualClass(
-                                editable,
-                                isRoasTarget,
-                              )}
-                            />
-                          </ChangedCellTooltip>
-                        ) : editable && canEditGoal ? (
-                          <span
-                            className="block h-8 px-1.5 py-1.5"
-                            title={BUDGET_GOAL_REQUIRED_HINT}
-                            aria-label={`Target value for ${row.name} (select a goal first)`}
-                          />
+                            {showPerformanceGateRequiredMessage ? (
+                              <span className="px-1.5 text-xs text-slate-500">
+                                {PERFORMANCE_GATE_REQUIRED_MESSAGE}
+                              </span>
+                            ) : null}
+                          </div>
                         ) : null}
                       </td>
                       <td
