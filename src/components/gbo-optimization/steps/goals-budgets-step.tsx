@@ -5,6 +5,7 @@ import {
   Info,
   Plus,
   Search,
+  X,
 } from "lucide-react";
 import {
   useCallback,
@@ -667,6 +668,12 @@ export function GoalsBudgetsStep() {
   const setRuleBasedNoticeDismissed = useSetupSessionStore(
     (state) => state.setGoalsRuleBasedNoticeDismissed,
   );
+  const goalsMissingGoalsNoticeDismissed = useSetupSessionStore(
+    (state) => state.goalsMissingGoalsNoticeDismissed,
+  );
+  const setGoalsMissingGoalsNoticeDismissed = useSetupSessionStore(
+    (state) => state.setGoalsMissingGoalsNoticeDismissed,
+  );
   const monthWindowStart = useSetupSessionStore(
     (state) => state.monthWindowStart,
   );
@@ -1046,6 +1053,12 @@ export function GoalsBudgetsStep() {
     [rowState],
   );
 
+  useEffect(() => {
+    if (!hasMissingGoals) {
+      setGoalsMissingGoalsNoticeDismissed(false);
+    }
+  }, [hasMissingGoals, setGoalsMissingGoalsNoticeDismissed]);
+
   const bulkGoalMetric = useMemo(
     () => getBulkGoalMetric(rowState),
     [rowState],
@@ -1141,7 +1154,9 @@ export function GoalsBudgetsStep() {
           </div>
         </div>
 
-        {!isRuleBased && hasMissingGoals ? (
+        {!isRuleBased &&
+        hasMissingGoals &&
+        !goalsMissingGoalsNoticeDismissed ? (
           <div
             role="status"
             className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
@@ -1149,7 +1164,19 @@ export function GoalsBudgetsStep() {
             <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-100">
               <Info className="size-3.5 text-amber-600" aria-hidden />
             </span>
-            Goals must be selected to add or edit budgets.
+            <p className="min-w-0 flex-1">
+              Goals must be selected to add or edit budgets.
+            </p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setGoalsMissingGoalsNoticeDismissed(true)}
+              className="shrink-0 text-amber-700 hover:bg-amber-100 hover:text-amber-900"
+              aria-label="Dismiss message"
+            >
+              <X className="size-4" />
+            </Button>
           </div>
         ) : null}
 

@@ -322,6 +322,7 @@ type SetupSessionState = {
   goalsHistoricHintDismissed: boolean;
   goalsOptionalStepsHintDismissed: boolean;
   goalsRuleBasedNoticeDismissed: boolean;
+  goalsMissingGoalsNoticeDismissed: boolean;
   changeLedger: ChangeLedgerEntry[];
   summaryReviewed: boolean;
   toastMessage: string | null;
@@ -359,6 +360,8 @@ type SetupSessionState = {
 
   setGoalsRuleBasedNoticeDismissed: (value: boolean) => void;
 
+  setGoalsMissingGoalsNoticeDismissed: (value: boolean) => void;
+
   setIncludePerformanceGate: (value: boolean) => void;
 
   setPerformanceGateMinSpendFloor: (value: number) => void;
@@ -389,6 +392,7 @@ function createInitialSessionState(): Pick<
   | "goalsHistoricHintDismissed"
   | "goalsOptionalStepsHintDismissed"
   | "goalsRuleBasedNoticeDismissed"
+  | "goalsMissingGoalsNoticeDismissed"
   | "changeLedger"
   | "summaryReviewed"
   | "toastMessage"
@@ -410,6 +414,7 @@ function createInitialSessionState(): Pick<
     goalsHistoricHintDismissed: false,
     goalsOptionalStepsHintDismissed: false,
     goalsRuleBasedNoticeDismissed: false,
+    goalsMissingGoalsNoticeDismissed: false,
     changeLedger: [],
     summaryReviewed: false,
     toastMessage: null,
@@ -516,6 +521,10 @@ export const useSetupSessionStore = create<SetupSessionState>((set, get) => ({
 
   setGoalsRuleBasedNoticeDismissed: (value) => {
     set({ goalsRuleBasedNoticeDismissed: value });
+  },
+
+  setGoalsMissingGoalsNoticeDismissed: (value) => {
+    set({ goalsMissingGoalsNoticeDismissed: value });
   },
 
   setIncludePerformanceGate: (value) => {
