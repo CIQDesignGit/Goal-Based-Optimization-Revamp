@@ -18,7 +18,9 @@ import {
   ENTIRE_BUSINESS_SCOPE_ID,
   getDefaultBudgetWindowEnd,
   getDefaultBudgetWindowStart,
+  getDefaultLevelsForBudgetType,
   getGoalTypeLabel,
+  getLevel2Options,
   GOALS_GOAL_EDITABLE_ROWS,
   GOALS_SCOPE_ROWS,
   resolveInitialMonthlyBudgets,
@@ -112,6 +114,13 @@ export type ImpactedScope = {
 
 export type BudgetDefinitionType = "retailer" | "internal";
 
+/** Session-start snapshot of how budget Scope is organized (taxonomy). */
+export type TaxonomySnapshot = {
+  budgetType: BudgetDefinitionType;
+  level1: string;
+  level2: string;
+};
+
 export type GeneralConfig = {
   goalType: GoalType | null;
   aggressiveness: AggressivenessLevel | null;
@@ -123,6 +132,8 @@ export type GeneralConfig = {
   /** FR-006 — shown after the user changes goal type mid-session. */
   showGoalChangeImpact: boolean;
   previousGoalType: GoalType | null;
+  /** Shown after the user changes budget definition / Level 1 / Level 2. */
+  showTaxonomyChangeImpact: boolean;
 };
 
 export function createInitialGeneralConfig(): GeneralConfig {
@@ -132,11 +143,43 @@ export function createInitialGeneralConfig(): GeneralConfig {
     granularity: "Monthly",
     budgetType: "retailer",
     level1: "portfolio",
-    level2: "na",
+    level2: "profiles",
     prefillMetric: "roas",
     showGoalChangeImpact: false,
     previousGoalType: null,
+    showTaxonomyChangeImpact: false,
   };
+}
+
+export function createInitialTaxonomySnapshot(): TaxonomySnapshot {
+  const config = createInitialGeneralConfig();
+
+  return {
+    budgetType: config.budgetType,
+    level1: config.level1,
+    level2: config.level2,
+  };
+}
+
+export function getTaxonomySnapshotFromConfig(
+  config: Pick<GeneralConfig, "budgetType" | "level1" | "level2">,
+): TaxonomySnapshot {
+  return {
+    budgetType: config.budgetType,
+    level1: config.level1,
+    level2: config.level2,
+  };
+}
+
+export function hasTaxonomyChanged(
+  baseline: TaxonomySnapshot,
+  config: Pick<GeneralConfig, "budgetType" | "level1" | "level2">,
+): boolean {
+  return (
+    baseline.budgetType !== config.budgetType ||
+    baseline.level1 !== config.level1 ||
+    baseline.level2 !== config.level2
+  );
 }
 
 export function isGeneralConfigComplete(_config: GeneralConfig): boolean {
@@ -315,6 +358,8 @@ function nextChangeId(): string {
 
 type SetupSessionState = {
   generalConfig: GeneralConfig;
+  /** Taxonomy at session start — used for Summary before/after comparison. */
+  taxonomyBaseline: TaxonomySnapshot;
   goalsRowState: Record<string, GoalsRowState>;
   constraintsRowState: Record<string, ConstraintRowState>;
   monthWindowStart: number;
@@ -335,6 +380,7 @@ type SetupSessionState = {
   setAggressiveness: (level: AggressivenessLevel | null) => void;
   updateGeneralConfig: (patch: Partial<GeneralConfig>) => void;
   dismissGoalChangeImpact: () => void;
+  dismissTaxonomyChangeImpact: () => void;
 
   setGoalsRowState: (
     updater:
@@ -385,6 +431,7 @@ type SetupSessionState = {
 function createInitialSessionState(): Pick<
   SetupSessionState,
   | "generalConfig"
+  | "taxonomyBaseline"
   | "goalsRowState"
   | "constraintsRowState"
   | "monthWindowStart"
@@ -404,9 +451,11 @@ function createInitialSessionState(): Pick<
   const defaultMonthWindowStart = getDefaultBudgetWindowStart(
     BUDGET_CURRENT_MONTH_INDEX,
   );
+  const generalConfig = createInitialGeneralConfig();
 
   return {
-    generalConfig: createInitialGeneralConfig(),
+    generalConfig,
+    taxonomyBaseline: createInitialTaxonomySnapshot(),
     goalsRowState: createInitialGoalsRowState(),
     constraintsRowState: createInitialConstraintsRowState(),
     monthWindowStart: defaultMonthWindowStart,
@@ -471,12 +520,59 @@ export const useSetupSessionStore = create<SetupSessionState>((set, get) => ({
   },
 
   updateGeneralConfig: (patch) => {
-    set((state) => ({
-      generalConfig: {
-        ...state.generalConfig,
-        ...patch,
-      },
-    }));
+    set((state) => {
+      const previous = state.generalConfig;
+      let next: GeneralConfig = { ...previous, ...patch };
+
+      const budgetTypeChanged =
+        patch.budgetType !== undefined &&
+        patch.budgetType !== previous.budgetType;
+      const level1Changed =
+        patch.level1 !== undefined && patch.level1 !== previous.level1;
+      const level2Changed =
+        patch.level2 !== undefined && patch.level2 !== previous.level2;
+      const taxonomyFieldsTouched =
+        budgetTypeChanged || level1Changed || level2Changed;
+
+      // Switching retailer ↔ internal resets Level 1/2 to defaults for that type.
+      if (budgetTypeChanged) {
+        const defaults = getDefaultLevelsForBudgetType(patch.budgetType!);
+        next = {
+          ...next,
+          level1: patch.level1 ?? defaults.level1,
+          level2: patch.level2 ?? defaults.level2,
+        };
+      }
+
+      // Level 2 cannot match Level 1 — pick the first valid alternative.
+      if (next.level1 === next.level2) {
+        const level2Options = getLevel2Options(next.budgetType, next.level1);
+        next = {
+          ...next,
+          level2: level2Options[0]?.value ?? next.level2,
+        };
+      }
+
+      const taxonomyChanged = hasTaxonomyChanged(
+        state.taxonomyBaseline,
+        next,
+      );
+
+      return {
+        // Taxonomy edits need re-approval on Summary (same as ledger changes).
+        summaryReviewed: taxonomyFieldsTouched
+          ? false
+          : state.summaryReviewed,
+        generalConfig: {
+          ...next,
+          showTaxonomyChangeImpact: taxonomyFieldsTouched
+            ? taxonomyChanged
+            : taxonomyChanged
+              ? previous.showTaxonomyChangeImpact
+              : false,
+        },
+      };
+    });
   },
 
   dismissGoalChangeImpact: () => {
@@ -484,6 +580,15 @@ export const useSetupSessionStore = create<SetupSessionState>((set, get) => ({
       generalConfig: {
         ...state.generalConfig,
         showGoalChangeImpact: false,
+      },
+    }));
+  },
+
+  dismissTaxonomyChangeImpact: () => {
+    set((state) => ({
+      generalConfig: {
+        ...state.generalConfig,
+        showTaxonomyChangeImpact: false,
       },
     }));
   },

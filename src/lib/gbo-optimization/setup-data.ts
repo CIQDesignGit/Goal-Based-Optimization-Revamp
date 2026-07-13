@@ -716,11 +716,78 @@ export const BUDGET_GRANULARITIES = [
   "Yearly",
 ] as const;
 
-export const LEVEL_1_OPTIONS = [
+/** Retailer categorization — Level 1 and Level 2 share the same option set. */
+export const RETAILER_LEVEL_OPTIONS = [
   { value: "portfolio", label: "Portfolio" },
+  { value: "profiles", label: "Profiles" },
 ] as const;
 
-export const LEVEL_2_OPTIONS = [{ value: "na", label: "NA" }] as const;
+/**
+ * Internal (Campaign Taxonomy) levels.
+ * Level 2 excludes whatever is selected for Level 1.
+ */
+export const INTERNAL_LEVEL_OPTIONS = [
+  { value: "campaign-type", label: "Campaign Type" },
+  { value: "product-line", label: "Product Line" },
+  { value: "brand", label: "Brand" },
+  { value: "sub-category", label: "Sub Category" },
+  { value: "category", label: "Category" },
+  { value: "sub-brand", label: "Sub Brand" },
+] as const;
+
+export const BUDGET_DEFINITION_LABELS = {
+  retailer: "Retailer Categorization",
+  internal: "Internal Categorization",
+} as const;
+
+/** @deprecated Prefer getLevelOptions(budgetType) — kept for seasonality portfolio filter. */
+export const LEVEL_1_OPTIONS = RETAILER_LEVEL_OPTIONS;
+
+export const LEVEL_2_OPTIONS = RETAILER_LEVEL_OPTIONS;
+
+export type BudgetDefinitionTypeForLevels = "retailer" | "internal";
+
+export function getLevelOptions(
+  budgetType: BudgetDefinitionTypeForLevels,
+): readonly { value: string; label: string }[] {
+  return budgetType === "retailer"
+    ? RETAILER_LEVEL_OPTIONS
+    : INTERNAL_LEVEL_OPTIONS;
+}
+
+/** Level 2 cannot repeat the Level 1 pick. */
+export function getLevel2Options(
+  budgetType: BudgetDefinitionTypeForLevels,
+  level1: string,
+): { value: string; label: string }[] {
+  return getLevelOptions(budgetType).filter((option) => option.value !== level1);
+}
+
+export function getDefaultLevelsForBudgetType(
+  budgetType: BudgetDefinitionTypeForLevels,
+): { level1: string; level2: string } {
+  if (budgetType === "retailer") {
+    return { level1: "portfolio", level2: "profiles" };
+  }
+
+  return { level1: "brand", level2: "sub-brand" };
+}
+
+export function getLevelLabel(
+  budgetType: BudgetDefinitionTypeForLevels,
+  value: string,
+): string {
+  return (
+    getLevelOptions(budgetType).find((option) => option.value === value)
+      ?.label ?? value
+  );
+}
+
+export function getBudgetDefinitionLabel(
+  budgetType: BudgetDefinitionTypeForLevels,
+): string {
+  return BUDGET_DEFINITION_LABELS[budgetType];
+}
 
 export const PREFILL_METRIC_OPTIONS = GOAL_TYPE_OPTIONS.map((option) => ({
   value: option.value,

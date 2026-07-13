@@ -13,6 +13,7 @@ import { Loader } from "@/components/ui/loader";
 import { useSetupContext } from "@/components/gbo-optimization/setup-context";
 import {
   areAllGoalsBudgetsGoalsSelected,
+  hasTaxonomyChanged,
   isGeneralConfigComplete,
   useSetupSessionStore,
 } from "@/lib/gbo-optimization/setup-session-store";
@@ -42,6 +43,9 @@ export function SetupHeader({
   const changeLedger = useSetupSessionStore((state) => state.changeLedger);
   const summaryReviewed = useSetupSessionStore((state) => state.summaryReviewed);
   const generalConfig = useSetupSessionStore((state) => state.generalConfig);
+  const taxonomyBaseline = useSetupSessionStore(
+    (state) => state.taxonomyBaseline,
+  );
   const goalsRowState = useSetupSessionStore((state) => state.goalsRowState);
   const triggerMissingGoalsFeedback = useSetupSessionStore(
     (state) => state.triggerMissingGoalsFeedback,
@@ -50,7 +54,9 @@ export function SetupHeader({
   const stepConfig = steps[currentIndex];
   const isFirstStep = currentIndex === 0;
   const isSummaryStep = currentStep === "summary";
-  const hasSessionChanges = changeLedger.length > 0;
+  const hasSessionChanges =
+    changeLedger.length > 0 ||
+    hasTaxonomyChanged(taxonomyBaseline, generalConfig);
   const goalsBudgetsStepValid = areAllGoalsBudgetsGoalsSelected(goalsRowState);
   const isGoalsBudgetsBlocked =
     currentStep === "goals-budgets" && !goalsBudgetsStepValid;

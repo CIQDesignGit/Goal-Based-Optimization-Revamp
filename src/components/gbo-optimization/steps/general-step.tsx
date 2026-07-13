@@ -11,17 +11,19 @@ import {
   AGGRESSIVENESS_OPTIONS,
   BUDGET_GRANULARITIES,
   getGoalChangeImpactMessage,
+  getDefaultLevelsForBudgetType,
+  getLevel2Options,
+  getLevelOptions,
   GOAL_TYPE_OPTIONS,
   GOALS_GOAL_EDITABLE_ROWS,
   isSovGoal,
-  LEVEL_1_OPTIONS,
-  LEVEL_2_OPTIONS,
   OPTIMIZER_OPTIONS,
   RULE_BASED_OPTIMIZER_NOTICE,
   type GoalType,
   type OptimizerType,
 } from "@/lib/gbo-optimization/setup-data";
 import {
+  hasTaxonomyChanged,
   useSetupSessionStore,
   type BudgetDefinitionType,
 } from "@/lib/gbo-optimization/setup-session-store";
@@ -88,6 +90,9 @@ const ALLY_AI_SOV_DISABLED_MESSAGE =
 export function GeneralStep() {
   const { optimizerType, setOptimizerType } = useSetupContext();
   const generalConfig = useSetupSessionStore((state) => state.generalConfig);
+  const taxonomyBaseline = useSetupSessionStore(
+    (state) => state.taxonomyBaseline,
+  );
   const goalsRowState = useSetupSessionStore((state) => state.goalsRowState);
   const setGoalType = useSetupSessionStore((state) => state.setGoalType);
   const setAggressiveness = useSetupSessionStore(
@@ -98,6 +103,9 @@ export function GeneralStep() {
   );
   const dismissGoalChangeImpact = useSetupSessionStore(
     (state) => state.dismissGoalChangeImpact,
+  );
+  const dismissTaxonomyChangeImpact = useSetupSessionStore(
+    (state) => state.dismissTaxonomyChangeImpact,
   );
 
   const isSovSelected =
@@ -110,6 +118,15 @@ export function GeneralStep() {
   const selectedGoalOption = GOAL_TYPE_OPTIONS.find(
     (option) => option.value === generalConfig.goalType,
   );
+
+  const level1Options = getLevelOptions(generalConfig.budgetType);
+  const level2Options = getLevel2Options(
+    generalConfig.budgetType,
+    generalConfig.level1,
+  );
+  const taxonomyChanged = hasTaxonomyChanged(taxonomyBaseline, generalConfig);
+  const showTaxonomyChangeImpact =
+    generalConfig.showTaxonomyChangeImpact && taxonomyChanged;
 
   // SOV cannot use Ally AI — switch away if it was selected (FR-004).
   useEffect(() => {
@@ -140,6 +157,19 @@ export function GeneralStep() {
     }
 
     setOptimizerType(value);
+  };
+
+  const handleBudgetTypeChange = (budgetType: BudgetDefinitionType) => {
+    if (budgetType === generalConfig.budgetType) {
+      return;
+    }
+
+    const defaults = getDefaultLevelsForBudgetType(budgetType);
+    updateGeneralConfig({
+      budgetType,
+      level1: defaults.level1,
+      level2: defaults.level2,
+    });
   };
 
   return (
@@ -209,9 +239,7 @@ export function GeneralStep() {
                 <button
                   key={option.value}
                   type="button"
-                  onClick={() =>
-                    updateGeneralConfig({ budgetType: option.value })
-                  }
+                  onClick={() => handleBudgetTypeChange(option.value)}
                   className={cn(
                     "flex gap-3 rounded-lg border p-4 text-left transition-colors",
                     isSelected
@@ -238,8 +266,8 @@ export function GeneralStep() {
               <SetupInlineSelect
                 label="Level 1"
                 value={generalConfig.level1}
-                options={LEVEL_1_OPTIONS}
-                placeholder="Select portfolio"
+                options={level1Options}
+                placeholder="Select level 1"
                 onValueChange={(value) =>
                   updateGeneralConfig({ level1: value })
                 }
@@ -249,8 +277,8 @@ export function GeneralStep() {
               <SetupInlineSelect
                 label="Level 2"
                 value={generalConfig.level2}
-                options={LEVEL_2_OPTIONS}
-                placeholder="Select category"
+                options={level2Options}
+                placeholder="Select level 2"
                 onValueChange={(value) =>
                   updateGeneralConfig({ level2: value })
                 }
@@ -258,6 +286,18 @@ export function GeneralStep() {
               />
             </div>
           </div>
+
+          {showTaxonomyChangeImpact ? (
+            <ImpactBanner
+              title="Budget organization change"
+              onDismiss={dismissTaxonomyChangeImpact}
+            >
+              Changing how you define your budget reorganizes Scope and how
+              budget is planned. Values under the old structure will not line up
+              one-to-one. You will confirm previous vs new organization on
+              Summary. The new setup starts the next day.
+            </ImpactBanner>
+          ) : null}
         </CardContent>
       </Card>
 
