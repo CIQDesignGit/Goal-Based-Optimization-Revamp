@@ -116,8 +116,24 @@ export function getGoalChangeImpactMessage(
   return `Changing the goal to ${goalLabel} will recalibrate Ally AI targets across all brands in this portfolio. Review goals, budgets, constraints, and seasonality before continuing.`;
 }
 
+/** Portfolio-level copy when the whole setup uses rule-based (General / Goals banners). */
 export const RULE_BASED_OPTIMIZER_NOTICE =
   "Rule-based mode does not include budget entry, and seasonality is not available. Your flow will be Goals (targets only) → Optimizer → Summary (plus Constraints if you enable the toggle for floor/ceiling). The Optimizer step is always included before Summary.";
+
+/**
+ * Item-level copy when one brand/scope row flips Ally → rule-based (FR-019b).
+ * Portfolio wizard does not rebuild — only this item skips those steps.
+ */
+export const RULE_BASED_ITEM_MODE_NOTICE =
+  "For this item only: rule-based skips budget entry and seasonality. Path is Goals → Optimizer → Summary (Constraints only if the floor/ceiling toggle is on). Other items keep their own path.";
+
+/** Short toast copy — same length/style as other setup toasts. */
+export const RULE_BASED_ITEM_MODE_TOAST =
+  "Rule-based skips budget and seasonality for this item. Path: Goals → Optimizer → Summary.";
+
+/** Short persistent cue shown on a rule-based Optimizer row. */
+export const RULE_BASED_ITEM_SKIP_CUE =
+  "Skips budget & seasonality for this item";
 
 export const ALLY_AI_RECOMMENDATION_NOTICE =
   "Ally AI is recommended — it allocates spend and manages constraints automatically, with no manual rules required.";
@@ -350,6 +366,236 @@ export const PREFILLED_HOLIDAY_SEASONALITY_DRAFTS: SeasonalityDraftRowTemplate[]
       budgetMode: "percent",
       budgetValue: "0",
     },
+  },
+];
+
+/**
+ * Prototype seed data: 22 saved events so the Seasonality page can demo
+ * Active / Upcoming / Past volume (relative to ~Jul 13, 2026).
+ */
+export const MOCK_SAVED_SEASONALITY_EVENTS: SeasonalityEvent[] = [
+  // --- Active (running today) ---
+  {
+    id: "mock-active-midyear-push",
+    name: "Mid-Year Push",
+    startDate: "Jul 08, 2026",
+    endDate: "Jul 18, 2026",
+    scope: "entire-business",
+    budgetMode: "percent",
+    budgetValue: "12",
+    sourceKind: "custom",
+  },
+  {
+    id: "mock-active-summer-clearance",
+    name: "Summer Clearance",
+    startDate: "Jul 01, 2026",
+    endDate: "Jul 31, 2026",
+    scope: "portfolio",
+    budgetMode: "percent",
+    budgetValue: "8",
+    sourceKind: "custom",
+  },
+  // --- Upcoming ---
+  {
+    id: "mock-upcoming-prime-day",
+    name: "Prime Day Warm-up",
+    startDate: "Jul 20, 2026",
+    endDate: "Jul 22, 2026",
+    scope: "entire-business",
+    budgetMode: "percent",
+    budgetValue: "15",
+    sourceKind: "custom",
+  },
+  {
+    id: "mock-upcoming-back-to-school",
+    name: "Back to School",
+    startDate: "Aug 10, 2026",
+    endDate: "Aug 24, 2026",
+    scope: "category",
+    budgetMode: "percent",
+    budgetValue: "10",
+    sourceKind: "custom",
+  },
+  {
+    id: "mock-upcoming-labor-day",
+    name: "Labor Day Weekend",
+    startDate: "Sep 04, 2026",
+    endDate: "Sep 07, 2026",
+    scope: "portfolio",
+    budgetMode: "absolute",
+    budgetValue: "4500",
+    sourceKind: "custom",
+  },
+  {
+    id: "mock-upcoming-fall-launch",
+    name: "Fall Assortment Launch",
+    startDate: "Sep 15, 2026",
+    endDate: "Sep 30, 2026",
+    scope: "entire-business",
+    budgetMode: "percent",
+    budgetValue: "9",
+    sourceKind: "custom",
+  },
+  {
+    id: "mock-upcoming-halloween",
+    name: "Halloween Peak",
+    startDate: "Oct 25, 2026",
+    endDate: "Oct 31, 2026",
+    scope: "category",
+    budgetMode: "percent",
+    budgetValue: "11",
+    sourceKind: "custom",
+  },
+  {
+    id: "mock-upcoming-bfcm",
+    name: "BFCM Week",
+    startDate: "Nov 23, 2026",
+    endDate: "Nov 30, 2026",
+    scope: "entire-business",
+    budgetMode: "percent",
+    budgetValue: "22",
+    sourceKind: "custom",
+  },
+  {
+    id: "mock-upcoming-holiday-gift",
+    name: "Holiday Gift Guide",
+    startDate: "Dec 01, 2026",
+    endDate: "Dec 20, 2026",
+    scope: "portfolio",
+    budgetMode: "percent",
+    budgetValue: "18",
+    sourceKind: "custom",
+  },
+  {
+    id: "mock-upcoming-boxing-day",
+    name: "Boxing Day Sale",
+    startDate: "Dec 26, 2026",
+    endDate: "Dec 28, 2026",
+    scope: "entire-business",
+    budgetMode: "absolute",
+    budgetValue: "6200",
+    sourceKind: "custom",
+  },
+  // --- Past (ended before today) ---
+  {
+    id: "mock-past-new-year-2026",
+    name: "New Year Kickoff",
+    startDate: "Jan 01, 2026",
+    endDate: "Jan 05, 2026",
+    scope: "entire-business",
+    budgetMode: "percent",
+    budgetValue: "14",
+    sourceKind: "custom",
+  },
+  {
+    id: "mock-past-mlk",
+    name: "MLK Weekend",
+    startDate: "Jan 17, 2026",
+    endDate: "Jan 19, 2026",
+    scope: "portfolio",
+    budgetMode: "percent",
+    budgetValue: "5",
+    sourceKind: "custom",
+  },
+  {
+    id: "mock-past-super-bowl",
+    name: "Super Bowl Promo",
+    startDate: "Feb 06, 2026",
+    endDate: "Feb 09, 2026",
+    scope: "category",
+    budgetMode: "percent",
+    budgetValue: "16",
+    sourceKind: "custom",
+  },
+  {
+    id: "mock-past-valentines",
+    name: "Valentine's Day",
+    startDate: "Feb 10, 2026",
+    endDate: "Feb 14, 2026",
+    scope: "entire-business",
+    budgetMode: "percent",
+    budgetValue: "12",
+    sourceKind: "custom",
+  },
+  {
+    id: "mock-past-presidents-day",
+    name: "Presidents' Day",
+    startDate: "Feb 14, 2026",
+    endDate: "Feb 16, 2026",
+    scope: "portfolio",
+    budgetMode: "absolute",
+    budgetValue: "2800",
+    sourceKind: "custom",
+  },
+  {
+    id: "mock-past-spring-reset",
+    name: "Spring Reset",
+    startDate: "Mar 15, 2026",
+    endDate: "Mar 28, 2026",
+    scope: "entire-business",
+    budgetMode: "percent",
+    budgetValue: "7",
+    sourceKind: "custom",
+  },
+  {
+    id: "mock-past-easter",
+    name: "Easter Weekend",
+    startDate: "Apr 03, 2026",
+    endDate: "Apr 05, 2026",
+    scope: "category",
+    budgetMode: "percent",
+    budgetValue: "9",
+    sourceKind: "custom",
+  },
+  {
+    id: "mock-past-mothers-day",
+    name: "Mother's Day",
+    startDate: "May 08, 2026",
+    endDate: "May 10, 2026",
+    scope: "portfolio",
+    budgetMode: "percent",
+    budgetValue: "10",
+    sourceKind: "custom",
+  },
+  {
+    id: "mock-past-memorial-day",
+    name: "Memorial Day",
+    startDate: "May 22, 2026",
+    endDate: "May 25, 2026",
+    scope: "entire-business",
+    budgetMode: "percent",
+    budgetValue: "11",
+    sourceKind: "custom",
+  },
+  {
+    id: "mock-past-june-brand",
+    name: "Brand Anniversary",
+    startDate: "Jun 01, 2026",
+    endDate: "Jun 07, 2026",
+    scope: "entire-business",
+    budgetMode: "absolute",
+    budgetValue: "8000",
+    sourceKind: "custom",
+  },
+  {
+    id: "mock-past-fathers-day",
+    name: "Father's Day",
+    startDate: "Jun 19, 2026",
+    endDate: "Jun 21, 2026",
+    scope: "category",
+    budgetMode: "percent",
+    budgetValue: "8",
+    sourceKind: "custom",
+  },
+  {
+    id: "mock-past-july-4",
+    name: "July 4th Weekend",
+    startDate: "Jul 02, 2026",
+    endDate: "Jul 05, 2026",
+    scope: "entire-business",
+    budgetMode: "percent",
+    budgetValue: "13",
+    sourceKind: "custom",
   },
 ];
 

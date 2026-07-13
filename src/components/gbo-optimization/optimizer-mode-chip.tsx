@@ -40,7 +40,7 @@ export const OPTIMIZER_COLUMN_MODE_OPTIONS: {
     value: "rule-based",
     label: "Rule Based",
     description:
-      "Apply custom rules to trigger bid/budget/status changes—ideal for precise, controlled optimization.",
+      "Apply custom rules for this item. Skips budget entry and seasonality — path is Goals → Optimizer → Summary (Constraints only if floor/ceiling is on). The portfolio wizard does not rebuild.",
   },
   {
     value: "none",

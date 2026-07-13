@@ -1,7 +1,15 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { AlertTriangle, CalendarDays, Pencil, Plus, Trash2, X } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarDays,
+  ChevronDown,
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
 import {
@@ -163,14 +171,88 @@ function formatSeasonalityBudgetDisplay(
   return trimmed.startsWith("$") ? trimmed : `$${trimmed}`;
 }
 
+type SeasonalityEventTiming = "active" | "upcoming" | "past";
+
+function startOfLocalDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+/** Classify a saved event relative to today: running now, future, or ended. */
+function getSeasonalityEventTiming(
+  event: SeasonalityEvent,
+  today: Date = new Date(),
+): SeasonalityEventTiming {
+  const start = parseSeasonalityDisplayDate(event.startDate);
+  const end = parseSeasonalityDisplayDate(event.endDate);
+
+  if (!start || !end) {
+    return "upcoming";
+  }
+
+  const todayStart = startOfLocalDay(today).getTime();
+  const startTime = startOfLocalDay(start).getTime();
+  const endTime = startOfLocalDay(end).getTime();
+
+  if (todayStart < startTime) {
+    return "upcoming";
+  }
+
+  if (todayStart > endTime) {
+    return "past";
+  }
+
+  return "active";
+}
+
+function getEventStartTime(event: SeasonalityEvent): number {
+  return parseSeasonalityDisplayDate(event.startDate)?.getTime() ?? 0;
+}
+
+function getEventEndTime(event: SeasonalityEvent): number {
+  return parseSeasonalityDisplayDate(event.endDate)?.getTime() ?? 0;
+}
+
+function groupSavedSeasonalityEvents(events: SeasonalityEvent[]): {
+  active: SeasonalityEvent[];
+  upcoming: SeasonalityEvent[];
+  past: SeasonalityEvent[];
+} {
+  const active: SeasonalityEvent[] = [];
+  const upcoming: SeasonalityEvent[] = [];
+  const past: SeasonalityEvent[] = [];
+
+  for (const event of events) {
+    const timing = getSeasonalityEventTiming(event);
+
+    if (timing === "active") {
+      active.push(event);
+    } else if (timing === "upcoming") {
+      upcoming.push(event);
+    } else {
+      past.push(event);
+    }
+  }
+
+  // Active: ending soonest first (urgency)
+  active.sort((a, b) => getEventEndTime(a) - getEventEndTime(b));
+  // Upcoming: starting soonest first
+  upcoming.sort((a, b) => getEventStartTime(a) - getEventStartTime(b));
+  // Past: most recently ended first
+  past.sort((a, b) => getEventEndTime(b) - getEventEndTime(a));
+
+  return { active, upcoming, past };
+}
+
 function SavedSeasonalityEventRow({
   event,
   goalsRowState,
+  timing,
   onEdit,
   onDelete,
 }: {
   event: SeasonalityEvent;
   goalsRowState: Record<string, GoalsRowState>;
+  timing: SeasonalityEventTiming;
   onEdit: (event: SeasonalityEvent) => void;
   onDelete: (event: SeasonalityEvent) => void;
 }) {
@@ -189,14 +271,23 @@ function SavedSeasonalityEventRow({
     goalsRowState,
   );
 
+  const isActive = timing === "active";
+  const isPast = timing === "past";
+
   return (
     <div
       className={cn(
         SAVED_ROW_LAYOUT,
         "border-b border-slate-100 px-4 py-3 last:border-b-0",
+        isActive && "bg-emerald-50/40",
+        isPast && "opacity-80",
       )}
     >
-      <p className="min-w-0 font-semibold text-slate-900">{event.name}</p>
+      <div className="flex min-w-0 flex-col gap-1">
+        <p className="min-w-0 text-sm font-medium text-slate-700">
+          {event.name}
+        </p>
+      </div>
 
       <p className="flex items-center gap-1.5 text-sm whitespace-nowrap text-slate-600">
         <CalendarDays className="size-3.5 shrink-0 text-slate-400" />
@@ -250,6 +341,54 @@ function SavedSeasonalityEventRow({
   );
 }
 
+function SavedEventsGroupHeader({
+  title,
+  count,
+  description,
+  accentClassName,
+  isOpen,
+  onToggle,
+}: {
+  title: string;
+  count: number;
+  description: string;
+  accentClassName: string;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={isOpen}
+      className="flex w-full items-center justify-between gap-3 border-b border-slate-100 bg-white px-4 py-2.5 text-left hover:bg-slate-50"
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <ChevronDown
+          className={cn(
+            "size-3.5 shrink-0 text-slate-400 transition-transform",
+            !isOpen && "-rotate-90",
+          )}
+          aria-hidden
+        />
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span
+              className={cn("size-2.5 shrink-0 rounded-full", accentClassName)}
+              aria-hidden
+            />
+            <p className="text-sm font-semibold text-slate-800">
+              {title}
+              <span className="ml-1.5 font-medium text-slate-500">({count})</span>
+            </p>
+          </div>
+          <p className="pl-4 text-xs text-slate-500">{description}</p>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 function SavedSeasonalityEventsList({
   events,
   goalsRowState,
@@ -273,85 +412,196 @@ function SavedSeasonalityEventsList({
   onCancelEdit: () => void;
   onDelete: (event: SeasonalityEvent) => void;
 }) {
+  // Collapsed by default so add-event + chart stay visible with many saved rows.
+  const [isExpanded, setIsExpanded] = useState(false);
+  // Past is nested-collapsed by default; Active + Upcoming open when parent expands.
+  const [isPastOpen, setIsPastOpen] = useState(false);
+
+  const { active, upcoming, past } = groupSavedSeasonalityEvents(events);
+
+  const summaryParts = [
+    active.length > 0 ? `${active.length} active` : null,
+    upcoming.length > 0 ? `${upcoming.length} upcoming` : null,
+    past.length > 0 ? `${past.length} past` : null,
+  ].filter(Boolean);
+
+  const renderEventRows = (
+    groupEvents: SeasonalityEvent[],
+    timing: SeasonalityEventTiming,
+  ) =>
+    groupEvents.map((event) => {
+      const isEditing = editingEventId === event.id && editingForm !== null;
+
+      if (isEditing) {
+        return (
+          <div
+            key={event.id}
+            className="border-b border-slate-100 bg-brand-50/30 px-4 py-3 ring-2 ring-inset ring-brand-500/20 last:border-b-0"
+          >
+            <SeasonalityEventFormRow
+              form={editingForm}
+              scopeError={editingScopeError}
+              budgetContextLabel={getSeasonalityBudgetContextLabel(
+                editingForm.startDate,
+                editingForm.budgetMode,
+                goalsRowState,
+              )}
+              onChange={onUpdateEditingForm}
+              onSave={() => onSaveEdit(event)}
+              onClose={onCancelEdit}
+            />
+          </div>
+        );
+      }
+
+      return (
+        <SavedSeasonalityEventRow
+          key={event.id}
+          event={event}
+          timing={timing}
+          goalsRowState={goalsRowState}
+          onEdit={onStartEdit}
+          onDelete={onDelete}
+        />
+      );
+    });
+
   return (
     <section className="overflow-hidden rounded-md border border-slate-200 border-l-4 border-l-emerald-500 bg-white shadow-sm">
-      <div className="flex items-start justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3">
-        <div>
-          <p className="text-sm font-semibold text-slate-900">Saved events</p>
-          <p className="text-sm text-slate-500">
-            {events.length === 1
-              ? "1 event added to your plan"
-              : `${events.length} events added to your plan`}
-          </p>
+      <button
+        type="button"
+        onClick={() => setIsExpanded((open) => !open)}
+        aria-expanded={isExpanded}
+        className={cn(
+          "flex w-full items-start justify-between gap-3 bg-slate-50 px-4 py-3 text-left transition-colors hover:bg-slate-100",
+          isExpanded && "border-b border-slate-100",
+        )}
+      >
+        <div className="flex min-w-0 items-start gap-2">
+          <ChevronDown
+            className={cn(
+              "mt-0.5 size-4 shrink-0 text-slate-500 transition-transform",
+              !isExpanded && "-rotate-90",
+            )}
+            aria-hidden
+          />
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Saved events</p>
+            <p className="text-sm text-slate-500">
+              {summaryParts.length > 0
+                ? summaryParts.join(" · ")
+                : events.length === 1
+                  ? "1 event added to your plan"
+                  : `${events.length} events added to your plan`}
+            </p>
+          </div>
         </div>
         <span className="inline-flex h-6 shrink-0 items-center rounded-full bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200/80 ring-inset">
           {events.length}
         </span>
-      </div>
+      </button>
 
-      <SeasonalityEventTable>
-        <div
-          className={cn(
-            SAVED_ROW_LAYOUT,
-            "border-b border-slate-100 px-4 py-2.5",
-          )}
-        >
-          <span className="text-xs font-medium tracking-wide text-slate-500 uppercase">
-            Event name
-          </span>
-          <span className="text-xs font-medium tracking-wide text-slate-500 uppercase">
-            Start date
-          </span>
-          <span className="text-xs font-medium tracking-wide text-slate-500 uppercase">
-            End date
-          </span>
-          <span className="text-xs font-medium tracking-wide text-slate-500 uppercase">
-            Scope
-          </span>
-          <span className="text-xs font-medium tracking-wide text-slate-500 uppercase">
-            Budget
-          </span>
-          <span className="text-xs font-medium tracking-wide text-slate-500 uppercase">
-            Actions
-          </span>
-        </div>
+      {isExpanded ? (
+        <SeasonalityEventTable>
+          <div
+            className={cn(
+              SAVED_ROW_LAYOUT,
+              "border-b border-slate-100 px-4 py-2.5",
+            )}
+          >
+            <span className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+              Event name
+            </span>
+            <span className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+              Start date
+            </span>
+            <span className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+              End date
+            </span>
+            <span className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+              Scope
+            </span>
+            <span className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+              Budget
+            </span>
+            <span className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+              Actions
+            </span>
+          </div>
 
-        {events.map((event) => {
-          const isEditing = editingEventId === event.id && editingForm !== null;
-
-          if (isEditing) {
-            return (
-              <div
-                key={event.id}
-                className="border-b border-slate-100 bg-brand-50/30 px-4 py-3 ring-2 ring-inset ring-brand-500/20 last:border-b-0"
-              >
-                <SeasonalityEventFormRow
-                  form={editingForm}
-                  scopeError={editingScopeError}
-                  budgetContextLabel={getSeasonalityBudgetContextLabel(
-                    editingForm.startDate,
-                    editingForm.budgetMode,
-                    goalsRowState,
-                  )}
-                  onChange={onUpdateEditingForm}
-                  onSave={() => onSaveEdit(event)}
-                  onClose={onCancelEdit}
-                />
+          {active.length > 0 ? (
+            <div>
+              <div className="border-b border-slate-100 bg-emerald-50/60 px-4 py-2.5">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="size-2.5 shrink-0 rounded-full bg-emerald-500"
+                    aria-hidden
+                  />
+                  <p className="text-sm font-semibold text-slate-800">
+                    Active
+                    <span className="ml-1.5 font-medium text-slate-500">
+                      ({active.length})
+                    </span>
+                  </p>
+                </div>
+                <p className="pl-4 text-xs text-slate-500">
+                  Running today — impacting budget now
+                </p>
               </div>
-            );
-          }
+              <div className="border-b border-slate-100">
+                {renderEventRows(active, "active")}
+              </div>
+            </div>
+          ) : (
+            <div className="border-b border-slate-100 px-4 py-3">
+              <p className="text-sm text-slate-500">
+                No events running today. Check Upcoming below or add a new event.
+              </p>
+            </div>
+          )}
 
-          return (
-            <SavedSeasonalityEventRow
-              key={event.id}
-              event={event}
-              goalsRowState={goalsRowState}
-              onEdit={onStartEdit}
-              onDelete={onDelete}
-            />
-          );
-        })}
-      </SeasonalityEventTable>
+          {upcoming.length > 0 ? (
+            <div>
+              <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-2.5">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="size-2.5 shrink-0 rounded-full bg-sky-500"
+                    aria-hidden
+                  />
+                  <p className="text-sm font-semibold text-slate-800">
+                    Upcoming
+                    <span className="ml-1.5 font-medium text-slate-500">
+                      ({upcoming.length})
+                    </span>
+                  </p>
+                </div>
+                <p className="pl-4 text-xs text-slate-500">
+                  Starts later — not yet affecting spend
+                </p>
+              </div>
+              <div className="border-b border-slate-100">
+                {renderEventRows(upcoming, "upcoming")}
+              </div>
+            </div>
+          ) : null}
+
+          {past.length > 0 ? (
+            <div>
+              <SavedEventsGroupHeader
+                title="Past"
+                count={past.length}
+                description="Ended events — expand to review"
+                accentClassName="bg-slate-400"
+                isOpen={isPastOpen}
+                onToggle={() => setIsPastOpen((open) => !open)}
+              />
+              {isPastOpen ? (
+                <div>{renderEventRows(past, "past")}</div>
+              ) : null}
+            </div>
+          ) : null}
+        </SeasonalityEventTable>
+      ) : null}
     </section>
   );
 }
@@ -565,7 +815,7 @@ function SeasonalityEventFormRow({
             size="icon-sm"
             onClick={onClose}
             className="text-slate-500 hover:text-slate-900"
-            aria-label="Close event form"
+            aria-label="Discard event"
           >
             <X className="size-4" />
           </Button>
@@ -591,44 +841,58 @@ function CustomEventsSection({
   onUpdate,
   onSave,
   onClose,
+  onAddEvent,
 }: {
   rows: DraftEventRow[];
   goalsRowState: ReturnType<typeof useSetupSessionStore.getState>["goalsRowState"];
   onUpdate: (rowId: string, updates: Partial<SeasonalityDraftFormState>) => void;
   onSave: (rowId: string) => void;
   onClose: (rowId: string) => void;
+  onAddEvent: () => void;
 }) {
-  if (rows.length === 0) {
-    return null;
-  }
-
   return (
     <section className="rounded-md border border-slate-200 bg-white p-4 shadow-xs">
       <p className="mb-3 text-sm font-medium text-slate-900">Custom event</p>
-      <SeasonalityEventTable>
-        <SeasonalityEventFormHeader />
-        <div className="mt-3 flex flex-col gap-4">
-          {rows.map((row) => (
-            <div
-              key={row.id}
-              className={cn(row.isHighlighted && "rounded-md ring-2 ring-brand-500")}
-            >
-              <SeasonalityEventFormRow
-                form={row.form}
-                scopeError={row.scopeError}
-                budgetContextLabel={getSeasonalityBudgetContextLabel(
-                  row.form.startDate,
-                  row.form.budgetMode,
-                  goalsRowState,
-                )}
-                onChange={(updates) => onUpdate(row.id, updates)}
-                onSave={() => onSave(row.id)}
-                onClose={() => onClose(row.id)}
-              />
-            </div>
-          ))}
-        </div>
-      </SeasonalityEventTable>
+
+      {rows.length > 0 ? (
+        <SeasonalityEventTable>
+          <SeasonalityEventFormHeader />
+          <div className="mt-3 flex flex-col gap-4">
+            {rows.map((row) => (
+              <div
+                key={row.id}
+                className={cn(row.isHighlighted && "rounded-md ring-2 ring-brand-500")}
+              >
+                <SeasonalityEventFormRow
+                  form={row.form}
+                  scopeError={row.scopeError}
+                  budgetContextLabel={getSeasonalityBudgetContextLabel(
+                    row.form.startDate,
+                    row.form.budgetMode,
+                    goalsRowState,
+                  )}
+                  onChange={(updates) => onUpdate(row.id, updates)}
+                  onSave={() => onSave(row.id)}
+                  onClose={() => onClose(row.id)}
+                />
+              </div>
+            ))}
+          </div>
+        </SeasonalityEventTable>
+      ) : null}
+
+      <Button
+        type="button"
+        variant="link"
+        onClick={onAddEvent}
+        className={cn(
+          "h-auto w-fit gap-1.5 px-0 text-brand-600 hover:text-brand-700",
+          rows.length > 0 && "mt-3",
+        )}
+      >
+        <Plus className="size-4" />
+        Add event
+      </Button>
     </section>
   );
 }
@@ -785,24 +1049,8 @@ export function SeasonalityEventsSection({
   };
 
   const handleClose = (rowId: string) => {
-    const row = draftRows.find((draft) => draft.id === rowId);
-
-    if (!row) {
-      return;
-    }
-
-    setDraftRows((current) =>
-      current.map((draft) =>
-        draft.id === rowId
-          ? {
-              ...draft,
-              form: { ...draft.initialForm },
-              scopeError: false,
-              isHighlighted: false,
-            }
-          : draft,
-      ),
-    );
+    // X discards the draft row (custom or suggested) — remove it from the list.
+    setDraftRows((current) => current.filter((draft) => draft.id !== rowId));
   };
 
   const handleAddEvent = () => {
@@ -910,6 +1158,25 @@ export function SeasonalityEventsSection({
         scope and budget, then save each event to add it to your plan.
       </p>
 
+      <div className="flex flex-col gap-3">
+        <CustomEventsSection
+          rows={customRows}
+          goalsRowState={goalsRowState}
+          onUpdate={updateDraftRow}
+          onSave={handleSave}
+          onClose={handleClose}
+          onAddEvent={handleAddEvent}
+        />
+
+        <SuggestedHolidayEventsSection
+          rows={suggestedRows}
+          goalsRowState={goalsRowState}
+          onUpdate={updateDraftRow}
+          onSave={handleSave}
+          onClose={handleClose}
+        />
+      </div>
+
       {events.length > 0 && (
         <SavedSeasonalityEventsList
           events={events}
@@ -924,34 +1191,6 @@ export function SeasonalityEventsSection({
           onDelete={handleDeleteSavedEvent}
         />
       )}
-
-      <div className="flex flex-col gap-3">
-        <CustomEventsSection
-          rows={customRows}
-          goalsRowState={goalsRowState}
-          onUpdate={updateDraftRow}
-          onSave={handleSave}
-          onClose={handleClose}
-        />
-
-        <SuggestedHolidayEventsSection
-          rows={suggestedRows}
-          goalsRowState={goalsRowState}
-          onUpdate={updateDraftRow}
-          onSave={handleSave}
-          onClose={handleClose}
-        />
-      </div>
-
-      <Button
-        type="button"
-        variant="link"
-        onClick={handleAddEvent}
-        className="h-auto w-fit gap-1.5 px-0 text-brand-600 hover:text-brand-700"
-      >
-        <Plus className="size-4" />
-        Add event
-      </Button>
     </div>
   );
 }

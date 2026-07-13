@@ -1290,7 +1290,19 @@ export function GoalsBudgetsStep() {
                   !showGoalDetailColumns && STICKY_GOAL_EDGE,
                 )}
               >
-                <InfoLabel label="Metric to optimize" />
+                <div className="flex flex-col gap-1.5">
+                  <InfoLabel label="Metric to optimize" />
+                  <SetupInlineSelect
+                    hideLabel
+                    label="Apply goal to all rows"
+                    value={bulkGoalMetric}
+                    options={BULK_GOAL_METRIC_SELECT_OPTIONS}
+                    placeholder="Apply to all"
+                    menuMinWidth={GOAL_METRIC_MENU_MIN_WIDTH_PX}
+                    onValueChange={applyGoalToAllRows}
+                    triggerClassName={BULK_METRIC_SELECT_TRIGGER_CLASS}
+                  />
+                </div>
               </th>
               {showGoalDetailColumns ? (
                 <>
@@ -1467,18 +1479,7 @@ export function GoalsBudgetsStep() {
                         MISSING_GOAL_HIGHLIGHT_CLASS,
                     )}
                   >
-                    {isParent ? (
-                      <SetupInlineSelect
-                        hideLabel
-                        label="Apply goal to all rows"
-                        value={bulkGoalMetric}
-                        options={BULK_GOAL_METRIC_SELECT_OPTIONS}
-                        placeholder="Apply to all"
-                        menuMinWidth={GOAL_METRIC_MENU_MIN_WIDTH_PX}
-                        onValueChange={applyGoalToAllRows}
-                        triggerClassName={BULK_METRIC_SELECT_TRIGGER_CLASS}
-                      />
-                    ) : editable && canEditGoal ? (
+                    {!isParent && editable && canEditGoal ? (
                       <div className="min-w-0">
                         <ChangedCellTooltip
                           visual={getGoalMetricVisualState(editable)}

@@ -25,7 +25,8 @@ export type CampaignPercentField = (typeof CAMPAIGN_PERCENT_FIELDS)[number];
 export type PercentField = SpendPercentField | CampaignPercentField;
 
 export const MAX_PERCENT_VALUE = 100;
-export const PERCENT_DEVIATION_THRESHOLD = 10;
+/** Absolute percentage points from historical — within this is OK (blue); beyond is an error (red). */
+export const PERCENT_DEVIATION_THRESHOLD = 15;
 
 export type PercentValidationIssue =
   | { type: "over_max"; attempted: number; max: number }
@@ -38,7 +39,8 @@ export type PercentValidationIssue =
     };
 
 export function parsePercent(value: string): number {
-  const cleaned = value.trim().replace(/%/g, "");
+  // Allow "~45%" display values — the tilde means approximate / prefilled.
+  const cleaned = value.trim().replace(/[~%]/g, "");
   if (!cleaned) return 0;
   const parsed = Number.parseFloat(cleaned);
   return Number.isNaN(parsed) ? 0 : parsed;

@@ -27,9 +27,9 @@
 - Keep pages under 300 lines. Extract into `src/components/`.
 
 ## GBO setup flow
-- Wizard step order (Ally AI): General → Goals & Budgets → Seasonality (optional) → Constraints (optional) → **Optimizer (always)** → Summary.
-- Wizard step order (rule-based): General → Goals → Constraints (optional) → **Optimizer (always)** → Summary.
+- Portfolio wizard shell (Ally-style): General → Goals & Budgets → Seasonality (optional) → Constraints (optional) → **Optimizer (always)** → Summary.
 - Do not gate Optimizer behind a switch — it is always present before Summary.
+- **Item-level Ally → rule-based (important):** Changing one brand/scope row to rule-based does **not** rebuild the portfolio stepper. For **that item only**, skip budget entry and seasonality. Effective path for that item: **Goals → Optimizer → Summary**, with **Constraints only when the floor/ceiling toggle is on**. Clarify this at the point of change (inline/popover/banner on that row — not a full-flow rebuild).
 - **Day Parting** in Optimizer is a clickable tile (not a free-text field). Click opens a right side panel to configure the hourly bid strategy.
 
 ## Typography
@@ -50,4 +50,4 @@ When a user edits spend/campaign percent cells on a brand row:
    - locked manual values alone exceed **100%**, or
    - every column in the group is manually set and the sum is not exactly **100%**.
 4. Never zero out columns to “fix” an over-100 row; leave values as entered and let the user adjust.
-5. Cell styling: **prefilled** (gray italic) = still at historic value; **edited** (dark) = user changed; **adjusted** (blue) = auto-rebalanced after another edit.
+5. Cell styling: **prefilled** (gray italic + `~`) = still at historic value; **edited within ±15%** (blue) = user changed but close to historical; **edited beyond ±15%** (red) = soft warning only — does **not** disable Next; **adjusted** (blue/gray) = auto-rebalanced after another edit.

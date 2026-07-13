@@ -99,10 +99,12 @@ const totalColClass = "text-right";
 const cellInputClass =
   "h-8 w-full min-w-0 px-1 text-center text-sm tabular-nums shadow-none border border-transparent hover:border-slate-200 focus-visible:border-brand-300 focus-visible:bg-white";
 
-/** Select numeric portion on focus — keeps $ prefix and % suffix out of selection. */
+/** Select numeric portion on focus — keeps ~ / $ prefixes and % suffix out of selection. */
 function selectEditablePortion(input: HTMLInputElement) {
   const { value } = input;
-  const start = value.startsWith("$") ? 1 : 0;
+  let start = 0;
+  if (value.startsWith("~")) start += 1;
+  if (value.charAt(start) === "$") start += 1;
   const end = value.endsWith("%")
     ? Math.max(start, value.length - 1)
     : value.length;
@@ -112,6 +114,25 @@ function selectEditablePortion(input: HTMLInputElement) {
   } else if (value.length > 0) {
     input.select();
   }
+}
+
+/** Prefilled / historic values are approximate — show "~" in front (not stored in state). */
+function withApproxPrefix(value: string): string {
+  const cleaned = value.trim();
+  if (!cleaned || cleaned === "—" || cleaned.startsWith("~")) return cleaned;
+  return `~${cleaned}`;
+}
+
+function stripApproxPrefix(value: string): string {
+  const trimmed = value.trimStart();
+  return trimmed.startsWith("~") ? trimmed.slice(1) : value;
+}
+
+function formatConstraintInputDisplay(
+  value: string,
+  visual: CellVisualState,
+): string {
+  return visual === "historic" ? withApproxPrefix(value) : value;
 }
 
 function handleConstraintInputFocus(
@@ -167,9 +188,9 @@ function FloatingCellAlert({
         position: "fixed",
         top: rect.bottom + 4,
         left: rect.left,
-        minWidth: rect.width,
+        minWidth: Math.max(rect.width, 240),
         width: "max-content",
-        maxWidth: 220,
+        maxWidth: 320,
         zIndex: 50,
       });
     };
@@ -215,6 +236,13 @@ type InlineBlockAlert = {
   previousValue: string;
 };
 
+/** Soft ±15% guidance — shown after commit; does not block Next. */
+type SoftDeviationAlert = {
+  rowId: string;
+  field: PercentField;
+  message: string;
+};
+
 function inlineBlockMessage(
   issue: Extract<PercentValidationIssue, { type: "over_max" | "under_min" }>,
 ): string {
@@ -225,7 +253,7 @@ function inlineBlockMessage(
 }
 
 function parseCurrency(value: string): number {
-  const cleaned = value.replace(/[$,\s]/g, "");
+  const cleaned = value.replace(/[~$,\s]/g, "");
   const parsed = Number.parseFloat(cleaned);
   return Number.isNaN(parsed) ? 0 : parsed;
 }
@@ -364,6 +392,29 @@ function percentTotalClassName(
   );
 }
 
+function getHistoricPercentDeviation(
+  state: ConstraintRowState,
+  field: PercentField,
+): number {
+  return Math.abs(
+    parsePercent(state.values[field]) - state.historicPercents[field],
+  );
+}
+
+/** User-edited percent more than ±15 points from historical — soft warning (not blocking). */
+function isHistoricDeviationWarning(
+  state: ConstraintRowState,
+  field: ConstraintValueField,
+): boolean {
+  if (!isPercentField(field) || !state.overridden[field]) return false;
+  if (fieldMatchesHistoric(state, field)) return false;
+  return getHistoricPercentDeviation(state, field) > PERCENT_DEVIATION_THRESHOLD;
+}
+
+function historicDeviationWarningMessage(historicPercent: number): string {
+  return `Stay within ±${PERCENT_DEVIATION_THRESHOLD}% of historical (${withApproxPrefix(formatPercentNumber(historicPercent))})`;
+}
+
 function cellInputVisualClass(
   state: ConstraintRowState,
   field: ConstraintValueField,
@@ -371,12 +422,22 @@ function cellInputVisualClass(
 ): string {
   const visual = getCellVisualState(state, field);
 
+  // Edited vs historical: blue within ±15%, soft red beyond (warning only — does not block Next).
+  const editedDeviationClass =
+    visual === "edited" && isPercentField(field)
+      ? isHistoricDeviationWarning(state, field)
+        ? "bg-error-50 font-medium !text-destructive"
+        : "bg-sky-50/60 font-medium !text-sky-700"
+      : visual === "edited"
+        ? "bg-white font-medium !text-brand-600"
+        : null;
+
   return cn(
     cellInputClass,
     visual === "historic" &&
       "bg-slate-50 text-slate-400 italic placeholder:text-slate-300",
     visual === "adjusted" && "bg-sky-50/60 text-slate-600",
-    visual === "edited" && "bg-white font-medium !text-brand-600",
+    editedDeviationClass,
     extra,
   );
 }
@@ -386,11 +447,11 @@ function getHistoricDisplayValue(
   field: ConstraintValueField,
 ): string {
   if (isPercentField(field)) {
-    return formatPercentNumber(state.historicPercents[field]);
+    return withApproxPrefix(formatPercentNumber(state.historicPercents[field]));
   }
 
   const historic = state.historicValues[field].trim();
-  return historic || "—";
+  return historic ? withApproxPrefix(historic) : "—";
 }
 
 function HistoricValueLabel({ value }: { value: string }) {
@@ -494,6 +555,7 @@ type PercentConstraintCellProps = {
   historicDisplay?: string;
   pendingWarning: PendingPercentWarning | null;
   blockAlert: InlineBlockAlert | null;
+  softDeviationAlert: SoftDeviationAlert | null;
   onChange: (value: string) => void;
   onFocus: () => void;
   onBlur: () => void;
@@ -514,6 +576,7 @@ function PercentConstraintCell({
   historicDisplay,
   pendingWarning,
   blockAlert,
+  softDeviationAlert,
   onChange,
   onFocus,
   onBlur,
@@ -524,6 +587,8 @@ function PercentConstraintCell({
   const showConfirm =
     pendingWarning?.rowId === rowId && pendingWarning.field === field;
   const showBlock = blockAlert?.rowId === rowId && blockAlert.field === field;
+  const showSoftDeviation =
+    softDeviationAlert?.rowId === rowId && softDeviationAlert.field === field;
 
   return (
     <div
@@ -545,8 +610,10 @@ function PercentConstraintCell({
           to={diffTo}
         >
           <Input
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
+            value={formatConstraintInputDisplay(value, cellVisual)}
+            onChange={(event) =>
+              onChange(stripApproxPrefix(event.target.value))
+            }
             onFocus={(event) => handleConstraintInputFocus(event, onFocus)}
             onClick={(event) => selectEditablePortion(event.currentTarget)}
             onKeyDown={(event) =>
@@ -568,7 +635,7 @@ function PercentConstraintCell({
                 "!border-amber-400 bg-amber-50/50 !ring-2 !ring-amber-200 hover:!border-amber-400 hover:bg-amber-50/50 focus-visible:!border-amber-500 focus-visible:!ring-amber-200 focus-visible:bg-white",
               showBlock &&
                 !showConfirm &&
-                "!border-destructive bg-white !ring-2 !ring-destructive/25 hover:!border-destructive focus-visible:!border-destructive focus-visible:!ring-destructive/25",
+                "!border-destructive bg-error-50 !ring-2 !ring-destructive/25 hover:!border-destructive focus-visible:!border-destructive focus-visible:!ring-destructive/25",
             )}
           />
         </ChangedCellTooltip>
@@ -616,9 +683,19 @@ function PercentConstraintCell({
         <FloatingCellAlert
           anchorRef={anchorRef}
           active
-          className="whitespace-nowrap rounded-lg border border-destructive/30 bg-white p-3 text-left text-sm leading-snug text-destructive shadow-lg"
+          className="rounded-lg border border-destructive/30 bg-white p-3 text-left text-sm leading-snug text-destructive shadow-lg"
         >
           {blockAlert.message}
+        </FloatingCellAlert>
+      )}
+      {/* Soft guidance only — does not block Next */}
+      {showSoftDeviation && softDeviationAlert && !showConfirm && !showBlock && (
+        <FloatingCellAlert
+          anchorRef={anchorRef}
+          active
+          className="rounded-lg border border-slate-200 bg-white p-3 text-left text-sm leading-snug text-slate-700 shadow-lg"
+        >
+          {softDeviationAlert.message}
         </FloatingCellAlert>
       )}
     </div>
@@ -663,8 +740,10 @@ function EditableConstraintCell({
         to={diffTo}
       >
         <Input
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
+          value={formatConstraintInputDisplay(value, cellVisual)}
+          onChange={(event) =>
+            onChange(stripApproxPrefix(event.target.value))
+          }
           onFocus={(event) => handleConstraintInputFocus(event, onFocus)}
           onClick={(event) => selectEditablePortion(event.currentTarget)}
           onKeyDown={(event) => handleConstraintInputKeyDown(event)}
@@ -695,10 +774,34 @@ export function ConstraintsStep() {
   const [pendingWarning, setPendingWarning] =
     useState<PendingPercentWarning | null>(null);
   const [blockAlert, setBlockAlert] = useState<InlineBlockAlert | null>(null);
+  const [softDeviationAlert, setSoftDeviationAlert] =
+    useState<SoftDeviationAlert | null>(null);
   const [historicHintDismissed, setHistoricHintDismissed] = useState(false);
   const [showHistoricalData, setShowHistoricalData] = useState(false);
   const [constraintMidMonthActivity, setConstraintMidMonthActivity] =
     useState(false);
+
+  // Soft ±15% tip dismisses on the next click/tap outside (does not block Next).
+  useEffect(() => {
+    if (!softDeviationAlert) {
+      return;
+    }
+
+    const dismiss = () => {
+      setSoftDeviationAlert(null);
+    };
+
+    // Wait until after the blur/commit that opened the tip, so that same click
+    // does not immediately close it.
+    const timerId = window.setTimeout(() => {
+      document.addEventListener("pointerdown", dismiss, true);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timerId);
+      document.removeEventListener("pointerdown", dismiss, true);
+    };
+  }, [softDeviationAlert]);
 
   const markMidMonthConstraintActivity = () => {
     if (shouldWarnMidMonthConstraintTiming()) {
@@ -890,6 +993,13 @@ export function ConstraintsStep() {
       setBlockAlert(null);
     }
 
+    if (
+      softDeviationAlert &&
+      (softDeviationAlert.rowId !== rowId || softDeviationAlert.field !== field)
+    ) {
+      setSoftDeviationAlert(null);
+    }
+
     const sessionPrevious =
       blockAlert?.rowId === rowId && blockAlert.field === field
         ? blockAlert.previousValue
@@ -957,20 +1067,20 @@ export function ConstraintsStep() {
       return;
     }
 
-    const baseline = parsePercent(previousValue);
-    if (Math.abs(parsed - baseline) > PERCENT_DEVIATION_THRESHOLD) {
-      setPendingWarning({
+    // Beyond ±15% of historical is a soft warning only — still commit and allow Next.
+    applyPercentCommit(rowId, field, group, parsed);
+    const historicBaseline = row.historicPercents[field];
+    if (Math.abs(parsed - historicBaseline) > PERCENT_DEVIATION_THRESHOLD) {
+      setSoftDeviationAlert({
         rowId,
         field,
-        group,
-        previousValue,
-        proposedValue: parsed,
+        message: historicDeviationWarningMessage(historicBaseline),
       });
-      setBlockAlert(null);
-      return;
+    } else {
+      setSoftDeviationAlert((current) =>
+        current?.rowId === rowId && current.field === field ? null : current,
+      );
     }
-
-    applyPercentCommit(rowId, field, group, parsed);
     setPendingWarning(null);
     setBlockAlert(null);
     delete editSessionsRef.current[editSessionKey(rowId, field)];
@@ -1396,6 +1506,7 @@ export function ConstraintsStep() {
                             onDismissPending={dismissPendingWarning}
                             pendingWarning={pendingWarning}
                             blockAlert={blockAlert}
+                            softDeviationAlert={softDeviationAlert}
                             ariaLabel={`${field} for ${row.name}`}
                             showHistoricalData={showHistoricalData}
                             historicDisplay={getHistoricDisplayValue(state, field)}
@@ -1460,6 +1571,7 @@ export function ConstraintsStep() {
                               onDismissPending={dismissPendingWarning}
                               pendingWarning={pendingWarning}
                               blockAlert={blockAlert}
+                              softDeviationAlert={softDeviationAlert}
                               ariaLabel={`${field} for ${row.name}`}
                               showHistoricalData={showHistoricalData}
                               historicDisplay={getHistoricDisplayValue(state, field)}
@@ -1576,11 +1688,22 @@ export function ConstraintsStep() {
           <div className="flex items-start gap-2 text-sm text-slate-600">
             <History className="mt-0.5 size-4 shrink-0 text-slate-400" />
             <p className="flex-1 pr-2">
-              Gray italic values are based on your{" "}
+              Default values with a{" "}
+              <span className="font-medium text-slate-700">~</span> are
+              approximate, based on your{" "}
               <span className="font-medium text-slate-700">last 30 days</span> of
-              spend distribution. Edit any cell to override it — other default cells
-              in that row rebalance automatically to keep the total at{" "}
-              <span className="font-medium text-slate-700">100%</span>.
+              spend.{" "}
+              <span className="font-medium text-slate-700">
+                Values you enter stick
+              </span>
+              ; other cells follow historical spend on a best-effort basis and
+              rebalance automatically to keep the total at{" "}
+              <span className="font-medium text-slate-700">100%</span>. Edits
+              within{" "}
+              <span className="font-medium text-sky-700">±15%</span> of
+              historical show in blue; beyond that shows in{" "}
+              <span className="font-medium text-destructive">red</span> as a
+              warning (you can still continue).
             </p>
             <button
               type="button"

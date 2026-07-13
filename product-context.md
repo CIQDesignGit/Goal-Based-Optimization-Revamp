@@ -44,8 +44,9 @@ This PRD covers the changes that make GBO easier to understand and use: clearer 
 | **Goal Based Optimization (GBO)** | The flow where a user sets an optimization goal, an optional target value, and an aggressiveness level, then configures budget, constraints, and seasonality per brand. |
 | **General page** | The renamed first step of the flow (previously Goals setup), where the user sets the goal, aggressiveness, and the optimizer. |
 | **Ally AI** | The optimizer that allocates spend and manages constraints on its own. It's the recommended mode and the one that earns commission revenue. |
-| **Rule-based optimization** | The manual mode where the user defines explicit strategies and rules. Constraints and seasonality settings do not apply in this mode (except floor/ceiling). |
-| **Optimizer** | The portfolio-level choice between Ally AI and rule-based optimization, and the rule-based configuration step in the rule-based flow. |
+| **Rule-based optimization** | The manual mode where the user defines explicit strategies and rules. For a rule-based **item** (brand / scope row), budget entry and seasonality do not apply; constraints are limited to floor/ceiling when that toggle is on. |
+| **Optimizer** | The step where users configure strategies, and can set Ally AI vs rule-based per item (and at portfolio level on General). |
+| **Item-level optimizer mode** | Ally / rule-based (or None) on a single brand or scope row — e.g. Budget Optimization or Bid Optimization chips on the Optimizer step. Changing one item does **not** rebuild the portfolio wizard. |
 | **ROAS** | Return on ad spend — the goal metric. Available as brand ROAS, incremental ROAS, or total ROAS. |
 | **SOV** | Share of voice — a goal type that applies only to rule-based optimization and **not** to Ally AI. |
 | **Constraints** | Spend limits and rules applied to optimization. They apply only when Ally AI is selected (except floor/ceiling in rule-based). |
@@ -56,17 +57,27 @@ This PRD covers the changes that make GBO easier to understand and use: clearer 
 
 ## Flow sequences (optimizer-driven)
 
-### Ally AI
+### Portfolio wizard (shell)
 
-`General` → `Goals & Budgets` → `Seasonality` (optional toggle) → `Constraints` (optional toggle) → `Optimizer` → `Summary`
+The stepper is the portfolio shell. Optional steps (Seasonality, Constraints) still follow portfolio toggles. The **Optimizer** step is always present (no toggle) and sits after Constraints when included, always immediately before Summary.
 
-### Rule-based
+### Ally AI (item applies full path)
 
-`General` → `Goals` (no budgets) → `Constraints` (optional toggle; floor/ceiling only) → `Optimizer` → `Summary`
+For items on Ally AI, the relevant path includes budgets and (when enabled) seasonality / full constraints:
 
-> **Note:** The **Optimizer** step is always present in both flows (no toggle). It sits after Constraints when Constraints is included, and always immediately before Summary.
+`General` → `Goals & Budgets` → `Seasonality` (optional) → `Constraints` (optional) → `Optimizer` → `Summary`
+
+### Rule-based (item skips incompatible steps)
+
+When an **item** is switched to rule-based, the portfolio wizard / stepper does **not** rebuild. Only that item skips steps that do not apply:
+
+- **Skipped for that item:** budget entry, seasonality
+- **Effective path for that item:** `Goals` → `Optimizer` → `Summary`
+- **Constraints for that item:** only when the floor/ceiling toggle is on; otherwise Constraints is skipped for that item too
+
+> **Clarify in UI when mode flips Ally → rule-based on an item:** rule-based excludes budget entry and seasonality; flow for that item is Goals → Optimizer → Summary, with Constraints only when the floor/ceiling toggle is on.
 >
-> **Note:** People should be able to select Ally AI / rule-based at the **brand level** as well as portfolio level.
+> People can select Ally AI / rule-based at the **item (brand) level** as well as portfolio level.
 
 ---
 
@@ -80,7 +91,7 @@ This PRD covers the changes that make GBO easier to understand and use: clearer 
 | **FR-002** | The General page **MUST** present the optimizer choice (Ally AI vs rule-based) as a selection that applies uniformly across all brands in the portfolio. People should also be able to select Ally / rule-based at the brand level. |
 | **FR-003** | At the overall (portfolio) level, the flow **MUST** recommend Ally AI (noting it also handles spend and constraints) and, when a user selects rule-based, **MUST** prompt whether they want to switch to Ally AI for everything. |
 | **FR-004** | When a user selects SOV as the goal, the system **MUST** prevent Ally AI from being selected and **MUST** show a message at the point of selecting SOV explaining that SOV is not supported with Ally AI. |
-| **FR-005** | The flow sequence **MUST** follow the selected optimizer (see [Flow sequences](#flow-sequences-optimizer-driven) above). |
+| **FR-005** | The flow sequence **MUST** follow the selected optimizer per item (see [Flow sequences](#flow-sequences-optimizer-driven) above). Changing an item to rule-based **MUST NOT** rebuild the portfolio stepper; it **MUST** skip budget and seasonality for that item only, and include Constraints for that item only when the floor/ceiling toggle is on. |
 | **FR-006** | When a user changes the goal, the system **MUST** display an impact message stating that the change will recalibrate existing strategies (rule-based) and indicate where it applies. |
 
 ### Goals & Budgets
@@ -121,6 +132,7 @@ This PRD covers the changes that make GBO easier to understand and use: clearer 
 | ID | Requirement |
 | -- | ----------- |
 | **FR-019a** | The flow **MUST** always include an Optimizer step after Constraints (when Constraints is in the flow) and immediately before Summary. The Optimizer step **MUST NOT** be gated behind a toggle for Ally AI or rule-based. |
+| **FR-019b** | When a user changes an item from Ally AI to rule-based on the Optimizer screen, the system **MUST** make clear that **for that item only** budget entry and seasonality are excluded; the item path is Goals → Optimizer → Summary, with Constraints only when the floor/ceiling toggle is on. The portfolio wizard steps **MUST NOT** rebuild solely because of this item-level change. |
 | **FR-020** | The optimizer screen **MUST** relabel the current refresh/reset control and show an explicit warning that all draft strategies will be lost before the reset proceeds. |
 | **FR-022** | The optimizer screen **MUST** show a loading indicator while draft strategies are loading. |
 
@@ -144,9 +156,10 @@ This PRD covers the changes that make GBO easier to understand and use: clearer 
 
 - **Ally AI** is recommended at portfolio level; prompt to switch when user picks rule-based.
 - **SOV** blocks Ally AI selection — show inline explanation.
-- **Constraints + seasonality** → Ally AI only (floor/ceiling excepted for rule-based); both are optional toggles on Goals & Budgets.
-- **Optimizer** → always in the flow for Ally AI and rule-based (no toggle); after Constraints when present, always immediately before Summary.
-- **Rule-based** → no budget step; constraints limited to floor/ceiling; then Optimizer → Summary.
+- **Item-level Ally → rule-based** → do **not** rebuild the wizard; for **that item only**, skip budget entry and seasonality; path is Goals → Optimizer → Summary; Constraints only if floor/ceiling toggle is on. Make this clear in the UI at the point of change.
+- **Constraints + seasonality** → Ally AI items only (floor/ceiling excepted for rule-based); portfolio toggles on Goals & Budgets still control optional steps in the shell.
+- **Optimizer** → always in the flow (no toggle); after Constraints when present, always immediately before Summary.
+- **Rule-based item** → no budget for that item; no seasonality for that item; constraints limited to floor/ceiling when enabled.
 - **Goal target value** is optional only for Ally AI.
 - **Never silently fail** — warn on incompatible settings, missing budgets, mid-month timing, and destructive resets.
 - **Always end with Summary** — list changes, show impacted areas, require explicit approval before commit.

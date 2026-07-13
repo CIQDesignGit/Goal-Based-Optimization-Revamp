@@ -16,6 +16,7 @@ import {
 import { Label } from "@/components/ui/label";
 import {
   LEVEL_1_OPTIONS,
+  MOCK_SAVED_SEASONALITY_EVENTS,
   SEASONALITY_CHART_DATA,
   type SeasonalityEvent,
 } from "@/lib/gbo-optimization/setup-data";
@@ -37,7 +38,10 @@ function formatCurrency(value: number) {
 }
 
 export function SeasonalityStep() {
-  const [events, setEvents] = useState<SeasonalityEvent[]>([]);
+  // Seed with mock saved events so the list is visible for UX review.
+  const [events, setEvents] = useState<SeasonalityEvent[]>(
+    () => [...MOCK_SAVED_SEASONALITY_EVENTS],
+  );
   const [viewMode, setViewMode] = useState<"entire-business" | "portfolio">(
     "entire-business",
   );

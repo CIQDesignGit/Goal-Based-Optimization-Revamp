@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ChevronDown,
   Plus,
@@ -20,12 +20,20 @@ import {
 } from "@/components/gbo-optimization/optimizer-mode-chip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { OPTIMIZER_SCOPE_ROWS } from "@/lib/gbo-optimization/setup-data";
+import {
+  OPTIMIZER_SCOPE_ROWS,
+  RULE_BASED_ITEM_MODE_TOAST,
+  RULE_BASED_ITEM_SKIP_CUE,
+} from "@/lib/gbo-optimization/setup-data";
+import { useSetupSessionStore } from "@/lib/gbo-optimization/setup-session-store";
 import { cn } from "@/lib/utils";
 
 type OptimizerScopeRow = (typeof OPTIMIZER_SCOPE_ROWS)[number];
 
 const DEFAULT_DAY_PARTING_LABEL = "Hourly Bid...";
+
+/** Hide Mode column for now — keep markup so we can turn it back on later. */
+const SHOW_MODE_COLUMN = false;
 
 type RowOptimizerModes = {
   budget: OptimizerColumnMode;
@@ -51,6 +59,10 @@ function createInitialDayPartingLabels(): Record<string, string> {
     }
   }
   return initial;
+}
+
+function rowHasRuleBasedMode(modes: RowOptimizerModes): boolean {
+  return modes.budget === "rule-based" || modes.bid === "rule-based";
 }
 
 function OptimizerCell({
@@ -143,6 +155,11 @@ function OptimizerCell({
 export function OptimizerStep() {
   // Per-row Budget / Bid modes (Mode column is derived from these).
   const [rowModes, setRowModes] = useState(createInitialRowModes);
+  // Mirror so click handlers can read the previous value without nested setState.
+  const rowModesRef = useRef(rowModes);
+  rowModesRef.current = rowModes;
+
+  const showSetupToast = useSetupSessionStore((state) => state.showSetupToast);
 
   // Which brand row the side panel is editing/adding (null = closed).
   const [activeDayPartingRowId, setActiveDayPartingRowId] = useState<
@@ -162,24 +179,47 @@ export function OptimizerStep() {
     setActiveDayPartingRowId(rowId);
   };
 
-  const setBudgetMode = (rowId: string, mode: OptimizerColumnMode) => {
+  /** Apply a column mode change and toast the item-level skip notice when needed. */
+  const applyColumnMode = (
+    rowId: string,
+    column: "budget" | "bid",
+    nextMode: OptimizerColumnMode,
+  ) => {
+    const previous = rowModesRef.current[rowId] ?? {
+      budget: "ally" as const,
+      bid: "ally" as const,
+    };
+    const previousColumnMode = previous[column];
+    const nextRow: RowOptimizerModes = {
+      ...previous,
+      [column]: nextMode,
+    };
+
+    rowModesRef.current = {
+      ...rowModesRef.current,
+      [rowId]: nextRow,
+    };
     setRowModes((current) => ({
       ...current,
-      [rowId]: {
-        budget: mode,
-        bid: current[rowId]?.bid ?? "ally",
-      },
+      [rowId]: nextRow,
     }));
+
+    // First time this row gains rule-based → bottom-left toast (same pattern as other setup toasts).
+    if (
+      nextMode === "rule-based" &&
+      previousColumnMode !== "rule-based" &&
+      !rowHasRuleBasedMode(previous)
+    ) {
+      showSetupToast(RULE_BASED_ITEM_MODE_TOAST);
+    }
+  };
+
+  const setBudgetMode = (rowId: string, mode: OptimizerColumnMode) => {
+    applyColumnMode(rowId, "budget", mode);
   };
 
   const setBidMode = (rowId: string, mode: OptimizerColumnMode) => {
-    setRowModes((current) => ({
-      ...current,
-      [rowId]: {
-        budget: current[rowId]?.budget ?? "ally",
-        bid: mode,
-      },
-    }));
+    applyColumnMode(rowId, "bid", mode);
   };
 
   const activeRow = OPTIMIZER_SCOPE_ROWS.find(
@@ -227,20 +267,22 @@ export function OptimizerStep() {
               <th className="border-r border-slate-200 px-4 py-3 font-medium">
                 <InfoLabel label="Value" />
               </th>
-              <th className="border-r border-slate-200 px-4 py-3 font-medium">
-                <div className="flex items-center justify-between gap-2">
-                  <InfoLabel
-                    label="Mode"
-                    tooltip="Shows the combined mode from Budget Optimization and Bid Optimization."
-                  />
-                  <button
-                    type="button"
-                    className="text-xs font-medium text-brand-600 hover:text-brand-700"
-                  >
-                    Collapse
-                  </button>
-                </div>
-              </th>
+              {SHOW_MODE_COLUMN ? (
+                <th className="border-r border-slate-200 px-4 py-3 font-medium">
+                  <div className="flex items-center justify-between gap-2">
+                    <InfoLabel
+                      label="Mode"
+                      tooltip="Shows the combined mode from Budget Optimization and Bid Optimization."
+                    />
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-brand-600 hover:text-brand-700"
+                    >
+                      Collapse
+                    </button>
+                  </div>
+                </th>
+              ) : null}
               <th className="border-r border-slate-200 px-4 py-3 font-medium">
                 <InfoLabel label="Budget Optimization" />
               </th>
@@ -261,6 +303,7 @@ export function OptimizerStep() {
                 budget: "ally" as const,
                 bid: "ally" as const,
               };
+              const isRuleBasedItem = rowHasRuleBasedMode(modes);
 
               return (
                 <tr
@@ -268,17 +311,25 @@ export function OptimizerStep() {
                   className="border-b border-slate-100 hover:bg-slate-50/50"
                 >
                   <td className="border-r border-slate-100 px-4 py-3 font-medium text-slate-900">
-                    <span
+                    <div
                       className={cn(
-                        "inline-flex min-w-0 items-center gap-1",
+                        "flex min-w-0 flex-col gap-1",
                         "indent" in row && row.indent && "pl-6",
                       )}
                     >
-                      {"expandable" in row && row.expandable && (
-                        <ChevronDown className="size-4 shrink-0 text-slate-400" />
-                      )}
-                      <span className="truncate">{row.name}</span>
-                    </span>
+                      <span className="inline-flex min-w-0 items-center gap-1">
+                        {"expandable" in row && row.expandable && (
+                          <ChevronDown className="size-4 shrink-0 text-slate-400" />
+                        )}
+                        <span className="truncate">{row.name}</span>
+                      </span>
+                      {/* Persistent cue while this item uses rule-based */}
+                      {isRuleBasedItem ? (
+                        <span className="text-2xs font-medium leading-snug text-amber-700">
+                          {RULE_BASED_ITEM_SKIP_CUE}
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="border-r border-slate-100 px-4 py-3 text-slate-700">
                     {"goal" in row ? row.goal : ""}
@@ -290,20 +341,24 @@ export function OptimizerStep() {
                       </span>
                     ) : null}
                   </td>
-                  <td className="border-r border-slate-100 px-4 py-3">
-                    <OptimizerCell
-                      row={row}
-                      column="mode"
-                      budgetMode={modes.budget}
-                      bidMode={modes.bid}
-                    />
-                  </td>
+                  {SHOW_MODE_COLUMN ? (
+                    <td className="border-r border-slate-100 px-4 py-3">
+                      <OptimizerCell
+                        row={row}
+                        column="mode"
+                        budgetMode={modes.budget}
+                        bidMode={modes.bid}
+                      />
+                    </td>
+                  ) : null}
                   <td className="border-r border-slate-100 px-4 py-3">
                     <OptimizerCell
                       row={row}
                       column="budget"
                       budgetMode={modes.budget}
-                      onBudgetModeChange={(mode) => setBudgetMode(row.id, mode)}
+                      onBudgetModeChange={(mode) =>
+                        setBudgetMode(row.id, mode)
+                      }
                     />
                   </td>
                   <td className="border-r border-slate-100 px-4 py-3">
