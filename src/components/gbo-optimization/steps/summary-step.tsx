@@ -9,7 +9,7 @@ import {
   ListTree,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type MouseEvent } from "react";
 
 import { useSetupContext } from "@/components/gbo-optimization/setup-context";
 import { useTaxonomyScopeLevels } from "@/components/gbo-optimization/taxonomy-scope-columns";
@@ -107,8 +107,8 @@ function uniqueCategories(
 }
 
 /**
- * Compact Level 1 › Level 2 path for a line item, using the user's General picks.
- * Example: Brand · JBC › Sub-brand · JBC Fresh
+ * Quiet Level 1 / Level 2 values for a line item.
+ * Dimension names (Brand, Sub Brand) live on the accordion header — rows show values only.
  */
 function ScopeHierarchyCue({
   scopeId,
@@ -129,59 +129,74 @@ function ScopeHierarchyCue({
   const level1Value = getScopeTaxonomyValue(row, level1Key).trim();
   const level2Value = getScopeTaxonomyValue(row, level2Key).trim();
 
-  // Entire Business often only has a Level 1 rollup label — still useful to show.
-  if (scopeId === ENTIRE_BUSINESS_SCOPE_ID) {
-    if (!level1Value) {
-      return null;
-    }
+  const rawParts =
+    scopeId === ENTIRE_BUSINESS_SCOPE_ID
+      ? [level1Value].filter(Boolean)
+      : [level1Value, level2Value].filter(Boolean);
 
-    return (
-      <p
-        className={cn("truncate text-xs text-slate-500", className)}
-        title={`${level1Label}: ${level1Value}`}
-      >
-        <span className="text-slate-400">{level1Label}</span>
-        <span className="mx-1 text-slate-300">·</span>
-        <span>{level1Value}</span>
-      </p>
-    );
+  // Drop consecutive duplicates (e.g. name equals Level 2).
+  const parts = rawParts.filter(
+    (part, index) => index === 0 || part !== rawParts[index - 1],
+  );
+
+  if (parts.length === 0) {
+    return null;
   }
 
-  if (!level1Value && !level2Value) {
+  // Skip if the only value is the row name itself — adds no new info.
+  if (parts.length === 1 && parts[0] === row.name) {
     return null;
   }
 
   const fullTitle = [
     level1Value ? `${level1Label}: ${level1Value}` : null,
-    level2Value ? `${level2Label}: ${level2Value}` : null,
+    level2Value && scopeId !== ENTIRE_BUSINESS_SCOPE_ID
+      ? `${level2Label}: ${level2Value}`
+      : null,
   ]
     .filter(Boolean)
-    .join(" › ");
+    .join(" · ");
 
   return (
     <p
-      className={cn("truncate text-xs text-slate-500", className)}
+      className={cn(
+        "text-xs font-normal leading-snug text-slate-400 wrap-break-word",
+        className,
+      )}
       title={fullTitle}
     >
-      {level1Value ? (
-        <>
-          <span className="text-slate-400">{level1Label}</span>
-          <span className="mx-1 text-slate-300">·</span>
-          <span>{level1Value}</span>
-        </>
-      ) : null}
-      {level1Value && level2Value ? (
-        <span className="mx-1.5 text-slate-300" aria-hidden>
-          ›
+      {parts.map((part, index) => (
+        <span key={`${scopeId}-${part}-${index}`}>
+          {index > 0 ? (
+            <span className="mx-1 text-slate-300" aria-hidden>
+              /
+            </span>
+          ) : null}
+          <span>{part}</span>
         </span>
-      ) : null}
-      {level2Value ? (
-        <>
-          <span className="text-slate-400">{level2Label}</span>
-          <span className="mx-1 text-slate-300">·</span>
-          <span>{level2Value}</span>
-        </>
-      ) : null}
+      ))}
+    </p>
+  );
+}
+
+/** Highlighted Level 1 / Level 2 dimension labels — shown on each accordion header. */
+function TaxonomyLevelsHint({ className }: { className?: string }) {
+  const { level1Label, level2Label } = useTaxonomyScopeLevels();
+
+  return (
+    <p
+      className={cn("flex flex-wrap items-center gap-1", className)}
+      aria-label={`${level1Label} / ${level2Label}`}
+    >
+      <span className="rounded-md bg-white px-1.5 py-0.5 text-[11px] font-semibold text-slate-700 shadow-xs ring-1 ring-slate-200/80">
+        {level1Label}
+      </span>
+      <span className="text-slate-300" aria-hidden>
+        /
+      </span>
+      <span className="rounded-md bg-white px-1.5 py-0.5 text-[11px] font-semibold text-slate-700 shadow-xs ring-1 ring-slate-200/80">
+        {level2Label}
+      </span>
     </p>
   );
 }
@@ -295,25 +310,29 @@ function ChangeRow({
   hideScope?: boolean;
 }) {
   return (
-    <li className="grid gap-2 border-b border-slate-100 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.4fr)] sm:items-center sm:gap-4">
+    <li className="grid gap-2 border-b border-slate-100 py-3 last:border-b-0 sm:grid-cols-[minmax(0,2.4fr)_auto_minmax(0,1.2fr)] sm:items-start sm:gap-4">
       <div className="min-w-0">
         {!hideScope ? (
           <>
-            <p className="truncate text-sm font-medium text-slate-900">
-              {entry.scopeName}
-            </p>
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <p className="text-sm font-medium wrap-break-word text-slate-900">
+                {entry.scopeName}
+              </p>
+              <p className="text-xs wrap-break-word text-slate-500">
+                {entry.fieldLabel}
+              </p>
+            </div>
             {/* Where this brand sits in the user's Level 1 / Level 2 setup */}
             <ScopeHierarchyCue scopeId={entry.scopeId} className="mt-0.5" />
-            <p className="mt-0.5 text-xs text-slate-500">{entry.fieldLabel}</p>
           </>
         ) : (
-          <p className="truncate text-sm font-medium text-slate-900">
+          <p className="text-sm font-medium wrap-break-word text-slate-900">
             {entry.fieldLabel}
           </p>
         )}
       </div>
 
-      <div className="sm:justify-self-start">
+      <div className="sm:justify-self-start sm:pt-0.5">
         <Badge
           variant="secondary"
           className={cn(
@@ -325,7 +344,7 @@ function ChangeRow({
         </Badge>
       </div>
 
-      <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm tabular-nums">
+      <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm tabular-nums sm:justify-end sm:pt-0.5">
         <span className="text-slate-500 line-through decoration-slate-300">
           {formatChangeValue(entry.from)}
         </span>
@@ -351,81 +370,155 @@ function ChangesAccordionSection({
   defaultOpen?: boolean;
   hideScopeInRows?: boolean;
   categories?: SetupChangeCategory[];
-  /** When set (By impact view), show Level 1 › Level 2 under the line item name. */
+  /** When set (By impact view), show Level 1 / Level 2 values under the line item name. */
   scopeId?: string;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  /** Empty = show all. Otherwise only matching categories. */
+  const [activeCategories, setActiveCategories] = useState<
+    SetupChangeCategory[]
+  >([]);
+
+  const availableCategories = categories ?? uniqueCategories(entries);
+
+  const visibleEntries = useMemo(() => {
+    if (activeCategories.length === 0) {
+      return entries;
+    }
+
+    return entries.filter((entry) =>
+      activeCategories.includes(entry.category),
+    );
+  }, [entries, activeCategories]);
+
+  const toggleCategory = (
+    category: SetupChangeCategory,
+    event: MouseEvent<HTMLButtonElement>,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    setActiveCategories((current) => {
+      if (current.includes(category)) {
+        return current.filter((item) => item !== category);
+      }
+
+      return [...current, category];
+    });
+
+    // Expanding helps the user see what the filter did.
+    setOpen(true);
+  };
+
+  const changeCountLabel =
+    activeCategories.length > 0 &&
+    visibleEntries.length !== entries.length
+      ? `${visibleEntries.length} of ${entries.length}`
+      : `${entries.length} change${entries.length === 1 ? "" : "s"}`;
 
   return (
     <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
+      {/* Header is a row (not one giant button) so filter chips can be real buttons */}
+      <div
         className={cn(
-          "flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors",
-          "bg-slate-100 hover:bg-slate-200/70",
+          "flex w-full items-start justify-between gap-3 px-4 py-3",
+          "bg-slate-100",
           open && "border-b border-slate-200",
         )}
       >
-        <div className="flex min-w-0 flex-col gap-1.5">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span
-              className="h-4 w-1 shrink-0 rounded-full bg-brand-500"
-              aria-hidden
-            />
-            <div className="min-w-0">
-              <h3 className="truncate text-sm font-semibold text-slate-900">
-                {label}
-              </h3>
-              {scopeId ? (
-                <ScopeHierarchyCue scopeId={scopeId} className="mt-0.5" />
-              ) : null}
-            </div>
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((current) => !current)}
+          className="flex min-w-0 flex-1 items-start gap-2.5 rounded-md text-left transition-colors hover:bg-slate-200/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+        >
+          <span
+            className="mt-1 h-4 w-1 shrink-0 rounded-full bg-brand-500"
+            aria-hidden
+          />
+          <div className="min-w-0 space-y-1 py-0.5">
+            <h3 className="text-sm font-semibold wrap-break-word text-slate-900">
+              {label}
+            </h3>
+            <TaxonomyLevelsHint />
+            {scopeId ? <ScopeHierarchyCue scopeId={scopeId} /> : null}
           </div>
-          {categories && categories.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5 pl-3.5">
-              {categories.map((category) => (
-                <Badge
-                  key={`${label}-${category}`}
-                  variant="secondary"
-                  className={cn(
-                    "font-normal",
-                    CATEGORY_BADGE_CLASS[category],
-                  )}
-                >
-                  {SETUP_CHANGE_CATEGORY_LABELS[category]}
-                </Badge>
-              ))}
-            </div>
-          ) : null}
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
+        </button>
+
+        <div className="flex max-w-[55%] shrink-0 flex-wrap items-center justify-end gap-1.5 self-start pt-0.5">
+          {/* Category chips — click to filter this section's rows */}
+          {availableCategories.map((category) => {
+            const isFiltered = activeCategories.length > 0;
+            const isActive =
+              !isFiltered || activeCategories.includes(category);
+
+            return (
+              <button
+                key={`${label}-${category}`}
+                type="button"
+                aria-pressed={activeCategories.includes(category)}
+                title={
+                  activeCategories.includes(category)
+                    ? `Clear ${SETUP_CHANGE_CATEGORY_LABELS[category]} filter`
+                    : `Show only ${SETUP_CHANGE_CATEGORY_LABELS[category]} changes`
+                }
+                onClick={(event) => toggleCategory(category, event)}
+                className={cn(
+                  "inline-flex h-5 items-center rounded-full px-2 text-xs font-normal transition-all",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40",
+                  CATEGORY_BADGE_CLASS[category],
+                  isActive
+                    ? "opacity-100 ring-1 ring-slate-300/70"
+                    : "opacity-35 hover:opacity-70",
+                  activeCategories.includes(category) &&
+                    "ring-2 ring-slate-400/50",
+                )}
+              >
+                {SETUP_CHANGE_CATEGORY_LABELS[category]}
+              </button>
+            );
+          })}
+
           <Badge
             variant="outline"
             className="border-slate-300 bg-white font-normal text-slate-600"
           >
-            {entries.length} change{entries.length === 1 ? "" : "s"}
+            {changeCountLabel}
           </Badge>
-          <ChevronDown
-            className={cn(
-              "size-4 text-slate-500 transition-transform",
-              open && "rotate-180",
-            )}
-            aria-hidden
-          />
+
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-label={open ? `Collapse ${label}` : `Expand ${label}`}
+            onClick={() => setOpen((current) => !current)}
+            className="rounded-md p-0.5 text-slate-500 transition-colors hover:bg-slate-200/70 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+          >
+            <ChevronDown
+              className={cn(
+                "size-4 transition-transform",
+                open && "rotate-180",
+              )}
+              aria-hidden
+            />
+          </button>
         </div>
-      </button>
+      </div>
 
       {open && (
         <ul className="divide-y divide-slate-100 bg-white px-4">
-          {entries.map((entry) => (
-            <ChangeRow
-              key={entry.id}
-              entry={entry}
-              hideScope={hideScopeInRows}
-            />
-          ))}
+          {visibleEntries.length > 0 ? (
+            visibleEntries.map((entry) => (
+              <ChangeRow
+                key={entry.id}
+                entry={entry}
+                hideScope={hideScopeInRows}
+              />
+            ))
+          ) : (
+            <li className="py-6 text-center text-sm text-slate-500">
+              No changes match the selected filters.
+            </li>
+          )}
         </ul>
       )}
     </div>
