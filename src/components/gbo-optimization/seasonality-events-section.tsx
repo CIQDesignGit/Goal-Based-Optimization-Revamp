@@ -24,7 +24,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   BLANK_SEASONALITY_FORM,
-  PREFILLED_HOLIDAY_SEASONALITY_DRAFTS,
   SEASONALITY_SCOPE_OPTIONS,
   type SeasonalityDraftFormState,
   type SeasonalityEvent,
@@ -52,20 +51,6 @@ type DraftEventRow = {
   scopeError: boolean;
 };
 
-function createPrefilledDraftRow(
-  template: (typeof PREFILLED_HOLIDAY_SEASONALITY_DRAFTS)[number],
-): DraftEventRow {
-  return {
-    id: template.id,
-    kind: "prefilled",
-    templateId: template.id,
-    initialForm: { ...template.form },
-    form: { ...template.form },
-    isHighlighted: false,
-    scopeError: false,
-  };
-}
-
 function createBlankDraftRow(id = crypto.randomUUID()): DraftEventRow {
   return {
     id,
@@ -75,21 +60,6 @@ function createBlankDraftRow(id = crypto.randomUUID()): DraftEventRow {
     isHighlighted: false,
     scopeError: false,
   };
-}
-
-function getPrefilledTemplateIdForEvent(event: SeasonalityEvent): string | null {
-  if (event.templateId) {
-    return event.templateId;
-  }
-
-  const match = PREFILLED_HOLIDAY_SEASONALITY_DRAFTS.find(
-    (template) =>
-      template.form.name === event.name &&
-      template.form.startDate === event.startDate &&
-      template.form.endDate === event.endDate,
-  );
-
-  return match?.id ?? null;
 }
 
 function eventToDraftForm(event: SeasonalityEvent): SeasonalityDraftFormState {
@@ -104,10 +74,8 @@ function eventToDraftForm(event: SeasonalityEvent): SeasonalityDraftFormState {
 }
 
 function createInitialDraftRows(): DraftEventRow[] {
-  return [
-    createBlankDraftRow("custom"),
-    ...PREFILLED_HOLIDAY_SEASONALITY_DRAFTS.map(createPrefilledDraftRow),
-  ];
+  // Custom event form only — suggested holidays section is not shown in the UI.
+  return [createBlankDraftRow("custom")];
 }
 
 const FIELD_LABEL = "text-sm font-semibold leading-5 text-slate-900";
@@ -341,51 +309,135 @@ function SavedSeasonalityEventRow({
   );
 }
 
-function SavedEventsGroupHeader({
-  title,
-  count,
-  description,
-  accentClassName,
-  isOpen,
-  onToggle,
-}: {
-  title: string;
-  count: number;
+type SavedEventFilter = SeasonalityEventTiming | "all";
+
+const SAVED_EVENT_FILTERS: {
+  id: SavedEventFilter;
+  label: string;
   description: string;
-  accentClassName: string;
-  isOpen: boolean;
-  onToggle: () => void;
+  emptyMessage: string;
+  /** Unselected chip accent (dot only — label stays readable). */
+  dotClassName: string;
+  /** Selected chip surface — color reinforces meaning, never alone. */
+  selectedClassName: string;
+  countClassName: string;
+}[] = [
+  {
+    id: "all",
+    label: "All",
+    description: "Every saved event — active, upcoming, and past",
+    emptyMessage: "No saved events yet. Add an event above to start your plan.",
+    dotClassName: "bg-brand-500",
+    selectedClassName:
+      "border-brand-500 bg-brand-50 text-brand-900 shadow-sm",
+    countClassName: "bg-brand-100 text-brand-800",
+  },
+  {
+    id: "active",
+    label: "Active",
+    description: "Running today — impacting budget now",
+    emptyMessage:
+      "No events running today. Switch to Upcoming, or add a new event above.",
+    dotClassName: "bg-emerald-500",
+    selectedClassName:
+      "border-emerald-500 bg-emerald-50 text-emerald-900 shadow-sm",
+    countClassName: "bg-emerald-100 text-emerald-800",
+  },
+  {
+    id: "upcoming",
+    label: "Upcoming",
+    description: "Starts later — not yet affecting spend",
+    emptyMessage:
+      "No upcoming events. Switch to Active or Past, or add a new event above.",
+    dotClassName: "bg-sky-500",
+    selectedClassName: "border-sky-500 bg-sky-50 text-sky-900 shadow-sm",
+    countClassName: "bg-sky-100 text-sky-800",
+  },
+  {
+    id: "past",
+    label: "Past",
+    description: "Ended events — available to review",
+    emptyMessage: "No past events yet. Ended seasonality events will appear here.",
+    dotClassName: "bg-slate-400",
+    selectedClassName: "border-slate-500 bg-slate-100 text-slate-900 shadow-sm",
+    countClassName: "bg-slate-200 text-slate-700",
+  },
+];
+
+function getDefaultSavedEventFilter(): SavedEventFilter {
+  // Start on All so users see the full plan; chips narrow from there.
+  return "all";
+}
+
+/** Events for the selected chip — All = active → upcoming → past order. */
+function getFilteredSavedEvents(
+  filter: SavedEventFilter,
+  groups: {
+    active: SeasonalityEvent[];
+    upcoming: SeasonalityEvent[];
+    past: SeasonalityEvent[];
+  },
+): SeasonalityEvent[] {
+  if (filter === "all") {
+    return [...groups.active, ...groups.upcoming, ...groups.past];
+  }
+
+  return groups[filter];
+}
+
+function SavedEventFilterChips({
+  selected,
+  counts,
+  onSelect,
+}: {
+  selected: SavedEventFilter;
+  counts: Record<SavedEventFilter, number>;
+  onSelect: (filter: SavedEventFilter) => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-expanded={isOpen}
-      className="flex w-full items-center justify-between gap-3 border-b border-slate-100 bg-white px-4 py-2.5 text-left hover:bg-slate-50"
+    <div
+      role="tablist"
+      aria-label="Filter saved events by timing"
+      className="inline-flex flex-wrap items-center gap-1.5 rounded-lg bg-slate-100/90 p-1"
     >
-      <div className="flex min-w-0 items-center gap-2">
-        <ChevronDown
-          className={cn(
-            "size-3.5 shrink-0 text-slate-400 transition-transform",
-            !isOpen && "-rotate-90",
-          )}
-          aria-hidden
-        />
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
+      {SAVED_EVENT_FILTERS.map((filter) => {
+        const isSelected = selected === filter.id;
+        const count = counts[filter.id];
+
+        return (
+          <button
+            key={filter.id}
+            type="button"
+            role="tab"
+            aria-selected={isSelected}
+            onClick={() => onSelect(filter.id)}
+            className={cn(
+              "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-semibold transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40",
+              isSelected
+                ? filter.selectedClassName
+                : "border-transparent bg-transparent text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm",
+            )}
+          >
             <span
-              className={cn("size-2.5 shrink-0 rounded-full", accentClassName)}
+              className={cn("size-2 shrink-0 rounded-full", filter.dotClassName)}
               aria-hidden
             />
-            <p className="text-sm font-semibold text-slate-800">
-              {title}
-              <span className="ml-1.5 font-medium text-slate-500">({count})</span>
-            </p>
-          </div>
-          <p className="pl-4 text-xs text-slate-500">{description}</p>
-        </div>
-      </div>
-    </button>
+            <span>{filter.label}</span>
+            <span
+              className={cn(
+                "inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
+                isSelected
+                  ? filter.countClassName
+                  : "bg-white/80 text-slate-500 ring-1 ring-slate-200/80 ring-inset",
+              )}
+            >
+              {count}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -414,10 +466,24 @@ function SavedSeasonalityEventsList({
 }) {
   // Collapsed by default so add-event + chart stay visible with many saved rows.
   const [isExpanded, setIsExpanded] = useState(false);
-  // Past is nested-collapsed by default; Active + Upcoming open when parent expands.
-  const [isPastOpen, setIsPastOpen] = useState(false);
 
-  const { active, upcoming, past } = groupSavedSeasonalityEvents(events);
+  const groups = groupSavedSeasonalityEvents(events);
+  const { active, upcoming, past } = groups;
+
+  const [filter, setFilter] = useState<SavedEventFilter>(getDefaultSavedEventFilter);
+
+  const counts: Record<SavedEventFilter, number> = {
+    all: events.length,
+    active: active.length,
+    upcoming: upcoming.length,
+    past: past.length,
+  };
+
+  const selectedFilter =
+    SAVED_EVENT_FILTERS.find((item) => item.id === filter) ??
+    SAVED_EVENT_FILTERS[0];
+
+  const filteredEvents = getFilteredSavedEvents(filter, groups);
 
   const summaryParts = [
     active.length > 0 ? `${active.length} active` : null,
@@ -425,11 +491,23 @@ function SavedSeasonalityEventsList({
     past.length > 0 ? `${past.length} past` : null,
   ].filter(Boolean);
 
-  const renderEventRows = (
-    groupEvents: SeasonalityEvent[],
-    timing: SeasonalityEventTiming,
-  ) =>
+  const handleFilterSelect = (next: SavedEventFilter) => {
+    setFilter(next);
+
+    // Drop inline edit if the edited event is outside the new filter view.
+    if (editingEventId && next !== "all") {
+      const stillVisible = groups[next].some(
+        (event) => event.id === editingEventId,
+      );
+      if (!stillVisible) {
+        onCancelEdit();
+      }
+    }
+  };
+
+  const renderEventRows = (groupEvents: SeasonalityEvent[]) =>
     groupEvents.map((event) => {
+      const timing = getSeasonalityEventTiming(event);
       const isEditing = editingEventId === event.id && editingForm !== null;
 
       if (isEditing) {
@@ -468,38 +546,55 @@ function SavedSeasonalityEventsList({
 
   return (
     <section className="overflow-hidden rounded-md border border-slate-200 border-l-4 border-l-emerald-500 bg-white shadow-sm">
-      <button
-        type="button"
-        onClick={() => setIsExpanded((open) => !open)}
-        aria-expanded={isExpanded}
+      <div
         className={cn(
-          "flex w-full items-start justify-between gap-3 bg-slate-50 px-4 py-3 text-left transition-colors hover:bg-slate-100",
+          "bg-slate-50",
           isExpanded && "border-b border-slate-100",
         )}
       >
-        <div className="flex min-w-0 items-start gap-2">
-          <ChevronDown
-            className={cn(
-              "mt-0.5 size-4 shrink-0 text-slate-500 transition-transform",
-              !isExpanded && "-rotate-90",
-            )}
-            aria-hidden
-          />
-          <div>
-            <p className="text-sm font-semibold text-slate-900">Saved events</p>
-            <p className="text-sm text-slate-500">
-              {summaryParts.length > 0
-                ? summaryParts.join(" · ")
-                : events.length === 1
-                  ? "1 event added to your plan"
-                  : `${events.length} events added to your plan`}
-            </p>
+        <button
+          type="button"
+          onClick={() => setIsExpanded((open) => !open)}
+          aria-expanded={isExpanded}
+          className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-100"
+        >
+          <div className="flex min-w-0 items-start gap-2">
+            <ChevronDown
+              className={cn(
+                "mt-0.5 size-4 shrink-0 text-slate-500 transition-transform",
+                !isExpanded && "-rotate-90",
+              )}
+              aria-hidden
+            />
+            <div>
+              <p className="text-sm font-semibold text-slate-900">
+                Saved events
+              </p>
+              <p className="text-sm text-slate-500">
+                {summaryParts.length > 0
+                  ? summaryParts.join(" · ")
+                  : events.length === 1
+                    ? "1 event added to your plan"
+                    : `${events.length} events added to your plan`}
+              </p>
+            </div>
           </div>
-        </div>
-        <span className="inline-flex h-6 shrink-0 items-center rounded-full bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200/80 ring-inset">
-          {events.length}
-        </span>
-      </button>
+          <span className="inline-flex h-6 shrink-0 items-center rounded-full bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200/80 ring-inset">
+            {events.length}
+          </span>
+        </button>
+
+        {isExpanded ? (
+          <div className="flex flex-col gap-2 px-4 pb-3">
+            <SavedEventFilterChips
+              selected={filter}
+              counts={counts}
+              onSelect={handleFilterSelect}
+            />
+            <p className="text-xs text-slate-500">{selectedFilter.description}</p>
+          </div>
+        ) : null}
+      </div>
 
       {isExpanded ? (
         <SeasonalityEventTable>
@@ -529,77 +624,15 @@ function SavedSeasonalityEventsList({
             </span>
           </div>
 
-          {active.length > 0 ? (
-            <div>
-              <div className="border-b border-slate-100 bg-emerald-50/60 px-4 py-2.5">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="size-2.5 shrink-0 rounded-full bg-emerald-500"
-                    aria-hidden
-                  />
-                  <p className="text-sm font-semibold text-slate-800">
-                    Active
-                    <span className="ml-1.5 font-medium text-slate-500">
-                      ({active.length})
-                    </span>
-                  </p>
-                </div>
-                <p className="pl-4 text-xs text-slate-500">
-                  Running today — impacting budget now
-                </p>
-              </div>
-              <div className="border-b border-slate-100">
-                {renderEventRows(active, "active")}
-              </div>
-            </div>
+          {filteredEvents.length > 0 ? (
+            <div>{renderEventRows(filteredEvents)}</div>
           ) : (
-            <div className="border-b border-slate-100 px-4 py-3">
+            <div className="px-4 py-8 text-center">
               <p className="text-sm text-slate-500">
-                No events running today. Check Upcoming below or add a new event.
+                {selectedFilter.emptyMessage}
               </p>
             </div>
           )}
-
-          {upcoming.length > 0 ? (
-            <div>
-              <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-2.5">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="size-2.5 shrink-0 rounded-full bg-sky-500"
-                    aria-hidden
-                  />
-                  <p className="text-sm font-semibold text-slate-800">
-                    Upcoming
-                    <span className="ml-1.5 font-medium text-slate-500">
-                      ({upcoming.length})
-                    </span>
-                  </p>
-                </div>
-                <p className="pl-4 text-xs text-slate-500">
-                  Starts later — not yet affecting spend
-                </p>
-              </div>
-              <div className="border-b border-slate-100">
-                {renderEventRows(upcoming, "upcoming")}
-              </div>
-            </div>
-          ) : null}
-
-          {past.length > 0 ? (
-            <div>
-              <SavedEventsGroupHeader
-                title="Past"
-                count={past.length}
-                description="Ended events — expand to review"
-                accentClassName="bg-slate-400"
-                isOpen={isPastOpen}
-                onToggle={() => setIsPastOpen((open) => !open)}
-              />
-              {isPastOpen ? (
-                <div>{renderEventRows(past, "past")}</div>
-              ) : null}
-            </div>
-          ) : null}
         </SeasonalityEventTable>
       ) : null}
     </section>
@@ -897,63 +930,6 @@ function CustomEventsSection({
   );
 }
 
-function SuggestedHolidayEventsSection({
-  rows,
-  goalsRowState,
-  onUpdate,
-  onSave,
-  onClose,
-}: {
-  rows: DraftEventRow[];
-  goalsRowState: ReturnType<typeof useSetupSessionStore.getState>["goalsRowState"];
-  onUpdate: (rowId: string, updates: Partial<SeasonalityDraftFormState>) => void;
-  onSave: (rowId: string) => void;
-  onClose: (rowId: string) => void;
-}) {
-  if (rows.length === 0) {
-    return null;
-  }
-
-  return (
-    <section className="overflow-hidden rounded-md border border-slate-200 border-l-4 border-l-cyan-500 bg-white shadow-sm">
-      <div className="border-b border-brand-100 bg-brand-50 px-4 py-3">
-        <p className="text-sm font-semibold text-slate-700">Suggested holidays</p>
-        <p className="text-sm text-slate-600">
-          Prefilled events ready to configure. Select scope and budget for each,
-          then save to add them to your plan.
-        </p>
-      </div>
-
-      <div className="p-4">
-        <SeasonalityEventTable>
-        <SeasonalityEventFormHeader />
-        <div className="mt-3 flex flex-col gap-6">
-          {rows.map((row) => (
-            <div
-              key={row.id}
-              className={cn(row.isHighlighted && "rounded-md ring-2 ring-brand-500")}
-            >
-              <SeasonalityEventFormRow
-                form={row.form}
-                scopeError={row.scopeError}
-                budgetContextLabel={getSeasonalityBudgetContextLabel(
-                  row.form.startDate,
-                  row.form.budgetMode,
-                  goalsRowState,
-                )}
-                onChange={(updates) => onUpdate(row.id, updates)}
-                onSave={() => onSave(row.id)}
-                onClose={() => onClose(row.id)}
-              />
-            </div>
-          ))}
-        </div>
-      </SeasonalityEventTable>
-      </div>
-    </section>
-  );
-}
-
 type SeasonalityEventsSectionProps = {
   events: SeasonalityEvent[];
   onAddEvent: (event: SeasonalityEvent) => void;
@@ -980,7 +956,6 @@ export function SeasonalityEventsSection({
   const goalsRowState = useSetupSessionStore((state) => state.goalsRowState);
 
   const customRows = draftRows.filter((row) => row.kind === "custom");
-  const suggestedRows = draftRows.filter((row) => row.kind === "prefilled");
 
   const updateDraftRow = (rowId: string, updates: Partial<SeasonalityDraftFormState>) => {
     setDraftRows((current) =>
@@ -1057,28 +1032,6 @@ export function SeasonalityEventsSection({
     setDraftRows((current) => [...current, createBlankDraftRow()]);
   };
 
-  const restorePrefilledDraftRow = (templateId: string) => {
-    const template = PREFILLED_HOLIDAY_SEASONALITY_DRAFTS.find(
-      (item) => item.id === templateId,
-    );
-
-    if (!template) {
-      return;
-    }
-
-    const restoredRow = createPrefilledDraftRow(template);
-
-    setDraftRows((current) => {
-      if (current.some((draft) => draft.id === templateId)) {
-        return current.map((draft) =>
-          draft.id === templateId ? restoredRow : draft,
-        );
-      }
-
-      return [...current, restoredRow];
-    });
-  };
-
   const handleStartEditSavedEvent = (event: SeasonalityEvent) => {
     setEditingEvent({
       eventId: event.id,
@@ -1140,22 +1093,13 @@ export function SeasonalityEventsSection({
     }
 
     onRemoveEvent(event.id);
-
-    const templateId = getPrefilledTemplateIdForEvent(event);
-
-    if (
-      (event.sourceKind === "prefilled" || templateId) &&
-      templateId
-    ) {
-      restorePrefilledDraftRow(templateId);
-    }
   };
 
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-slate-500">
-        Add a custom event or configure the suggested holidays below. Select
-        scope and budget, then save each event to add it to your plan.
+        Add a custom event below. Select scope and budget, then save to add it
+        to your plan.
       </p>
 
       <div className="flex flex-col gap-3">
@@ -1166,14 +1110,6 @@ export function SeasonalityEventsSection({
           onSave={handleSave}
           onClose={handleClose}
           onAddEvent={handleAddEvent}
-        />
-
-        <SuggestedHolidayEventsSection
-          rows={suggestedRows}
-          goalsRowState={goalsRowState}
-          onUpdate={updateDraftRow}
-          onSave={handleSave}
-          onClose={handleClose}
         />
       </div>
 
