@@ -47,6 +47,9 @@ export function SetupHeader({
     (state) => state.taxonomyBaseline,
   );
   const goalsRowState = useSetupSessionStore((state) => state.goalsRowState);
+  const scopeEditModeByGroup = useSetupSessionStore(
+    (state) => state.scopeEditModeByGroup,
+  );
   const triggerMissingGoalsFeedback = useSetupSessionStore(
     (state) => state.triggerMissingGoalsFeedback,
   );
@@ -57,7 +60,12 @@ export function SetupHeader({
   const hasSessionChanges =
     changeLedger.length > 0 ||
     hasTaxonomyChanged(taxonomyBaseline, generalConfig);
-  const goalsBudgetsStepValid = areAllGoalsBudgetsGoalsSelected(goalsRowState);
+  const goalsBudgetsStepValid = areAllGoalsBudgetsGoalsSelected(
+    goalsRowState,
+    scopeEditModeByGroup,
+    generalConfig.level1,
+    generalConfig.level2,
+  );
   const isGoalsBudgetsBlocked =
     currentStep === "goals-budgets" && !goalsBudgetsStepValid;
   const isNextDisabled =

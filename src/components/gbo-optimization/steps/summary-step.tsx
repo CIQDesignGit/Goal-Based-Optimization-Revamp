@@ -9,7 +9,12 @@ import {
   ListTree,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo, useState, type MouseEvent } from "react";
+import {
+  useMemo,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+} from "react";
 
 import { useSetupContext } from "@/components/gbo-optimization/setup-context";
 import { useTaxonomyScopeLevels } from "@/components/gbo-optimization/taxonomy-scope-columns";
@@ -26,6 +31,10 @@ import {
   getScopeTaxonomyValue,
   GOALS_SCOPE_ROWS,
 } from "@/lib/gbo-optimization/setup-data";
+import {
+  getScopeIdentity,
+  type ScopeIdentity,
+} from "@/lib/gbo-optimization/scope-tree";
 import {
   groupChangesByStep,
   hasTaxonomyChanged,
@@ -107,8 +116,47 @@ function uniqueCategories(
 }
 
 /**
- * Quiet Level 1 / Level 2 values for a line item.
- * Dimension names (Brand, Sub Brand) live on the accordion header — rows show values only.
+ * Tag for the taxonomy dimension that was edited (e.g. Portfolio, Profiles).
+ * Squared + outline treatment so it never reads like a Goal/Budget category pill.
+ * Level 1 is filled/stronger; Level 2 is outline/lighter.
+ */
+function ScopeLevelTag({
+  identity,
+  className,
+}: {
+  identity: ScopeIdentity;
+  className?: string;
+}) {
+  const label =
+    identity.editLevel === "entire-business"
+      ? "Portfolio"
+      : identity.editLevel === "level1"
+        ? identity.level1Label
+        : identity.level2Label;
+
+  const isLevel1 =
+    identity.editLevel === "level1" ||
+    identity.editLevel === "entire-business";
+
+  return (
+    <span
+      className={cn(
+        "inline-flex max-w-full truncate rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold tracking-wide",
+        isLevel1
+          ? "border-slate-400 bg-slate-200 text-slate-800"
+          : "border-slate-300 bg-white text-slate-600",
+        className,
+      )}
+      title={label}
+    >
+      {label}
+    </span>
+  );
+}
+
+/**
+ * Secondary hierarchy cue under a line item — labeled L1 / L2 path only.
+ * The edit-level tag sits in its own column (see ScopeLevelTag).
  */
 function ScopeHierarchyCue({
   scopeId,
@@ -117,41 +165,25 @@ function ScopeHierarchyCue({
   scopeId: string;
   className?: string;
 }) {
-  const { level1Key, level2Key, level1Label, level2Label } =
-    useTaxonomyScopeLevels();
+  const identity = useScopeIdentityForId(scopeId);
 
-  const row = GOALS_SCOPE_ROWS.find((item) => item.id === scopeId);
-
-  if (!row) {
-    return null;
-  }
-
-  const level1Value = getScopeTaxonomyValue(row, level1Key).trim();
-  const level2Value = getScopeTaxonomyValue(row, level2Key).trim();
-
-  const rawParts =
-    scopeId === ENTIRE_BUSINESS_SCOPE_ID
-      ? [level1Value].filter(Boolean)
-      : [level1Value, level2Value].filter(Boolean);
-
-  // Drop consecutive duplicates (e.g. name equals Level 2).
-  const parts = rawParts.filter(
-    (part, index) => index === 0 || part !== rawParts[index - 1],
-  );
-
-  if (parts.length === 0) {
-    return null;
-  }
-
-  // Skip if the only value is the row name itself — adds no new info.
-  if (parts.length === 1 && parts[0] === row.name) {
-    return null;
+  if (identity.editLevel === "entire-business") {
+    return (
+      <p
+        className={cn(
+          "mt-0.5 text-xs leading-snug text-slate-400",
+          className,
+        )}
+      >
+        Rollup row
+      </p>
+    );
   }
 
   const fullTitle = [
-    level1Value ? `${level1Label}: ${level1Value}` : null,
-    level2Value && scopeId !== ENTIRE_BUSINESS_SCOPE_ID
-      ? `${level2Label}: ${level2Value}`
+    `${identity.level1Label}: ${identity.level1Value}`,
+    identity.level2Value
+      ? `${identity.level2Label}: ${identity.level2Value}`
       : null,
   ]
     .filter(Boolean)
@@ -160,43 +192,89 @@ function ScopeHierarchyCue({
   return (
     <p
       className={cn(
-        "text-xs font-normal leading-snug text-slate-400 wrap-break-word",
+        "mt-0.5 flex min-w-0 flex-wrap items-center text-xs leading-snug",
         className,
       )}
       title={fullTitle}
     >
-      {parts.map((part, index) => (
-        <span key={`${scopeId}-${part}-${index}`}>
-          {index > 0 ? (
-            <span className="mx-1 text-slate-300" aria-hidden>
-              /
-            </span>
-          ) : null}
-          <span>{part}</span>
-        </span>
-      ))}
+      <ScopeHierarchyPath identity={identity} />
     </p>
   );
 }
 
-/** Highlighted Level 1 / Level 2 dimension labels — shown on each accordion header. */
+/** L1 / L2 path values only — dimension labels live on the row tag column. */
+function ScopeHierarchyPath({ identity }: { identity: ScopeIdentity }) {
+  const editedAtLevel1 = identity.editLevel === "level1";
+  const editedAtLevel2 = identity.editLevel === "level2";
+
+  return (
+    <span className="inline-flex min-w-0 flex-wrap items-baseline gap-x-1 text-slate-500">
+      <span
+        className={cn(
+          "wrap-break-word",
+          editedAtLevel1
+            ? "font-medium text-slate-700"
+            : "font-normal text-slate-500",
+        )}
+      >
+        {identity.level1Value || "—"}
+      </span>
+
+      <span className="text-slate-300" aria-hidden>
+        /
+      </span>
+
+      {editedAtLevel1 ? null : (
+        <span
+          className={cn(
+            "wrap-break-word",
+            editedAtLevel2
+              ? "font-medium text-slate-700"
+              : "font-normal text-slate-500",
+          )}
+        >
+          {identity.level2Value || "—"}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function useScopeIdentityForId(scopeId: string): ScopeIdentity {
+  const { level1Key, level2Key, level1Label, level2Label } =
+    useTaxonomyScopeLevels();
+
+  return useMemo(
+    () =>
+      getScopeIdentity(
+        scopeId,
+        level1Key,
+        level2Key,
+        level1Label,
+        level2Label,
+        GOALS_SCOPE_ROWS,
+      ),
+    [scopeId, level1Key, level2Key, level1Label, level2Label],
+  );
+}
+
+/** Level 1 / Level 2 dimension names — plain text under accordion headers. */
 function TaxonomyLevelsHint({ className }: { className?: string }) {
   const { level1Label, level2Label } = useTaxonomyScopeLevels();
 
   return (
     <p
-      className={cn("flex flex-wrap items-center gap-1", className)}
+      className={cn(
+        "flex flex-wrap items-center gap-1 text-xs text-slate-500",
+        className,
+      )}
       aria-label={`${level1Label} / ${level2Label}`}
     >
-      <span className="rounded-md bg-white px-1.5 py-0.5 text-[11px] font-semibold text-slate-700 shadow-xs ring-1 ring-slate-200/80">
-        {level1Label}
-      </span>
+      <span>{level1Label}</span>
       <span className="text-slate-300" aria-hidden>
         /
       </span>
-      <span className="rounded-md bg-white px-1.5 py-0.5 text-[11px] font-semibold text-slate-700 shadow-xs ring-1 ring-slate-200/80">
-        {level2Label}
-      </span>
+      <span>{level2Label}</span>
     </p>
   );
 }
@@ -309,21 +387,27 @@ function ChangeRow({
   /** When true, skip brand name — parent accordion already shows the line item. */
   hideScope?: boolean;
 }) {
+  const identity = useScopeIdentityForId(entry.scopeId);
+
   return (
-    <li className="grid gap-2 border-b border-slate-100 py-3 last:border-b-0 sm:grid-cols-[minmax(0,2.4fr)_auto_minmax(0,1.2fr)] sm:items-start sm:gap-4">
+    <li className="grid gap-2 border-b border-slate-100 py-3 last:border-b-0 sm:grid-cols-[5.5rem_minmax(0,2.2fr)_auto_minmax(0,1.2fr)] sm:items-start sm:gap-3">
+      {/* Col 1 — taxonomy dimension that was edited (Portfolio / Profiles / …) */}
+      <div className="sm:pt-0.5">
+        <ScopeLevelTag identity={identity} />
+      </div>
+
       <div className="min-w-0">
         {!hideScope ? (
           <>
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
               <p className="text-sm font-medium wrap-break-word text-slate-900">
-                {entry.scopeName}
+                {identity.primaryName}
               </p>
               <p className="text-xs wrap-break-word text-slate-500">
                 {entry.fieldLabel}
               </p>
             </div>
-            {/* Where this brand sits in the user's Level 1 / Level 2 setup */}
-            <ScopeHierarchyCue scopeId={entry.scopeId} className="mt-0.5" />
+            <ScopeHierarchyCue scopeId={entry.scopeId} />
           </>
         ) : (
           <p className="text-sm font-medium wrap-break-word text-slate-900">
@@ -360,24 +444,28 @@ function ChangeRow({
 function ChangesAccordionSection({
   label,
   entries,
-  defaultOpen = false,
   hideScopeInRows = false,
   categories,
   scopeId,
 }: {
   label: string;
   entries: ChangeLedgerEntry[];
-  defaultOpen?: boolean;
   hideScopeInRows?: boolean;
   categories?: SetupChangeCategory[];
   /** When set (By impact view), show Level 1 / Level 2 values under the line item name. */
   scopeId?: string;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  // Always start collapsed — user opens the sections they care about.
+  const [open, setOpen] = useState(false);
   /** Empty = show all. Otherwise only matching categories. */
   const [activeCategories, setActiveCategories] = useState<
     SetupChangeCategory[]
   >([]);
+
+  const scopeIdentity = useScopeIdentityForId(
+    scopeId ?? ENTIRE_BUSINESS_SCOPE_ID,
+  );
+  const headingLabel = scopeId ? scopeIdentity.primaryName : label;
 
   const availableCategories = categories ?? uniqueCategories(entries);
 
@@ -391,11 +479,21 @@ function ChangesAccordionSection({
     );
   }, [entries, activeCategories]);
 
+  const toggleOpen = () => setOpen((current) => !current);
+
+  const onHeaderKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      toggleOpen();
+    }
+  };
+
   const toggleCategory = (
     category: SetupChangeCategory,
     event: MouseEvent<HTMLButtonElement>,
   ) => {
     event.preventDefault();
+    // Don't also toggle the accordion when clicking a filter chip.
     event.stopPropagation();
 
     setActiveCategories((current) => {
@@ -417,33 +515,43 @@ function ChangesAccordionSection({
       : `${entries.length} change${entries.length === 1 ? "" : "s"}`;
 
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-      {/* Header is a row (not one giant button) so filter chips can be real buttons */}
+    // Flat section — no nested card. Parent widget owns the outer border.
+    <div>
+      {/* Whole header row toggles open/closed; filter chips stop the click */}
       <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        aria-label={open ? `Collapse ${headingLabel}` : `Expand ${headingLabel}`}
+        onClick={toggleOpen}
+        onKeyDown={onHeaderKeyDown}
         className={cn(
-          "flex w-full items-start justify-between gap-3 px-4 py-3",
-          "bg-slate-100",
-          open && "border-b border-slate-200",
+          "flex w-full cursor-pointer items-start justify-between gap-3 px-4 py-3",
+          "transition-colors hover:bg-slate-50",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:ring-inset",
+          open && "border-b border-slate-100",
         )}
       >
-        <button
-          type="button"
-          aria-expanded={open}
-          onClick={() => setOpen((current) => !current)}
-          className="flex min-w-0 flex-1 items-start gap-2.5 rounded-md text-left transition-colors hover:bg-slate-200/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
-        >
+        <div className="flex min-w-0 flex-1 items-stretch gap-2.5">
+          {/* Tall bar spans title + taxonomy hint under it */}
           <span
-            className="mt-1 h-4 w-1 shrink-0 rounded-full bg-brand-500"
+            className="w-1 shrink-0 self-stretch rounded-full bg-brand-500"
             aria-hidden
           />
           <div className="min-w-0 space-y-1 py-0.5">
-            <h3 className="text-sm font-semibold wrap-break-word text-slate-900">
-              {label}
-            </h3>
-            <TaxonomyLevelsHint />
-            {scopeId ? <ScopeHierarchyCue scopeId={scopeId} /> : null}
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {scopeId ? <ScopeLevelTag identity={scopeIdentity} /> : null}
+              <h3 className="text-sm font-semibold wrap-break-word text-slate-900">
+                {headingLabel}
+              </h3>
+            </div>
+            {scopeId ? (
+              <ScopeHierarchyCue scopeId={scopeId} />
+            ) : (
+              <TaxonomyLevelsHint />
+            )}
           </div>
-        </button>
+        </div>
 
         <div className="flex max-w-[55%] shrink-0 flex-wrap items-center justify-end gap-1.5 self-start pt-0.5">
           {/* Category chips — click to filter this section's rows */}
@@ -486,21 +594,13 @@ function ChangesAccordionSection({
             {changeCountLabel}
           </Badge>
 
-          <button
-            type="button"
-            aria-expanded={open}
-            aria-label={open ? `Collapse ${label}` : `Expand ${label}`}
-            onClick={() => setOpen((current) => !current)}
-            className="rounded-md p-0.5 text-slate-500 transition-colors hover:bg-slate-200/70 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
-          >
-            <ChevronDown
-              className={cn(
-                "size-4 transition-transform",
-                open && "rotate-180",
-              )}
-              aria-hidden
-            />
-          </button>
+          <ChevronDown
+            className={cn(
+              "size-4 shrink-0 text-slate-500 transition-transform",
+              open && "rotate-180",
+            )}
+            aria-hidden
+          />
         </div>
       </div>
 
@@ -622,24 +722,23 @@ function LineItemChangesWidget({
         </div>
       </div>
 
-      <div className="space-y-3 bg-white p-4">
+      {/* One list under the title — dividers only, no nested bordered cards */}
+      <div className="divide-y divide-slate-200 bg-white">
         {view === "by-steps"
-          ? groupedByStep.map((group, index) => (
+          ? groupedByStep.map((group) => (
               <ChangesAccordionSection
                 key={group.step}
                 label={group.label}
                 entries={group.entries}
-                defaultOpen={index === 0}
                 categories={uniqueCategories(group.entries)}
               />
             ))
-          : groupedByScope.map((group, index) => (
+          : groupedByScope.map((group) => (
               <ChangesAccordionSection
                 key={group.scopeId}
                 label={group.scopeName}
                 scopeId={group.scopeId}
                 entries={group.entries}
-                defaultOpen={index === 0}
                 hideScopeInRows
                 categories={uniqueCategories(group.entries)}
               />

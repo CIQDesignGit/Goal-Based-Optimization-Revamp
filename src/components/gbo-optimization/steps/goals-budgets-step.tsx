@@ -2,6 +2,7 @@
 
 import {
   ChevronDown,
+  ChevronRight,
   Info,
   Plus,
   Search,
@@ -24,6 +25,16 @@ import { ImpactBanner } from "@/components/gbo-optimization/impact-banner";
 import { InfoLabel } from "@/components/gbo-optimization/info-label";
 import { PerformanceGateSettingsStrip } from "@/components/gbo-optimization/performance-gate-settings-strip";
 import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -35,8 +46,6 @@ import {
   getLevelLabel,
   getNextBudgetMonthIndex,
   getScopeRowDefaultMonthlyBudget,
-  getScopeTaxonomyValue,
-  GOALS_GOAL_EDITABLE_ROWS,
   GOALS_SCOPE_ROWS,
   ENTIRE_BUSINESS_SCOPE_ID,
   GOAL_TYPE_OPTIONS,
@@ -47,9 +56,16 @@ import {
   getGoalTypeLabel,
   isRoasGoalMetric,
   RULE_BASED_OPTIMIZER_NOTICE,
-  sortScopeRowsByLevels,
   type GoalType,
 } from "@/lib/gbo-optimization/setup-data";
+import {
+  buildNestedScopeRows,
+  getActiveGoalEditableRowIds,
+  getScopeEditMode,
+  sumBudgetMonthValues,
+  type NestedScopeRow,
+  type ScopeEditMode,
+} from "@/lib/gbo-optimization/scope-tree";
 import {
   getGoalsBudgetFieldKey,
   getLatestCellChange,
@@ -91,16 +107,11 @@ const cellInputClass =
   "h-8 w-full min-w-0 border border-transparent px-1.5 text-right text-sm tabular-nums shadow-none hover:border-slate-200 focus-visible:border-slate-300 focus-visible:bg-white";
 const budgetCellInputClass =
   "h-8 w-full min-w-0 border border-transparent px-1.5 text-right text-sm tabular-nums shadow-none hover:border-slate-200 focus-visible:border-brand-300 focus-visible:bg-white";
-/** Level 1 sticky column (parent taxonomy — e.g. Brand / Portfolio). */
-const LEVEL1_COLUMN_MIN_WIDTH = 120;
-const LEVEL1_COLUMN_DEFAULT_WIDTH = 148;
-const LEVEL1_COLUMN_RULE_BASED_MIN_WIDTH = 96;
-const LEVEL1_COLUMN_RULE_BASED_DEFAULT_WIDTH = 112;
-/** Level 2 sticky column (child taxonomy — e.g. Sub Brand / Profiles). */
-const LEVEL2_COLUMN_MIN_WIDTH = 140;
-const LEVEL2_COLUMN_DEFAULT_WIDTH = 172;
-const LEVEL2_COLUMN_RULE_BASED_MIN_WIDTH = 112;
-const LEVEL2_COLUMN_RULE_BASED_DEFAULT_WIDTH = 136;
+/** Single sticky Scope column (nested Level 1 + Level 2). */
+const SCOPE_COLUMN_MIN_WIDTH = 180;
+const SCOPE_COLUMN_DEFAULT_WIDTH = 240;
+const SCOPE_COLUMN_RULE_BASED_MIN_WIDTH = 140;
+const SCOPE_COLUMN_RULE_BASED_DEFAULT_WIDTH = 180;
 const METRIC_COL_WIDTH_PX = 220;
 const TARGET_COL_WIDTH_PX = 112;
 const LAST_30_COL_WIDTH_PX = 120;
@@ -187,6 +198,8 @@ const MISSING_GOAL_HIGHLIGHT_CLASS =
   "bg-amber-50 ring-2 ring-inset ring-amber-200";
 const PERFORMANCE_GATE_HEADER_WARNING =
   "Goal value required to gate performance";
+const SWITCH_TO_CHILDREN_TITLE = "Edit at Level 2 instead?";
+const SWITCH_TO_PARENT_TITLE = "Edit at Level 1 instead?";
 
 function PerformanceGateNewBadge() {
   return (
@@ -214,12 +227,13 @@ function rowNeedsCurrentMonthBudget(
 
 function getBulkGoalMetric(
   rowState: Record<string, GoalsRowState>,
+  activeRowIds: string[],
 ): GoalType | null | typeof BULK_CLEAR_GOAL_VALUE {
-  const metrics = GOALS_GOAL_EDITABLE_ROWS.map(
-    (row) => rowState[row.id]?.goalMetric ?? null,
+  const metrics = activeRowIds.map(
+    (rowId) => rowState[rowId]?.goalMetric ?? null,
   );
 
-  if (metrics.every((metric) => metric === null)) {
+  if (metrics.length === 0 || metrics.every((metric) => metric === null)) {
     return BULK_CLEAR_GOAL_VALUE;
   }
 
@@ -610,8 +624,6 @@ type TaxonomyScopeHeaderProps = {
   left: number;
   onResizeStart?: (event: ReactPointerEvent<HTMLDivElement>) => void;
   resizeLabel?: string;
-  /** Soft right edge when another sticky taxonomy column follows. */
-  isLeading?: boolean;
 };
 
 function stickyColumnStyle(
@@ -647,7 +659,7 @@ function MonthRangeToggle({
   );
 }
 
-/** Sticky Level 1 or Level 2 header — label comes from General taxonomy pick. */
+/** Sticky nested Scope header — Level 1 → Level 2 labels from General. */
 function TaxonomyScopeHeader({
   label,
   width,
@@ -655,7 +667,6 @@ function TaxonomyScopeHeader({
   left,
   onResizeStart,
   resizeLabel,
-  isLeading = false,
 }: TaxonomyScopeHeaderProps) {
   return (
     <th
@@ -668,7 +679,7 @@ function TaxonomyScopeHeader({
         "relative border-r border-slate-200 px-3 py-2.5 text-left font-medium",
         HEAD_ROW_BORDER,
         STICKY_SCOPE_HEAD,
-        !isLeading && STICKY_SCOPE_EDGE,
+        STICKY_SCOPE_EDGE,
       )}
     >
       <div className="truncate pr-2">
@@ -686,6 +697,14 @@ function TaxonomyScopeHeader({
     </th>
   );
 }
+
+type ScopeLevelSwitchDialog = {
+  groupId: string;
+  groupLabel: string;
+  targetMode: ScopeEditMode;
+  level1Label: string;
+  level2Label: string;
+};
 
 export function GoalsBudgetsStep() {
   const {
@@ -717,18 +736,12 @@ export function GoalsBudgetsStep() {
 
   const toggleLabelClass = showToggleHint ? "toggle-label-shimmer" : "";
 
-  const level1MinWidth = isRuleBased
-    ? LEVEL1_COLUMN_RULE_BASED_MIN_WIDTH
-    : LEVEL1_COLUMN_MIN_WIDTH;
-  const level1DefaultWidth = isRuleBased
-    ? LEVEL1_COLUMN_RULE_BASED_DEFAULT_WIDTH
-    : LEVEL1_COLUMN_DEFAULT_WIDTH;
-  const level2MinWidth = isRuleBased
-    ? LEVEL2_COLUMN_RULE_BASED_MIN_WIDTH
-    : LEVEL2_COLUMN_MIN_WIDTH;
-  const level2DefaultWidth = isRuleBased
-    ? LEVEL2_COLUMN_RULE_BASED_DEFAULT_WIDTH
-    : LEVEL2_COLUMN_DEFAULT_WIDTH;
+  const scopeMinWidth = isRuleBased
+    ? SCOPE_COLUMN_RULE_BASED_MIN_WIDTH
+    : SCOPE_COLUMN_MIN_WIDTH;
+  const scopeDefaultWidth = isRuleBased
+    ? SCOPE_COLUMN_RULE_BASED_DEFAULT_WIDTH
+    : SCOPE_COLUMN_DEFAULT_WIDTH;
 
   const budgetType = useSetupSessionStore(
     (state) => state.generalConfig.budgetType,
@@ -737,13 +750,23 @@ export function GoalsBudgetsStep() {
   const level2Key = useSetupSessionStore((state) => state.generalConfig.level2);
   const level1HeaderLabel = getLevelLabel(budgetType, level1Key);
   const level2HeaderLabel = getLevelLabel(budgetType, level2Key);
+  const scopeHeaderLabel = `${level1HeaderLabel} / ${level2HeaderLabel}`;
 
-  const sortedScopeRows = useMemo(
-    () => sortScopeRowsByLevels(GOALS_SCOPE_ROWS, level1Key, level2Key),
+  const nestedScopeRows = useMemo(
+    () => buildNestedScopeRows(GOALS_SCOPE_ROWS, level1Key, level2Key),
     [level1Key, level2Key],
   );
 
   const rowState = useSetupSessionStore((state) => state.goalsRowState);
+  const scopeEditModeByGroup = useSetupSessionStore(
+    (state) => state.scopeEditModeByGroup,
+  );
+  const switchScopeGroupToChildren = useSetupSessionStore(
+    (state) => state.switchScopeGroupToChildren,
+  );
+  const switchScopeGroupToParent = useSetupSessionStore(
+    (state) => state.switchScopeGroupToParent,
+  );
   const missingGoalHighlightRowIds = useSetupSessionStore(
     (state) => state.missingGoalHighlightRowIds,
   );
@@ -789,36 +812,38 @@ export function GoalsBudgetsStep() {
   );
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const {
-    width: level1ColumnWidth,
-    setWidth: setLevel1ColumnWidth,
-    onResizeStart: onLevel1ResizeStart,
-  } = useResizableColumnWidth(level1MinWidth, level1DefaultWidth);
-  const {
-    width: level2ColumnWidth,
-    setWidth: setLevel2ColumnWidth,
-    onResizeStart: onLevel2ResizeStart,
-  } = useResizableColumnWidth(level2MinWidth, level2DefaultWidth);
+    width: scopeColumnWidth,
+    setWidth: setScopeColumnWidth,
+    onResizeStart: onScopeResizeStart,
+  } = useResizableColumnWidth(scopeMinWidth, scopeDefaultWidth);
+
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [levelSwitchDialog, setLevelSwitchDialog] =
+    useState<ScopeLevelSwitchDialog | null>(null);
 
   useEffect(() => {
     if (!isRuleBased) return;
 
-    setLevel1ColumnWidth((current) =>
-      Math.max(level1MinWidth, Math.min(current, level1DefaultWidth)),
+    setScopeColumnWidth((current) =>
+      Math.max(scopeMinWidth, Math.min(current, scopeDefaultWidth)),
     );
-    setLevel2ColumnWidth((current) =>
-      Math.max(level2MinWidth, Math.min(current, level2DefaultWidth)),
-    );
-  }, [
-    isRuleBased,
-    level1MinWidth,
-    level1DefaultWidth,
-    level2MinWidth,
-    level2DefaultWidth,
-    setLevel1ColumnWidth,
-    setLevel2ColumnWidth,
-  ]);
+  }, [isRuleBased, scopeMinWidth, scopeDefaultWidth, setScopeColumnWidth]);
 
-  const scopeColumnsWidth = level1ColumnWidth + level2ColumnWidth;
+  const scopeColumnsWidth = scopeColumnWidth;
+
+  const activeGoalRowIds = useMemo(
+    () => getActiveGoalEditableRowIds(nestedScopeRows, scopeEditModeByGroup),
+    [nestedScopeRows, scopeEditModeByGroup],
+  );
+
+  const visibleNestedRows = useMemo(() => {
+    return nestedScopeRows.filter((row) => {
+      if (row.kind !== "level2-child" || !row.groupId) return true;
+      return !collapsedGroupIds.has(row.groupId);
+    });
+  }, [nestedScopeRows, collapsedGroupIds]);
 
   const defaultMonthWindowStart = useMemo(
     () => getDefaultBudgetWindowStart(BUDGET_CURRENT_MONTH_INDEX),
@@ -839,10 +864,12 @@ export function GoalsBudgetsStep() {
   // At least one row has a goal → unlock Target / Last 30 / Budget columns.
   const hasAnyGoalSelected = useMemo(
     () =>
-      GOALS_GOAL_EDITABLE_ROWS.some((row) =>
-        Boolean(rowState[row.id]?.goalMetric),
+      nestedScopeRows.some(
+        (row) =>
+          row.kind !== "entire-business" &&
+          Boolean(rowState[row.id]?.goalMetric),
       ),
-    [rowState],
+    [nestedScopeRows, rowState],
   );
   const showGoalDetailColumns = hasAnyGoalSelected;
   const showBudgetColumns = !isRuleBased && hasAnyGoalSelected;
@@ -868,18 +895,18 @@ export function GoalsBudgetsStep() {
     if (!showBudgetColumns) return false;
     if (!visibleMonthIndices.includes(BUDGET_CURRENT_MONTH_INDEX)) return false;
 
-    return GOALS_GOAL_EDITABLE_ROWS.some((row) => {
-      const state = rowState[row.id];
+    return activeGoalRowIds.some((rowId) => {
+      const state = rowState[rowId];
       return state && rowNeedsCurrentMonthBudget(state);
     });
-  }, [showBudgetColumns, rowState, visibleMonthIndices]);
+  }, [showBudgetColumns, rowState, visibleMonthIndices, activeGoalRowIds]);
 
   const hasUnfilledNextMonthBudget = useMemo(() => {
     if (!showBudgetColumns || nextMonthIndex === null) return false;
     if (!visibleMonthIndices.includes(nextMonthIndex)) return false;
 
-    return GOALS_GOAL_EDITABLE_ROWS.some((row) => {
-      const state = rowState[row.id];
+    return activeGoalRowIds.some((rowId) => {
+      const state = rowState[rowId];
       return state && rowNeedsNextMonthBudget(state, nextMonthIndex);
     });
   }, [
@@ -887,6 +914,7 @@ export function GoalsBudgetsStep() {
     nextMonthIndex,
     rowState,
     visibleMonthIndices,
+    activeGoalRowIds,
   ]);
 
   const showBudgetNudgeLayout =
@@ -1007,18 +1035,18 @@ export function GoalsBudgetsStep() {
   const applyGoalToAllRows = (value: string) => {
     const nextMetric =
       value === BULK_CLEAR_GOAL_VALUE ? null : (value as GoalType);
-    const previousByRow = GOALS_GOAL_EDITABLE_ROWS.map((row) => ({
-      rowId: row.id,
-      previous: rowState[row.id]?.goalMetric ?? null,
+    const previousByRow = activeGoalRowIds.map((rowId) => ({
+      rowId,
+      previous: rowState[rowId]?.goalMetric ?? null,
     }));
 
     setRowState((current) => {
       const next = { ...current };
 
-      for (const row of GOALS_GOAL_EDITABLE_ROWS) {
-        if (!next[row.id]) continue;
-        next[row.id] = {
-          ...next[row.id],
+      for (const rowId of activeGoalRowIds) {
+        if (!next[rowId]) continue;
+        next[rowId] = {
+          ...next[rowId],
           goalMetric: nextMetric,
         };
       }
@@ -1077,7 +1105,9 @@ export function GoalsBudgetsStep() {
 
     setRowState((current) => {
       const row = current[rowId];
-      if (!row?.goalMetric) return current;
+      // Entire Business can edit budgets without a goal; other rows need one.
+      if (!row) return current;
+      if (rowId !== ENTIRE_BUSINESS_SCOPE_ID && !row.goalMetric) return current;
 
       const monthlyBudgets = [...row.monthlyBudgets];
       monthlyBudgets[monthIndex] = value;
@@ -1108,7 +1138,8 @@ export function GoalsBudgetsStep() {
 
     setRowState((current) => {
       const row = current[rowId];
-      if (!row?.goalMetric) return current;
+      if (!row) return current;
+      if (rowId !== ENTIRE_BUSINESS_SCOPE_ID && !row.goalMetric) return current;
 
       const monthlyBudgets = [...row.monthlyBudgets];
       const raw = monthlyBudgets[monthIndex]?.trim() ?? "";
@@ -1175,9 +1206,8 @@ export function GoalsBudgetsStep() {
   }, [rowState]);
 
   const hasMissingGoals = useMemo(
-    () =>
-      GOALS_GOAL_EDITABLE_ROWS.some((row) => !rowState[row.id]?.goalMetric),
-    [rowState],
+    () => activeGoalRowIds.some((rowId) => !rowState[rowId]?.goalMetric),
+    [activeGoalRowIds, rowState],
   );
 
   useEffect(() => {
@@ -1187,17 +1217,71 @@ export function GoalsBudgetsStep() {
   }, [hasMissingGoals, setGoalsMissingGoalsNoticeDismissed]);
 
   const bulkGoalMetric = useMemo(
-    () => getBulkGoalMetric(rowState),
-    [rowState],
+    () => getBulkGoalMetric(rowState, activeGoalRowIds),
+    [rowState, activeGoalRowIds],
   );
 
   const hasPerformanceGateGoalGap = useMemo(() => {
     if (!includePerformanceGate) return false;
 
-    return GOALS_GOAL_EDITABLE_ROWS.some(
-      (row) => !rowState[row.id]?.goalMetric,
+    return activeGoalRowIds.some((rowId) => !rowState[rowId]?.goalMetric);
+  }, [includePerformanceGate, activeGoalRowIds, rowState]);
+
+  const toggleGroupCollapsed = (groupId: string) => {
+    setCollapsedGroupIds((current) => {
+      const next = new Set(current);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  };
+
+  const requestEditAtBlockedLevel = (
+    row: NestedScopeRow,
+    targetMode: ScopeEditMode,
+  ) => {
+    if (!row.groupId) return;
+
+    setLevelSwitchDialog({
+      groupId: row.groupId,
+      groupLabel:
+        nestedScopeRows.find((item) => item.id === row.groupId)?.label ??
+        row.label,
+      targetMode,
+      level1Label: level1HeaderLabel,
+      level2Label: level2HeaderLabel,
+    });
+  };
+
+  const confirmLevelSwitch = () => {
+    if (!levelSwitchDialog) return;
+
+    if (levelSwitchDialog.targetMode === "children") {
+      switchScopeGroupToChildren(levelSwitchDialog.groupId);
+    } else {
+      switchScopeGroupToParent(levelSwitchDialog.groupId);
+    }
+
+    setLevelSwitchDialog(null);
+  };
+
+  const getChildBudgetSumForMonth = (
+    childIds: string[],
+    monthIndex: number,
+  ): string => {
+    return sumBudgetMonthValues(
+      childIds.map(
+        (childId) => rowState[childId]?.monthlyBudgets[monthIndex] ?? "",
+      ),
     );
-  }, [includePerformanceGate, rowState]);
+  };
+
+  const getChildFyTotal = (childIds: string[]): number => {
+    return childIds.reduce((total, childId) => {
+      const budgets = rowState[childId]?.monthlyBudgets ?? [];
+      return total + sumMonthlyBudgets(budgets);
+    }, 0);
+  };
 
   return (
     <div className="flex flex-col gap-3 py-4">
@@ -1326,8 +1410,7 @@ export function GoalsBudgetsStep() {
             style={{ minWidth: tableMinWidth }}
           >
           <colgroup>
-            <col style={{ width: level1ColumnWidth }} />
-            <col style={{ width: level2ColumnWidth }} />
+            <col style={{ width: scopeColumnWidth }} />
             <col style={{ width: METRIC_COL_WIDTH_PX }} />
             {showGoalDetailColumns ? (
               <>
@@ -1339,21 +1422,12 @@ export function GoalsBudgetsStep() {
           <thead>
             <tr className="bg-slate-50 text-xs text-slate-600">
               <TaxonomyScopeHeader
-                label={level1HeaderLabel}
-                width={level1ColumnWidth}
-                minWidth={level1MinWidth}
+                label={scopeHeaderLabel}
+                width={scopeColumnWidth}
+                minWidth={scopeMinWidth}
                 left={0}
-                isLeading
-                onResizeStart={onLevel1ResizeStart}
-                resizeLabel={`Resize ${level1HeaderLabel} column`}
-              />
-              <TaxonomyScopeHeader
-                label={level2HeaderLabel}
-                width={level2ColumnWidth}
-                minWidth={level2MinWidth}
-                left={level1ColumnWidth}
-                onResizeStart={onLevel2ResizeStart}
-                resizeLabel={`Resize ${level2HeaderLabel} column`}
+                onResizeStart={onScopeResizeStart}
+                resizeLabel={`Resize ${scopeHeaderLabel} column`}
               />
               <th
                 colSpan={showGoalDetailColumns ? 3 : 1}
@@ -1583,84 +1657,115 @@ export function GoalsBudgetsStep() {
             </tr>
           </thead>
           <tbody>
-            {sortedScopeRows.map((row, rowIndex) => {
-              const isParent = row.id === ENTIRE_BUSINESS_SCOPE_ID;
+            {visibleNestedRows.map((row) => {
+              const isEntireBusiness = row.kind === "entire-business";
+              const isLevel1Parent = row.kind === "level1-parent";
+              const isLevel2Child = row.kind === "level2-child";
+              const groupMode = getScopeEditMode(
+                row.groupId,
+                scopeEditModeByGroup,
+              );
               const editable = rowState[row.id];
-              const fyTotal = fyTotals[row.id] ?? 0;
-              const canEditGoal = !isParent;
+              const isCollapsed =
+                isLevel1Parent && collapsedGroupIds.has(row.id);
+
+              // Entire Business: budgets only (special row 0).
+              // Level 1 parent: editable only in parent mode; otherwise show sum.
+              // Level 2 child: editable only in children mode; otherwise blocked.
+              const canEditGoal =
+                (isLevel1Parent && groupMode === "parent") ||
+                (isLevel2Child && groupMode === "children");
+              const showsChildSum =
+                isLevel1Parent && groupMode === "children";
+              const isBlockedChild =
+                isLevel2Child && groupMode === "parent";
+              const isBlockedParent =
+                isLevel1Parent && groupMode === "children";
+
               const isRoasTarget = editable?.goalMetric
                 ? isRoasGoalMetric(editable.goalMetric)
                 : true;
-              const canEditBudget = isParent
+              const canEditBudget = isEntireBusiness
                 ? showBudgetColumns
-                : Boolean(editable?.goalMetric);
+                : canEditGoal && Boolean(editable?.goalMetric);
               const isMissingGoalHighlighted =
                 canEditGoal &&
                 missingGoalHighlightRowIds.includes(row.id);
 
-              const level1Value = getScopeTaxonomyValue(row, level1Key);
-              const level2Value = getScopeTaxonomyValue(row, level2Key);
-              // Hide repeated Level 1 labels so parent groups read clearly
-              // (Brand once, then each Sub Brand underneath).
-              const previousLeaf = sortedScopeRows
-                .slice(0, rowIndex)
-                .reverse()
-                .find((candidate) => candidate.id !== ENTIRE_BUSINESS_SCOPE_ID);
-              const showLevel1Label =
-                isParent ||
-                !previousLeaf ||
-                getScopeTaxonomyValue(previousLeaf, level1Key) !== level1Value;
+              const fyTotal = showsChildSum
+                ? getChildFyTotal(row.childIds)
+                : (fyTotals[row.id] ?? 0);
+
+              const last30Display =
+                GOALS_SCOPE_ROWS.find((item) => item.id === row.id)
+                  ?.last30Days ?? "";
+
+              const onBlockedInteraction = () => {
+                if (isBlockedChild) {
+                  requestEditAtBlockedLevel(row, "children");
+                  return;
+                }
+                if (isBlockedParent) {
+                  requestEditAtBlockedLevel(row, "parent");
+                }
+              };
 
               return (
                 <tr key={row.id} className="group hover:bg-slate-50/50">
                   <td
-                    style={stickyColumnStyle(0, level1ColumnWidth)}
-                    className={cn(
-                      "overflow-hidden border-r border-slate-100 px-3 py-2.5 text-left",
-                      ROW_BORDER,
-                      STICKY_SCOPE_CELL,
-                      isParent
-                        ? "font-semibold text-slate-900"
-                        : showLevel1Label
-                          ? "font-medium text-slate-900"
-                          : "font-normal text-slate-400",
-                    )}
-                  >
-                    <span
-                      className="flex min-w-0 items-center gap-1"
-                      title={level1Value || undefined}
-                    >
-                      {isParent && row.expandable ? (
-                        <ChevronDown className="size-4 shrink-0 text-slate-400" />
-                      ) : null}
-                      <span className="truncate">
-                        {showLevel1Label ? level1Value : ""}
-                      </span>
-                    </span>
-                  </td>
-                  <td
-                    style={stickyColumnStyle(
-                      level1ColumnWidth,
-                      level2ColumnWidth,
-                    )}
+                    style={stickyColumnStyle(0, scopeColumnWidth)}
                     className={cn(
                       "overflow-hidden border-r border-slate-100 px-3 py-2.5 text-left",
                       ROW_BORDER,
                       STICKY_SCOPE_CELL,
                       STICKY_SCOPE_EDGE,
-                      isParent
+                      isEntireBusiness || isLevel1Parent
                         ? "font-semibold text-slate-900"
-                        : "font-medium text-slate-900",
+                        : "font-medium text-slate-700",
                     )}
                   >
-                    {!isParent ? (
-                      <span
-                        className="block min-w-0 truncate"
-                        title={level2Value}
-                      >
-                        {level2Value}
-                      </span>
-                    ) : null}
+                    <span
+                      className={cn(
+                        "flex min-w-0 items-center gap-1",
+                        isLevel2Child && "pl-5",
+                      )}
+                      title={row.label}
+                    >
+                      {row.expandable ? (
+                        <button
+                          type="button"
+                          aria-expanded={!isCollapsed}
+                          aria-label={
+                            isCollapsed
+                              ? `Expand ${row.label}`
+                              : `Collapse ${row.label}`
+                          }
+                          onClick={() => {
+                            if (isEntireBusiness) return;
+                            if (row.groupId || isLevel1Parent) {
+                              toggleGroupCollapsed(row.id);
+                            }
+                          }}
+                          className="shrink-0 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                        >
+                          {isCollapsed ? (
+                            <ChevronRight className="size-4" />
+                          ) : (
+                            <ChevronDown className="size-4" />
+                          )}
+                        </button>
+                      ) : (
+                        <span className="inline-block size-4 shrink-0" aria-hidden />
+                      )}
+                      <span className="truncate">{row.label}</span>
+                      {isLevel1Parent ? (
+                        <span className="ml-1 shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                          {groupMode === "parent"
+                            ? level1HeaderLabel
+                            : level2HeaderLabel}
+                        </span>
+                      ) : null}
+                    </span>
                   </td>
                   <td
                     style={stickyColumnStyle(
@@ -1673,15 +1778,19 @@ export function GoalsBudgetsStep() {
                       "overflow-visible",
                       !showGoalDetailColumns && STICKY_GOAL_EDGE,
                       !canEditGoal && "bg-slate-100 group-hover:bg-slate-100",
-                      isParent &&
+                      isEntireBusiness &&
                         hasMissingGoalHighlight &&
                         MISSING_GOAL_HIGHLIGHT_CLASS,
-                      !isParent &&
-                        isMissingGoalHighlighted &&
+                      isMissingGoalHighlighted &&
                         MISSING_GOAL_HIGHLIGHT_CLASS,
                     )}
+                    onClick={
+                      isBlockedChild || isBlockedParent
+                        ? onBlockedInteraction
+                        : undefined
+                    }
                   >
-                    {!isParent && editable && canEditGoal ? (
+                    {canEditGoal && editable ? (
                       <div className="min-w-0">
                         <ChangedCellTooltip
                           visual={getGoalMetricVisualState(editable)}
@@ -1696,7 +1805,7 @@ export function GoalsBudgetsStep() {
                         >
                           <SetupInlineSelect
                             hideLabel
-                            label={`Metric to optimize for ${row.name}`}
+                            label={`Metric to optimize for ${row.label}`}
                             value={editable.goalMetric}
                             options={GOAL_METRIC_SELECT_OPTIONS}
                             placeholder="Select goal"
@@ -1707,6 +1816,22 @@ export function GoalsBudgetsStep() {
                             triggerClassName={goalMetricTriggerClass(editable)}
                           />
                         </ChangedCellTooltip>
+                      </div>
+                    ) : isBlockedChild || isBlockedParent ? (
+                      <div className="min-w-0">
+                        <button
+                          type="button"
+                          className="flex h-8 w-full min-w-0 items-center justify-between gap-1.5 p-0 text-sm"
+                          onClick={onBlockedInteraction}
+                          aria-label={
+                            isBlockedChild
+                              ? `Edit ${row.label} at ${level2HeaderLabel}`
+                              : `Edit ${row.label} at ${level1HeaderLabel}`
+                          }
+                        >
+                          <span className="min-w-0 flex-1" aria-hidden />
+                          <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                        </button>
                       </div>
                     ) : null}
                   </td>
@@ -1724,6 +1849,11 @@ export function GoalsBudgetsStep() {
                             ? "bg-white group-hover:bg-white"
                             : "bg-slate-100 group-hover:bg-slate-100",
                         )}
+                        onClick={
+                          isBlockedChild || isBlockedParent
+                            ? onBlockedInteraction
+                            : undefined
+                        }
                       >
                         {editable && canEditGoal ? (
                           <div className="flex min-w-0 flex-col gap-1">
@@ -1751,7 +1881,7 @@ export function GoalsBudgetsStep() {
                                   }
                                   onKeyDown={handleGoalsInputKeyDown}
                                   onBlur={() => formatGoalValue(row.id)}
-                                  aria-label={`Target value for ${row.name}`}
+                                  aria-label={`Target value for ${row.label}`}
                                   className={goalInputVisualClass(
                                     editable,
                                     isRoasTarget,
@@ -1762,7 +1892,7 @@ export function GoalsBudgetsStep() {
                               <span
                                 className="block h-8 px-1.5 py-1.5"
                                 title={BUDGET_GOAL_REQUIRED_HINT}
-                                aria-label={`Target value for ${row.name} (select a goal first)`}
+                                aria-label={`Target value for ${row.label} (select a goal first)`}
                               />
                             )}
                           </div>
@@ -1783,13 +1913,60 @@ export function GoalsBudgetsStep() {
                         )}
                       >
                         <span className="block px-2 py-1.5 tabular-nums text-slate-700">
-                          {canEditGoal && canEditBudget ? row.last30Days : ""}
+                          {canEditGoal && canEditBudget ? last30Display : ""}
                         </span>
                       </td>
                     </>
                   ) : null}
                   {showBudgetColumns &&
                     visibleMonthIndices.map((monthIndex) => {
+                      if (showsChildSum) {
+                        const sumValue = getChildBudgetSumForMonth(
+                          row.childIds,
+                          monthIndex,
+                        );
+                        return (
+                          <td
+                            key={`${row.id}-${monthIndex}`}
+                            className={budgetMonthTdClass(
+                              "locked",
+                              monthIndex,
+                              false,
+                              hasUnfilledCurrentMonthBudget,
+                              hasUnfilledNextMonthBudget,
+                            )}
+                            onClick={onBlockedInteraction}
+                          >
+                            <span
+                              className={cn(
+                                "block px-2 py-1.5 tabular-nums text-slate-700",
+                                PARENT_BUDGET_VALUE_CLASS,
+                              )}
+                              title={`Sum of ${level2HeaderLabel} values`}
+                              aria-label={`${BUDGET_MONTHS[monthIndex]} budget for ${row.label} (sum)`}
+                            >
+                              {sumValue || "—"}
+                            </span>
+                          </td>
+                        );
+                      }
+
+                      if (isBlockedChild) {
+                        return (
+                          <td
+                            key={`${row.id}-${monthIndex}`}
+                            className={budgetMonthTdClass(
+                              "locked",
+                              monthIndex,
+                              true,
+                              hasUnfilledCurrentMonthBudget,
+                              hasUnfilledNextMonthBudget,
+                            )}
+                            onClick={onBlockedInteraction}
+                          />
+                        );
+                      }
+
                       // No goal on this row → keep month cells empty (headers may still show).
                       if (!canEditBudget) {
                         return (
@@ -1803,7 +1980,7 @@ export function GoalsBudgetsStep() {
                               hasUnfilledNextMonthBudget,
                             )}
                             title={BUDGET_GOAL_REQUIRED_HINT}
-                            aria-label={`${BUDGET_MONTHS[monthIndex]} budget for ${row.name} (select a goal first)`}
+                            aria-label={`${BUDGET_MONTHS[monthIndex]} budget for ${row.label} (select a goal first)`}
                           />
                         );
                       }
@@ -1826,6 +2003,8 @@ export function GoalsBudgetsStep() {
                             budgetDiff.to,
                           )
                         : undefined;
+                      const isAggregateRow =
+                        isEntireBusiness || isLevel1Parent;
 
                       return (
                         <td
@@ -1842,10 +2021,10 @@ export function GoalsBudgetsStep() {
                             <span
                               className={cn(
                                 "block px-2 py-1.5 tabular-nums text-slate-500",
-                                isParent && PARENT_BUDGET_VALUE_CLASS,
+                                isAggregateRow && PARENT_BUDGET_VALUE_CLASS,
                               )}
                               title={BUDGET_LOCKED_HINT}
-                              aria-label={`${BUDGET_MONTHS[monthIndex]} budget for ${row.name} (locked)`}
+                              aria-label={`${BUDGET_MONTHS[monthIndex]} budget for ${row.label} (locked)`}
                             >
                               {budgetValue || "—"}
                             </span>
@@ -1873,11 +2052,11 @@ export function GoalsBudgetsStep() {
                                 onBlur={() =>
                                   formatMonthlyBudget(row.id, monthIndex)
                                 }
-                                aria-label={`${BUDGET_MONTHS[monthIndex]} budget for ${row.name}`}
+                                aria-label={`${BUDGET_MONTHS[monthIndex]} budget for ${row.label}`}
                                 className={budgetInputVisualClass(
                                   editable,
                                   monthIndex,
-                                  isParent,
+                                  isAggregateRow,
                                 )}
                               />
                             </ChangedCellTooltip>
@@ -1892,13 +2071,17 @@ export function GoalsBudgetsStep() {
                         "border-r-0 px-2 py-2.5 tabular-nums text-slate-900",
                         ROW_BORDER,
                         STICKY_FY_CELL,
-                        isParent && PARENT_BUDGET_VALUE_CLASS,
+                        (isEntireBusiness || isLevel1Parent) &&
+                          PARENT_BUDGET_VALUE_CLASS,
                         !canEditBudget &&
-                          !isParent &&
+                          !showsChildSum &&
+                          !isEntireBusiness &&
                           "bg-slate-100 text-transparent group-hover:bg-slate-100",
                       )}
                     >
-                      {canEditBudget ? formatCurrency(fyTotal) || "—" : ""}
+                      {canEditBudget || showsChildSum
+                        ? formatCurrency(fyTotal) || "—"
+                        : ""}
                     </td>
                   )}
                 </tr>
@@ -1908,6 +2091,64 @@ export function GoalsBudgetsStep() {
         </table>
         </div>
       </div>
+
+      <AlertDialog
+        open={levelSwitchDialog != null}
+        onOpenChange={(open) => {
+          if (!open) setLevelSwitchDialog(null);
+        }}
+      >
+        <AlertDialogContent size="default">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {levelSwitchDialog?.targetMode === "children"
+                ? SWITCH_TO_CHILDREN_TITLE
+                : SWITCH_TO_PARENT_TITLE}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {levelSwitchDialog?.targetMode === "children" ? (
+                <>
+                  Adding values at{" "}
+                  <span className="font-medium text-foreground">
+                    {levelSwitchDialog.level2Label}
+                  </span>{" "}
+                  for{" "}
+                  <span className="font-medium text-foreground">
+                    {levelSwitchDialog.groupLabel}
+                  </span>{" "}
+                  will clear the{" "}
+                  <span className="font-medium text-foreground">
+                    {levelSwitchDialog.level1Label}
+                  </span>
+                  -level values. Continue?
+                </>
+              ) : (
+                <>
+                  Setting values at{" "}
+                  <span className="font-medium text-foreground">
+                    {levelSwitchDialog?.level1Label}
+                  </span>{" "}
+                  for{" "}
+                  <span className="font-medium text-foreground">
+                    {levelSwitchDialog?.groupLabel}
+                  </span>{" "}
+                  will clear the{" "}
+                  <span className="font-medium text-foreground">
+                    {levelSwitchDialog?.level2Label}
+                  </span>
+                  -level values. Continue?
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmLevelSwitch}>
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

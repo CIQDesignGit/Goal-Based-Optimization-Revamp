@@ -15,13 +15,10 @@ import {
   type OptimizerColumnMode,
 } from "@/components/gbo-optimization/optimizer-mode-chip";
 import {
-  shouldShowTaxonomyLevel1Label,
-  TaxonomyScopeCells,
-  TaxonomyScopeHeader,
-  TAXONOMY_LEVEL1_COL_WIDTH,
-  TAXONOMY_LEVEL2_COL_WIDTH,
-  useSortedTaxonomyRows,
-  useTaxonomyScopeLevels,
+  NestedTaxonomyScopeCell,
+  NestedTaxonomyScopeHeader,
+  TAXONOMY_NESTED_SCOPE_COL_WIDTH,
+  useNestedTaxonomyScopeRows,
 } from "@/components/gbo-optimization/taxonomy-scope-columns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -273,9 +270,13 @@ export function OptimizerStep() {
     (activeDayPartingRowId && dayPartingLabels[activeDayPartingRowId]) ||
     DEFAULT_DAY_PARTING_LABEL;
 
-  const { level1Key, level2Key, level1Label, level2Label } =
-    useTaxonomyScopeLevels();
-  const sortedOptimizerRows = useSortedTaxonomyRows(OPTIMIZER_SCOPE_ROWS);
+  const {
+    visibleRows,
+    collapsedGroupIds,
+    toggleGroupCollapsed,
+    sourceById,
+    scopeHeaderLabel,
+  } = useNestedTaxonomyScopeRows(OPTIMIZER_SCOPE_ROWS);
 
   return (
     <div className="flex flex-col gap-4 py-4">
@@ -306,13 +307,9 @@ export function OptimizerStep() {
         <table className="w-full min-w-[1200px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-600">
-              <TaxonomyScopeHeader
-                label={level1Label}
-                width={TAXONOMY_LEVEL1_COL_WIDTH}
-              />
-              <TaxonomyScopeHeader
-                label={level2Label}
-                width={TAXONOMY_LEVEL2_COL_WIDTH}
+              <NestedTaxonomyScopeHeader
+                label={scopeHeaderLabel}
+                width={TAXONOMY_NESTED_SCOPE_COL_WIDTH}
               />
               <th className="border-r border-slate-200 px-4 py-3 font-medium">
                 <InfoLabel label="Goals" />
@@ -351,29 +348,27 @@ export function OptimizerStep() {
             </tr>
           </thead>
           <tbody>
-            {sortedOptimizerRows.map((row, rowIndex) => {
-              const modes = rowModes[row.id] ?? {
+            {visibleRows.map((nestedRow) => {
+              const sourceRow = sourceById.get(nestedRow.id) as
+                | OptimizerScopeRow
+                | undefined;
+              const isLeaf = nestedRow.kind === "level2-child";
+              const modes = rowModes[nestedRow.id] ?? {
                 budget: "ally" as const,
                 bid: "ally" as const,
               };
-              const isRuleBasedItem = rowHasRuleBasedMode(modes);
-              const showLevel1Label = shouldShowTaxonomyLevel1Label(
-                sortedOptimizerRows,
-                rowIndex,
-                level1Key,
-              );
+              const isRuleBasedItem = isLeaf && rowHasRuleBasedMode(modes);
 
               return (
                 <tr
-                  key={row.id}
+                  key={nestedRow.id}
                   className="border-b border-slate-100 hover:bg-slate-50/50"
                 >
-                  <TaxonomyScopeCells
-                    row={row}
-                    level1Key={level1Key}
-                    level2Key={level2Key}
-                    showLevel1Label={showLevel1Label}
-                    level2Extra={
+                  <NestedTaxonomyScopeCell
+                    row={nestedRow}
+                    collapsed={collapsedGroupIds.has(nestedRow.id)}
+                    onToggleCollapsed={toggleGroupCollapsed}
+                    extra={
                       isRuleBasedItem ? (
                         <span className="text-2xs font-medium leading-snug text-amber-700">
                           {RULE_BASED_ITEM_SKIP_CUE}
@@ -382,85 +377,97 @@ export function OptimizerStep() {
                     }
                   />
                   <td className="border-r border-slate-100 px-4 py-3 text-slate-700">
-                    {row.goal ?? ""}
+                    {isLeaf ? (sourceRow?.goal ?? "") : ""}
                   </td>
                   <td className="border-r border-slate-100 px-4 py-3">
-                    {row.value ? (
+                    {isLeaf && sourceRow?.value ? (
                       <span className="font-medium text-brand-600">
-                        {row.value}
+                        {sourceRow.value}
                       </span>
                     ) : null}
                   </td>
                   {SHOW_MODE_COLUMN ? (
                     <td className="border-r border-slate-100 px-4 py-3">
-                      <OptimizerCell
-                        row={row}
-                        column="mode"
-                        budgetMode={modes.budget}
-                        bidMode={modes.bid}
-                      />
+                      {isLeaf && sourceRow ? (
+                        <OptimizerCell
+                          row={sourceRow}
+                          column="mode"
+                          budgetMode={modes.budget}
+                          bidMode={modes.bid}
+                        />
+                      ) : null}
                     </td>
                   ) : null}
                   <td className="border-r border-slate-100 px-4 py-3">
-                    <OptimizerCell
-                      row={row}
-                      column="budget"
-                      budgetMode={modes.budget}
-                      baselineBudgetMode={
-                        baselineRowModes[row.id]?.budget ?? "ally"
-                      }
-                      onBudgetModeChange={(mode) =>
-                        setBudgetMode(row.id, mode)
-                      }
-                      onResetBudgetStrategies={() => {
-                        setBudgetMode(row.id, "ally");
-                        showSetupToast(
-                          `Draft budget strategies cleared for ${row.name}.`,
-                          { variant: "success" },
-                        );
-                      }}
-                    />
+                    {isLeaf && sourceRow ? (
+                      <OptimizerCell
+                        row={sourceRow}
+                        column="budget"
+                        budgetMode={modes.budget}
+                        baselineBudgetMode={
+                          baselineRowModes[nestedRow.id]?.budget ?? "ally"
+                        }
+                        onBudgetModeChange={(mode) =>
+                          setBudgetMode(nestedRow.id, mode)
+                        }
+                        onResetBudgetStrategies={() => {
+                          setBudgetMode(nestedRow.id, "ally");
+                          showSetupToast(
+                            `Draft budget strategies cleared for ${sourceRow.name}.`,
+                            { variant: "success" },
+                          );
+                        }}
+                      />
+                    ) : null}
                   </td>
                   <td className="border-r border-slate-100 px-4 py-3">
-                    <OptimizerCell
-                      row={row}
-                      column="bid"
-                      bidMode={modes.bid}
-                      baselineBidMode={
-                        baselineRowModes[row.id]?.bid ?? "ally"
-                      }
-                      onBidModeChange={(mode) => setBidMode(row.id, mode)}
-                      onResetBidStrategies={() => {
-                        setBidMode(row.id, "ally");
-                        showSetupToast(
-                          `Draft bid strategies cleared for ${row.name}.`,
-                          { variant: "success" },
-                        );
-                      }}
-                    />
+                    {isLeaf && sourceRow ? (
+                      <OptimizerCell
+                        row={sourceRow}
+                        column="bid"
+                        bidMode={modes.bid}
+                        baselineBidMode={
+                          baselineRowModes[nestedRow.id]?.bid ?? "ally"
+                        }
+                        onBidModeChange={(mode) =>
+                          setBidMode(nestedRow.id, mode)
+                        }
+                        onResetBidStrategies={() => {
+                          setBidMode(nestedRow.id, "ally");
+                          showSetupToast(
+                            `Draft bid strategies cleared for ${sourceRow.name}.`,
+                            { variant: "success" },
+                          );
+                        }}
+                      />
+                    ) : null}
                   </td>
                   <td className="border-r border-slate-100 px-4 py-3">
-                    <OptimizerCell
-                      row={row}
-                      column="dayParting"
-                      dayPartingLabel={dayPartingLabels[row.id]}
-                      onOpenDayParting={() =>
-                        openDayPartingPanel(row.id, "edit")
-                      }
-                      onAddDayParting={() =>
-                        openDayPartingPanel(row.id, "add")
-                      }
-                      onResetDayParting={() =>
-                        setDayPartingLabels((current) => {
-                          const next = { ...current };
-                          delete next[row.id];
-                          return next;
-                        })
-                      }
-                    />
+                    {isLeaf && sourceRow ? (
+                      <OptimizerCell
+                        row={sourceRow}
+                        column="dayParting"
+                        dayPartingLabel={dayPartingLabels[nestedRow.id]}
+                        onOpenDayParting={() =>
+                          openDayPartingPanel(nestedRow.id, "edit")
+                        }
+                        onAddDayParting={() =>
+                          openDayPartingPanel(nestedRow.id, "add")
+                        }
+                        onResetDayParting={() =>
+                          setDayPartingLabels((current) => {
+                            const next = { ...current };
+                            delete next[nestedRow.id];
+                            return next;
+                          })
+                        }
+                      />
+                    ) : null}
                   </td>
                   <td className="px-4 py-3">
-                    <OptimizerCell row={row} column="targeting" />
+                    {isLeaf && sourceRow ? (
+                      <OptimizerCell row={sourceRow} column="targeting" />
+                    ) : null}
                   </td>
                 </tr>
               );

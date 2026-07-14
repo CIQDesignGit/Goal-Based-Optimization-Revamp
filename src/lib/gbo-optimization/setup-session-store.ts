@@ -21,14 +21,25 @@ import {
   getDefaultLevelsForBudgetType,
   getGoalTypeLabel,
   getLevel2Options,
-  GOALS_GOAL_EDITABLE_ROWS,
+  getLevelLabel,
   GOALS_SCOPE_ROWS,
   resolveInitialMonthlyBudgets,
   type AggressivenessLevel,
   type ConstraintLast30Days,
   type GoalType,
   type GoalMetricValue,
+  type ScopeRow,
 } from "@/lib/gbo-optimization/setup-data";
+import {
+  buildNestedScopeRows,
+  createInitialScopeEditModeByGroup,
+  createParentGoalsRowState,
+  getActiveGoalEditableRowIds,
+  getScopeIdentity,
+  isLevel1ParentId,
+  listLevel1Groups,
+  type ScopeEditMode,
+} from "@/lib/gbo-optimization/scope-tree";
 
 // ---------------------------------------------------------------------------
 // Shared row-state types (lifted from step components)
@@ -188,18 +199,25 @@ export function isGeneralConfigComplete(_config: GeneralConfig): boolean {
 
 export function areAllGoalsBudgetsGoalsSelected(
   rowState: Record<string, GoalsRowState>,
+  editModeByGroup: Record<string, ScopeEditMode>,
+  level1: string,
+  level2: string,
 ): boolean {
-  return GOALS_GOAL_EDITABLE_ROWS.every(
-    (row) => rowState[row.id]?.goalMetric != null,
-  );
+  const nested = buildNestedScopeRows(GOALS_SCOPE_ROWS, level1, level2);
+  const activeIds = getActiveGoalEditableRowIds(nested, editModeByGroup);
+  return activeIds.every((rowId) => rowState[rowId]?.goalMetric != null);
 }
 
 export function getMissingGoalRowIds(
   rowState: Record<string, GoalsRowState>,
+  editModeByGroup: Record<string, ScopeEditMode>,
+  level1: string,
+  level2: string,
 ): string[] {
-  return GOALS_GOAL_EDITABLE_ROWS.filter(
-    (row) => !rowState[row.id]?.goalMetric,
-  ).map((row) => row.id);
+  const nested = buildNestedScopeRows(GOALS_SCOPE_ROWS, level1, level2);
+  return getActiveGoalEditableRowIds(nested, editModeByGroup).filter(
+    (rowId) => !rowState[rowId]?.goalMetric,
+  );
 }
 
 export const PERFORMANCE_GATE_DEFAULT_MIN_SPEND_FLOOR = 70;
@@ -216,28 +234,88 @@ export function rowNeedsPerformanceGateGoalValue(
 // Initial state factories
 // ---------------------------------------------------------------------------
 
-export function createInitialGoalsRowState(): Record<string, GoalsRowState> {
-  return Object.fromEntries(
-    GOALS_SCOPE_ROWS.map((row) => {
-      const monthlyBudgets = resolveInitialMonthlyBudgets(row);
+function buildLeafGoalsRowState(row: ScopeRow): GoalsRowState {
+  const monthlyBudgets = resolveInitialMonthlyBudgets(row);
 
-      return [
-        row.id,
-        {
-          goalMetric: null,
-          goalValue: "",
-          monthlyBudgets,
-          historicGoalValue: row.goalValue,
-          historicMonthlyBudgets: [...monthlyBudgets],
-          editedGoalValue: false,
-          editedMonthlyBudgets: Array.from(
-            { length: BUDGET_MONTHS.length },
-            () => false,
-          ),
-        },
-      ];
-    }),
+  return {
+    goalMetric: null,
+    goalValue: "",
+    monthlyBudgets,
+    historicGoalValue: row.goalValue,
+    historicMonthlyBudgets: [...monthlyBudgets],
+    editedGoalValue: false,
+    editedMonthlyBudgets: Array.from(
+      { length: BUDGET_MONTHS.length },
+      () => false,
+    ),
+  };
+}
+
+export function createInitialGoalsRowState(
+  level1: string = "portfolio",
+  level2: string = "profiles",
+): Record<string, GoalsRowState> {
+  const state: Record<string, GoalsRowState> = Object.fromEntries(
+    GOALS_SCOPE_ROWS.map((row) => [row.id, buildLeafGoalsRowState(row)]),
   );
+
+  const nested = buildNestedScopeRows(GOALS_SCOPE_ROWS, level1, level2);
+  const leavesById = new Map(GOALS_SCOPE_ROWS.map((row) => [row.id, row]));
+
+  for (const group of listLevel1Groups(nested)) {
+    const childLeaves = group.childIds
+      .map((id) => leavesById.get(id))
+      .filter((row): row is ScopeRow => Boolean(row));
+    state[group.groupId] = createParentGoalsRowState(childLeaves);
+  }
+
+  return state;
+}
+
+/** Drop old Level 1 parents and recreate them for the current taxonomy. */
+function syncGoalsRowStateToTaxonomy(
+  previous: Record<string, GoalsRowState>,
+  level1: string,
+  level2: string,
+): Record<string, GoalsRowState> {
+  const next: Record<string, GoalsRowState> = {};
+
+  for (const [rowId, row] of Object.entries(previous)) {
+    if (!isLevel1ParentId(rowId)) {
+      next[rowId] = row;
+    }
+  }
+
+  const nested = buildNestedScopeRows(GOALS_SCOPE_ROWS, level1, level2);
+  const leavesById = new Map(GOALS_SCOPE_ROWS.map((row) => [row.id, row]));
+
+  for (const group of listLevel1Groups(nested)) {
+    if (previous[group.groupId]) {
+      next[group.groupId] = previous[group.groupId];
+      continue;
+    }
+
+    const childLeaves = group.childIds
+      .map((id) => leavesById.get(id))
+      .filter((row): row is ScopeRow => Boolean(row));
+    next[group.groupId] = createParentGoalsRowState(childLeaves);
+  }
+
+  return next;
+}
+
+function clearGoalsRowValues(row: GoalsRowState): GoalsRowState {
+  return {
+    ...row,
+    goalMetric: null,
+    goalValue: "",
+    monthlyBudgets: Array.from({ length: BUDGET_MONTHS.length }, () => ""),
+    editedGoalValue: false,
+    editedMonthlyBudgets: Array.from(
+      { length: BUDGET_MONTHS.length },
+      () => false,
+    ),
+  };
 }
 
 function emptyConstraintValues(): ConstraintValues {
@@ -291,26 +369,30 @@ function buildConstraintRowStateFromHistoric(
     budgetCeiling: last30Days.budgetCeiling ?? "",
   };
 
-  const historicPercents = buildHistoricPercents(values);
+  const seedPercents = buildHistoricPercents(values);
   const spendDistributed = redistributePercentFields(
     SPEND_PERCENT_FIELDS,
-    historicPercents,
+    seedPercents,
     {},
   );
   const campaignDistributed = redistributePercentFields(
     CAMPAIGN_PERCENT_FIELDS,
-    historicPercents,
+    seedPercents,
     {},
   );
 
+  // After redistribute, historic = displayed defaults so cells start as
+  // last-30-day / prefilled (with ~), not as user-edited.
+  const nextValues: ConstraintValues = {
+    ...values,
+    ...spendDistributed,
+    ...campaignDistributed,
+  };
+
   return {
-    values: {
-      ...values,
-      ...spendDistributed,
-      ...campaignDistributed,
-    },
-    historicPercents,
-    historicValues: values,
+    values: nextValues,
+    historicPercents: buildHistoricPercents(nextValues),
+    historicValues: { ...nextValues },
     overridden: {},
     adjusted: {},
   };
@@ -332,15 +414,20 @@ export function createInitialConstraintsRowState(): Record<
 // Scope name lookup
 // ---------------------------------------------------------------------------
 
-const SCOPE_NAME_BY_ID = new Map<string, string>(
-  [...GOALS_SCOPE_ROWS, ...CONSTRAINTS_SCOPE_ROWS].map((row) => [
-    row.id,
-    row.name,
-  ]),
-);
-
 function resolveScopeName(scopeId: string): string {
-  return SCOPE_NAME_BY_ID.get(scopeId) ?? scopeId;
+  const { level1, level2, budgetType } =
+    useSetupSessionStore.getState().generalConfig;
+  const level1Label = getLevelLabel(budgetType, level1);
+  const level2Label = getLevelLabel(budgetType, level2);
+
+  return getScopeIdentity(
+    scopeId,
+    level1,
+    level2,
+    level1Label,
+    level2Label,
+    GOALS_SCOPE_ROWS,
+  ).primaryName;
 }
 
 let changeIdCounter = 0;
@@ -361,6 +448,8 @@ type SetupSessionState = {
   /** Taxonomy at session start — used for Summary before/after comparison. */
   taxonomyBaseline: TaxonomySnapshot;
   goalsRowState: Record<string, GoalsRowState>;
+  /** Per Level 1 group: edit on parent vs children (default parent). */
+  scopeEditModeByGroup: Record<string, ScopeEditMode>;
   constraintsRowState: Record<string, ConstraintRowState>;
   monthWindowStart: number;
   monthWindowEnd: number;
@@ -389,6 +478,11 @@ type SetupSessionState = {
           current: Record<string, GoalsRowState>,
         ) => Record<string, GoalsRowState>),
   ) => void;
+
+  /** Switch a Level 1 group to child editing — clears parent values. */
+  switchScopeGroupToChildren: (groupId: string) => void;
+  /** Switch a Level 1 group back to parent editing — clears child values. */
+  switchScopeGroupToParent: (groupId: string) => void;
 
   setConstraintsRowState: (
     updater:
@@ -433,6 +527,7 @@ function createInitialSessionState(): Pick<
   | "generalConfig"
   | "taxonomyBaseline"
   | "goalsRowState"
+  | "scopeEditModeByGroup"
   | "constraintsRowState"
   | "monthWindowStart"
   | "monthWindowEnd"
@@ -452,11 +547,20 @@ function createInitialSessionState(): Pick<
     BUDGET_CURRENT_MONTH_INDEX,
   );
   const generalConfig = createInitialGeneralConfig();
+  const nested = buildNestedScopeRows(
+    GOALS_SCOPE_ROWS,
+    generalConfig.level1,
+    generalConfig.level2,
+  );
 
   return {
     generalConfig,
     taxonomyBaseline: createInitialTaxonomySnapshot(),
-    goalsRowState: createInitialGoalsRowState(),
+    goalsRowState: createInitialGoalsRowState(
+      generalConfig.level1,
+      generalConfig.level2,
+    ),
+    scopeEditModeByGroup: createInitialScopeEditModeByGroup(nested),
     constraintsRowState: createInitialConstraintsRowState(),
     monthWindowStart: defaultMonthWindowStart,
     monthWindowEnd: getDefaultBudgetWindowEnd(defaultMonthWindowStart),
@@ -558,6 +662,20 @@ export const useSetupSessionStore = create<SetupSessionState>((set, get) => ({
         next,
       );
 
+      const goalsRowState = taxonomyFieldsTouched
+        ? syncGoalsRowStateToTaxonomy(
+            state.goalsRowState,
+            next.level1,
+            next.level2,
+          )
+        : state.goalsRowState;
+
+      const scopeEditModeByGroup = taxonomyFieldsTouched
+        ? createInitialScopeEditModeByGroup(
+            buildNestedScopeRows(GOALS_SCOPE_ROWS, next.level1, next.level2),
+          )
+        : state.scopeEditModeByGroup;
+
       return {
         // Taxonomy edits need re-approval on Summary (same as ledger changes).
         summaryReviewed: taxonomyFieldsTouched
@@ -571,6 +689,8 @@ export const useSetupSessionStore = create<SetupSessionState>((set, get) => ({
               ? previous.showTaxonomyChangeImpact
               : false,
         },
+        goalsRowState,
+        scopeEditModeByGroup,
       };
     });
   },
@@ -598,6 +718,62 @@ export const useSetupSessionStore = create<SetupSessionState>((set, get) => ({
       goalsRowState:
         typeof updater === "function" ? updater(state.goalsRowState) : updater,
     }));
+  },
+
+  switchScopeGroupToChildren: (groupId) => {
+    set((state) => {
+      const nested = buildNestedScopeRows(
+        GOALS_SCOPE_ROWS,
+        state.generalConfig.level1,
+        state.generalConfig.level2,
+      );
+      const group = listLevel1Groups(nested).find(
+        (item) => item.groupId === groupId,
+      );
+      if (!group) return state;
+
+      const goalsRowState = { ...state.goalsRowState };
+      if (goalsRowState[groupId]) {
+        goalsRowState[groupId] = clearGoalsRowValues(goalsRowState[groupId]);
+      }
+
+      return {
+        scopeEditModeByGroup: {
+          ...state.scopeEditModeByGroup,
+          [groupId]: "children",
+        },
+        goalsRowState,
+      };
+    });
+  },
+
+  switchScopeGroupToParent: (groupId) => {
+    set((state) => {
+      const nested = buildNestedScopeRows(
+        GOALS_SCOPE_ROWS,
+        state.generalConfig.level1,
+        state.generalConfig.level2,
+      );
+      const group = listLevel1Groups(nested).find(
+        (item) => item.groupId === groupId,
+      );
+      if (!group) return state;
+
+      const goalsRowState = { ...state.goalsRowState };
+      for (const childId of group.childIds) {
+        if (goalsRowState[childId]) {
+          goalsRowState[childId] = clearGoalsRowValues(goalsRowState[childId]);
+        }
+      }
+
+      return {
+        scopeEditModeByGroup: {
+          ...state.scopeEditModeByGroup,
+          [groupId]: "parent",
+        },
+        goalsRowState,
+      };
+    });
   },
 
   setConstraintsRowState: (updater) => {
@@ -713,7 +889,13 @@ export const useSetupSessionStore = create<SetupSessionState>((set, get) => ({
   },
 
   triggerMissingGoalsFeedback: () => {
-    const missingIds = getMissingGoalRowIds(get().goalsRowState);
+    const state = get();
+    const missingIds = getMissingGoalRowIds(
+      state.goalsRowState,
+      state.scopeEditModeByGroup,
+      state.generalConfig.level1,
+      state.generalConfig.level2,
+    );
 
     if (missingIds.length === 0) {
       return;

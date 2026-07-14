@@ -53,17 +53,12 @@ import {
 } from "@/lib/gbo-optimization/constraint-distribution";
 import {
   CONSTRAINTS_SCOPE_ROWS,
-  ENTIRE_BUSINESS_SCOPE_ID,
-  type ConstraintRow,
 } from "@/lib/gbo-optimization/setup-data";
 import {
-  TAXONOMY_LEVEL1_COL_WIDTH,
-  TAXONOMY_LEVEL2_COL_WIDTH,
-  TaxonomyScopeCells,
-  TaxonomyScopeHeader,
-  shouldShowTaxonomyLevel1Label,
-  useSortedTaxonomyRows,
-  useTaxonomyScopeLevels,
+  TAXONOMY_NESTED_SCOPE_COL_WIDTH,
+  NestedTaxonomyScopeCell,
+  NestedTaxonomyScopeHeader,
+  useNestedTaxonomyScopeRows,
 } from "@/components/gbo-optimization/taxonomy-scope-columns";
 import {
   getMidMonthConstraintInlineHint,
@@ -89,8 +84,7 @@ const FLOOR_CEILING_FIELDS = [
   "budgetFloor",
   "budgetCeiling",
 ] as const;
-const SCOPE_COL_WIDTH =
-  TAXONOMY_LEVEL1_COL_WIDTH + TAXONOMY_LEVEL2_COL_WIDTH;
+const SCOPE_COL_WIDTH = TAXONOMY_NESTED_SCOPE_COL_WIDTH;
 const DATA_COL_WIDTH = 100;
 const HISTORY_DATA_COL_WIDTH = 128;
 const SPEND_TOTAL_COL_WIDTH = 132;
@@ -512,8 +506,7 @@ function ConstraintDataColgroup({
 
   return (
     <colgroup>
-      <col style={{ width: TAXONOMY_LEVEL1_COL_WIDTH }} />
-      <col style={{ width: TAXONOMY_LEVEL2_COL_WIDTH }} />
+      <col style={{ width: TAXONOMY_NESTED_SCOPE_COL_WIDTH }} />
       <col style={{ width: dataWidth }} />
       {!isRuleBased &&
         Array.from({ length: SPEND_CONSTRAINT_COL_COUNT }).map((_, index) => (
@@ -1202,9 +1195,13 @@ export function ConstraintsStep() {
       : 1
     : 3;
 
-  const { level1Key, level2Key, level1Label, level2Label } =
-    useTaxonomyScopeLevels();
-  const sortedConstraintRows = useSortedTaxonomyRows(CONSTRAINTS_SCOPE_ROWS);
+  const {
+    visibleRows,
+    collapsedGroupIds,
+    toggleGroupCollapsed,
+    sourceById,
+    scopeHeaderLabel,
+  } = useNestedTaxonomyScopeRows(CONSTRAINTS_SCOPE_ROWS);
 
   return (
     <div className="flex min-h-full flex-col gap-4 py-4">
@@ -1291,18 +1288,9 @@ export function ConstraintsStep() {
           />
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-600">
-              <TaxonomyScopeHeader
-                label={level1Label}
-                width={TAXONOMY_LEVEL1_COL_WIDTH}
-                left={0}
-                sticky
-                isLeading
-                rowSpan={scopeHeaderRowSpan}
-              />
-              <TaxonomyScopeHeader
-                label={level2Label}
-                width={TAXONOMY_LEVEL2_COL_WIDTH}
-                left={TAXONOMY_LEVEL1_COL_WIDTH}
+              <NestedTaxonomyScopeHeader
+                label={scopeHeaderLabel}
+                width={TAXONOMY_NESTED_SCOPE_COL_WIDTH}
                 sticky
                 rowSpan={scopeHeaderRowSpan}
               />
@@ -1464,26 +1452,22 @@ export function ConstraintsStep() {
             )}
           </thead>
           <tbody>
-            {sortedConstraintRows.map((row: ConstraintRow, rowIndex) => {
-              const state = rowState[row.id];
-              const isEditableRow = row.id !== ENTIRE_BUSINESS_SCOPE_ID;
-              const showLevel1Label = shouldShowTaxonomyLevel1Label(
-                sortedConstraintRows,
-                rowIndex,
-                level1Key,
-              );
+            {visibleRows.map((nestedRow) => {
+              const sourceRow = sourceById.get(nestedRow.id);
+              const state = rowState[nestedRow.id];
+              const isEditableRow = nestedRow.kind === "level2-child";
+              const displayName = sourceRow?.name ?? nestedRow.label;
 
               return (
                 <tr
-                  key={row.id}
+                  key={nestedRow.id}
                   className="group border-b border-slate-100 hover:bg-slate-50/50"
                 >
-                  <TaxonomyScopeCells
-                    row={row}
-                    level1Key={level1Key}
-                    level2Key={level2Key}
-                    showLevel1Label={showLevel1Label}
+                  <NestedTaxonomyScopeCell
+                    row={nestedRow}
                     sticky
+                    collapsed={collapsedGroupIds.has(nestedRow.id)}
+                    onToggleCollapsed={toggleGroupCollapsed}
                   />
                   <td className={cn(activeDataColClass, "border-r border-slate-100 py-3 text-center")}>
                     {isEditableRow && (
@@ -1501,27 +1485,27 @@ export function ConstraintsStep() {
                       >
                         {isEditableRow && state ? (
                           <PercentConstraintCell
-                            rowId={row.id}
+                            rowId={nestedRow.id}
                             field={field}
                             value={state.values[field]}
                             state={state}
                             onChange={(value) =>
-                              updatePercentValue(row.id, field, "spend", value)
+                              updatePercentValue(nestedRow.id, field, "spend", value)
                             }
                             onFocus={() =>
-                              beginEditSession(row.id, field, state.values[field])
+                              beginEditSession(nestedRow.id, field, state.values[field])
                             }
-                            onBlur={() => commitSpendPercent(row.id, field)}
+                            onBlur={() => commitSpendPercent(nestedRow.id, field)}
                             onConfirmPending={confirmPendingWarning}
                             onDismissPending={dismissPendingWarning}
                             pendingWarning={pendingWarning}
                             blockAlert={blockAlert}
                             softDeviationAlert={softDeviationAlert}
-                            ariaLabel={`${field} for ${row.name}`}
+                            ariaLabel={`${field} for ${displayName}`}
                             showHistoricalData={showHistoricalData}
                             historicDisplay={getHistoricDisplayValue(state, field)}
                             {...buildConstraintCellTooltipProps(
-                              row.id,
+                              nestedRow.id,
                               field,
                               state,
                             )}
@@ -1566,27 +1550,41 @@ export function ConstraintsStep() {
                         >
                           {isEditableRow && state ? (
                             <PercentConstraintCell
-                              rowId={row.id}
+                              rowId={nestedRow.id}
                               field={field}
                               value={state.values[field]}
                               state={state}
                               onChange={(value) =>
-                                updatePercentValue(row.id, field, "campaign", value)
+                                updatePercentValue(
+                                  nestedRow.id,
+                                  field,
+                                  "campaign",
+                                  value,
+                                )
                               }
                               onFocus={() =>
-                                beginEditSession(row.id, field, state.values[field])
+                                beginEditSession(
+                                  nestedRow.id,
+                                  field,
+                                  state.values[field],
+                                )
                               }
-                              onBlur={() => commitCampaignPercent(row.id, field)}
+                              onBlur={() =>
+                                commitCampaignPercent(nestedRow.id, field)
+                              }
                               onConfirmPending={confirmPendingWarning}
                               onDismissPending={dismissPendingWarning}
                               pendingWarning={pendingWarning}
                               blockAlert={blockAlert}
                               softDeviationAlert={softDeviationAlert}
-                              ariaLabel={`${field} for ${row.name}`}
+                              ariaLabel={`${field} for ${displayName}`}
                               showHistoricalData={showHistoricalData}
-                              historicDisplay={getHistoricDisplayValue(state, field)}
+                              historicDisplay={getHistoricDisplayValue(
+                                state,
+                                field,
+                              )}
                               {...buildConstraintCellTooltipProps(
-                                row.id,
+                                nestedRow.id,
                                 field,
                                 state,
                               )}
@@ -1615,36 +1613,39 @@ export function ConstraintsStep() {
                             )
                           : null}
                       </td>
-                      {(
-                        [
-                          "bidFloor",
-                          "bidCeiling",
-                          "budgetFloor",
-                          "budgetCeiling",
-                        ] as const
-                      ).map((field) => (
+                      {FLOOR_CEILING_FIELDS.map((field) => (
                         <td
                           key={field}
                           className={cn(
                             activeDataColClass,
-                            "border-r border-slate-100 p-1 text-center",
-                            field === "budgetCeiling" && "border-r-0",
+                            "border-r border-slate-100 p-1 text-center last:border-r-0",
                           )}
                         >
                           {isEditableRow && state ? (
                             <EditableConstraintCell
                               value={state.values[field]}
-                              onChange={(value) => updateValue(row.id, field, value)}
-                              onFocus={() =>
-                                beginEditSession(row.id, field, state.values[field])
+                              onChange={(value) =>
+                                updateValue(nestedRow.id, field, value)
                               }
-                              onBlur={() => commitCurrencyField(row.id, field)}
-                              ariaLabel={`${field} for ${row.name}`}
+                              onFocus={() =>
+                                beginEditSession(
+                                  nestedRow.id,
+                                  field,
+                                  state.values[field],
+                                )
+                              }
+                              onBlur={() =>
+                                commitCurrencyField(nestedRow.id, field)
+                              }
+                              ariaLabel={`${field} for ${displayName}`}
                               className={cellInputVisualClass(state, field)}
                               showHistoricalData={showHistoricalData}
-                              historicDisplay={getHistoricDisplayValue(state, field)}
+                              historicDisplay={getHistoricDisplayValue(
+                                state,
+                                field,
+                              )}
                               {...buildConstraintCellTooltipProps(
-                                row.id,
+                                nestedRow.id,
                                 field,
                                 state,
                               )}
@@ -1654,38 +1655,50 @@ export function ConstraintsStep() {
                       ))}
                     </>
                   )}
-                  {showCampaignConstraints &&
-                    isRuleBased &&
-                    FLOOR_CEILING_FIELDS.map((field) => (
-                      <td
-                        key={field}
-                        className={cn(
-                          activeDataColClass,
-                          "border-r border-slate-100 p-1 text-center",
-                          field === "budgetCeiling" && "border-r-0",
-                        )}
-                      >
-                        {isEditableRow && state ? (
-                          <EditableConstraintCell
-                            value={state.values[field]}
-                            onChange={(value) => updateValue(row.id, field, value)}
-                            onFocus={() =>
-                              beginEditSession(row.id, field, state.values[field])
-                            }
-                            onBlur={() => commitCurrencyField(row.id, field)}
-                            ariaLabel={`${field} for ${row.name}`}
-                            className={cellInputVisualClass(state, field)}
-                            showHistoricalData={showHistoricalData}
-                            historicDisplay={getHistoricDisplayValue(state, field)}
-                            {...buildConstraintCellTooltipProps(
-                              row.id,
-                              field,
-                              state,
-                            )}
-                          />
-                        ) : null}
-                      </td>
-                    ))}
+                  {showCampaignConstraints && isRuleBased && (
+                    <>
+                      {FLOOR_CEILING_FIELDS.map((field) => (
+                        <td
+                          key={field}
+                          className={cn(
+                            activeDataColClass,
+                            "border-r border-slate-100 p-1 text-center last:border-r-0",
+                          )}
+                        >
+                          {isEditableRow && state ? (
+                            <EditableConstraintCell
+                              value={state.values[field]}
+                              onChange={(value) =>
+                                updateValue(nestedRow.id, field, value)
+                              }
+                              onFocus={() =>
+                                beginEditSession(
+                                  nestedRow.id,
+                                  field,
+                                  state.values[field],
+                                )
+                              }
+                              onBlur={() =>
+                                commitCurrencyField(nestedRow.id, field)
+                              }
+                              ariaLabel={`${field} for ${displayName}`}
+                              className={cellInputVisualClass(state, field)}
+                              showHistoricalData={showHistoricalData}
+                              historicDisplay={getHistoricDisplayValue(
+                                state,
+                                field,
+                              )}
+                              {...buildConstraintCellTooltipProps(
+                                nestedRow.id,
+                                field,
+                                state,
+                              )}
+                            />
+                          ) : null}
+                        </td>
+                      ))}
+                    </>
+                  )}
                 </tr>
               );
             })}

@@ -1,7 +1,7 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
-import { useMemo, type ReactNode } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
 
 import { InfoLabel } from "@/components/gbo-optimization/info-label";
 import {
@@ -11,6 +11,10 @@ import {
   sortScopeRowsByLevels,
   type ScopeRow,
 } from "@/lib/gbo-optimization/setup-data";
+import {
+  buildNestedScopeRows,
+  type NestedScopeRow,
+} from "@/lib/gbo-optimization/scope-tree";
 import { useSetupSessionStore } from "@/lib/gbo-optimization/setup-session-store";
 import { cn } from "@/lib/utils";
 
@@ -23,8 +27,11 @@ export type TaxonomyScopeRow = {
   expandable?: boolean;
 };
 
+/** Legacy two-column widths — kept for any leftover call sites. */
 export const TAXONOMY_LEVEL1_COL_WIDTH = 148;
 export const TAXONOMY_LEVEL2_COL_WIDTH = 172;
+/** Single nested Scope column (matches Goals & Budgets). */
+export const TAXONOMY_NESTED_SCOPE_COL_WIDTH = 240;
 
 /** Reads General Level 1 / Level 2 picks for table headers and cells. */
 export function useTaxonomyScopeLevels() {
@@ -40,9 +47,58 @@ export function useTaxonomyScopeLevels() {
       level2Key,
       level1Label: getLevelLabel(budgetType, level1Key),
       level2Label: getLevelLabel(budgetType, level2Key),
+      scopeHeaderLabel: `${getLevelLabel(budgetType, level1Key)} / ${getLevelLabel(budgetType, level2Key)}`,
     }),
     [budgetType, level1Key, level2Key],
   );
+}
+
+/** Nested Scope rows + expand/collapse state for Constraints / Optimizer. */
+export function useNestedTaxonomyScopeRows<T extends TaxonomyScopeRow>(
+  rows: readonly T[],
+) {
+  const { level1Key, level2Key, level1Label, level2Label, scopeHeaderLabel } =
+    useTaxonomyScopeLevels();
+
+  const nestedRows = useMemo(
+    () => buildNestedScopeRows(rows, level1Key, level2Key),
+    [rows, level1Key, level2Key],
+  );
+
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  const visibleRows = useMemo(() => {
+    return nestedRows.filter((row) => {
+      if (row.kind !== "level2-child" || !row.groupId) return true;
+      return !collapsedGroupIds.has(row.groupId);
+    });
+  }, [nestedRows, collapsedGroupIds]);
+
+  const toggleGroupCollapsed = (groupId: string) => {
+    setCollapsedGroupIds((current) => {
+      const next = new Set(current);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  };
+
+  const sourceById = useMemo(() => {
+    return new Map(rows.map((row) => [row.id, row]));
+  }, [rows]);
+
+  return {
+    nestedRows,
+    visibleRows,
+    collapsedGroupIds,
+    toggleGroupCollapsed,
+    sourceById,
+    level1Label,
+    level2Label,
+    scopeHeaderLabel,
+  };
 }
 
 /** Sort rows the same way as Goals & Budgets (Entire Business first). */
@@ -101,6 +157,116 @@ export function TaxonomyScopeHeader({
   );
 }
 
+type NestedTaxonomyScopeHeaderProps = {
+  label: string;
+  width?: number;
+  sticky?: boolean;
+  rowSpan?: number;
+  className?: string;
+};
+
+/** Single nested Scope header (Level 1 / Level 2). */
+export function NestedTaxonomyScopeHeader({
+  label,
+  width = TAXONOMY_NESTED_SCOPE_COL_WIDTH,
+  sticky = false,
+  rowSpan,
+  className,
+}: NestedTaxonomyScopeHeaderProps) {
+  return (
+    <th
+      rowSpan={rowSpan}
+      style={
+        sticky
+          ? { left: 0, width, minWidth: width, maxWidth: width }
+          : { width, minWidth: width }
+      }
+      className={cn(
+        "border-r border-slate-200 px-3 py-3 text-left font-medium",
+        sticky &&
+          "sticky z-30 bg-slate-50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]",
+        className,
+      )}
+    >
+      <div className="truncate">
+        <InfoLabel label={label} />
+      </div>
+    </th>
+  );
+}
+
+type NestedTaxonomyScopeCellProps = {
+  row: NestedScopeRow;
+  collapsed?: boolean;
+  onToggleCollapsed?: (groupId: string) => void;
+  sticky?: boolean;
+  width?: number;
+  /** Extra under the label (e.g. rule-based skip cue on Optimizer). */
+  extra?: ReactNode;
+  className?: string;
+};
+
+/** One nested Scope body cell (parent or indented child). */
+export function NestedTaxonomyScopeCell({
+  row,
+  collapsed = false,
+  onToggleCollapsed,
+  sticky = false,
+  width = TAXONOMY_NESTED_SCOPE_COL_WIDTH,
+  extra,
+  className,
+}: NestedTaxonomyScopeCellProps) {
+  const isParent =
+    row.kind === "entire-business" || row.kind === "level1-parent";
+  const isChild = row.kind === "level2-child";
+
+  return (
+    <td
+      style={
+        sticky
+          ? { left: 0, width, minWidth: width, maxWidth: width }
+          : undefined
+      }
+      className={cn(
+        "overflow-hidden border-r border-slate-100 px-3 py-3 text-left",
+        sticky &&
+          "sticky z-20 bg-white shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] group-hover:bg-slate-50",
+        isParent ? "font-semibold text-slate-900" : "font-medium text-slate-700",
+        className,
+      )}
+    >
+      <div
+        className={cn(
+          "flex min-w-0 flex-col gap-1",
+          isChild && "pl-5",
+        )}
+      >
+        <span className="flex min-w-0 items-center gap-1" title={row.label}>
+          {row.expandable ? (
+            <button
+              type="button"
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? `Expand ${row.label}` : `Collapse ${row.label}`}
+              onClick={() => onToggleCollapsed?.(row.id)}
+              className="shrink-0 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            >
+              {collapsed ? (
+                <ChevronRight className="size-4" />
+              ) : (
+                <ChevronDown className="size-4" />
+              )}
+            </button>
+          ) : (
+            <span className="inline-block size-4 shrink-0" aria-hidden />
+          )}
+          <span className="truncate">{row.label}</span>
+        </span>
+        {extra}
+      </div>
+    </td>
+  );
+}
+
 type TaxonomyScopeCellsProps = {
   row: TaxonomyScopeRow;
   level1Key: string;
@@ -115,7 +281,7 @@ type TaxonomyScopeCellsProps = {
   className?: string;
 };
 
-/** Body cells for Level 1 + Level 2 — same pattern as Goals & Budgets. */
+/** Body cells for Level 1 + Level 2 — legacy two-column layout. */
 export function TaxonomyScopeCells({
   row,
   level1Key,
