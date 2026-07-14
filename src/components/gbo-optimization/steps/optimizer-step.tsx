@@ -1,14 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import {
-  ChevronDown,
-  Plus,
-  Search,
-  Settings2,
-} from "lucide-react";
+import { Plus, Search, Settings2 } from "lucide-react";
 
 import {
+  ClearDraftStrategiesButton,
   DayPartingTile,
   HourlyBidderPanel,
 } from "@/components/gbo-optimization/hourly-bidder-panel";
@@ -18,17 +14,24 @@ import {
   OptimizerModeChip,
   type OptimizerColumnMode,
 } from "@/components/gbo-optimization/optimizer-mode-chip";
+import {
+  shouldShowTaxonomyLevel1Label,
+  TaxonomyScopeCells,
+  TaxonomyScopeHeader,
+  TAXONOMY_LEVEL1_COL_WIDTH,
+  TAXONOMY_LEVEL2_COL_WIDTH,
+  useSortedTaxonomyRows,
+  useTaxonomyScopeLevels,
+} from "@/components/gbo-optimization/taxonomy-scope-columns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   OPTIMIZER_SCOPE_ROWS,
   RULE_BASED_ITEM_MODE_TOAST,
   RULE_BASED_ITEM_SKIP_CUE,
+  type OptimizerScopeRow,
 } from "@/lib/gbo-optimization/setup-data";
 import { useSetupSessionStore } from "@/lib/gbo-optimization/setup-session-store";
-import { cn } from "@/lib/utils";
-
-type OptimizerScopeRow = (typeof OPTIMIZER_SCOPE_ROWS)[number];
 
 const DEFAULT_DAY_PARTING_LABEL = "Hourly Bid...";
 
@@ -43,7 +46,7 @@ type RowOptimizerModes = {
 function createInitialRowModes(): Record<string, RowOptimizerModes> {
   const initial: Record<string, RowOptimizerModes> = {};
   for (const row of OPTIMIZER_SCOPE_ROWS) {
-    if ("allyMode" in row && row.allyMode) {
+    if (row.allyMode) {
       initial[row.id] = { budget: "ally", bid: "ally" };
     }
   }
@@ -54,7 +57,7 @@ function createInitialRowModes(): Record<string, RowOptimizerModes> {
 function createInitialDayPartingLabels(): Record<string, string> {
   const initial: Record<string, string> = {};
   for (const row of OPTIMIZER_SCOPE_ROWS) {
-    if ("allyMode" in row && row.allyMode) {
+    if (row.allyMode) {
       initial[row.id] = DEFAULT_DAY_PARTING_LABEL;
     }
   }
@@ -74,8 +77,12 @@ function OptimizerCell({
   onAddDayParting,
   budgetMode,
   bidMode,
+  baselineBudgetMode = "ally",
+  baselineBidMode = "ally",
   onBudgetModeChange,
   onBidModeChange,
+  onResetBudgetStrategies,
+  onResetBidStrategies,
 }: {
   row: OptimizerScopeRow;
   column: "mode" | "budget" | "bid" | "dayParting" | "targeting";
@@ -86,8 +93,13 @@ function OptimizerCell({
   onAddDayParting?: () => void;
   budgetMode?: OptimizerColumnMode;
   bidMode?: OptimizerColumnMode;
+  /** Starting mode for this session — blue “edited” styling when current differs. */
+  baselineBudgetMode?: OptimizerColumnMode;
+  baselineBidMode?: OptimizerColumnMode;
   onBudgetModeChange?: (mode: OptimizerColumnMode) => void;
   onBidModeChange?: (mode: OptimizerColumnMode) => void;
+  onResetBudgetStrategies?: () => void;
+  onResetBidStrategies?: () => void;
 }) {
   // Targeting: always show add (+) — including rows without Ally mode.
   if (column === "targeting") {
@@ -105,7 +117,7 @@ function OptimizerCell({
     );
   }
 
-  if (!("allyMode" in row) || !row.allyMode) {
+  if (!row.allyMode) {
     return null;
   }
 
@@ -132,29 +144,61 @@ function OptimizerCell({
   }
 
   if (column === "bid") {
+    const currentBid = bidMode ?? "ally";
     return (
-      <OptimizerModeChip
-        mode={bidMode ?? "ally"}
-        selectable
-        showBoost
-        onChange={onBidModeChange}
-      />
+      <div className="flex items-center gap-1.5">
+        <OptimizerModeChip
+          mode={currentBid}
+          selectable
+          showBoost
+          edited={currentBid !== baselineBidMode}
+          onChange={onBidModeChange}
+        />
+        <ClearDraftStrategiesButton
+          scopeName={row.name}
+          onConfirm={onResetBidStrategies ?? (() => {})}
+          description={
+            <>
+              You are about to clear draft bid strategies for{" "}
+              <span className="font-semibold text-slate-800">{row.name}</span>
+              . This resets Bid Optimization to Ally and cannot be undone.
+            </>
+          }
+        />
+      </div>
     );
   }
 
-  // Budget Optimization — selectable Ally / Rule Based / None
+  // Budget Optimization — selectable Ally / Rule Based / None + reset
+  const currentBudget = budgetMode ?? "ally";
   return (
-    <OptimizerModeChip
-      mode={budgetMode ?? "ally"}
-      selectable
-      onChange={onBudgetModeChange}
-    />
+    <div className="flex items-center gap-1.5">
+      <OptimizerModeChip
+        mode={currentBudget}
+        selectable
+        edited={currentBudget !== baselineBudgetMode}
+        onChange={onBudgetModeChange}
+      />
+      <ClearDraftStrategiesButton
+        scopeName={row.name}
+        onConfirm={onResetBudgetStrategies ?? (() => {})}
+        description={
+          <>
+            You are about to clear draft budget strategies for{" "}
+            <span className="font-semibold text-slate-800">{row.name}</span>
+            . This resets Budget Optimization to Ally and cannot be undone.
+          </>
+        }
+      />
+    </div>
   );
 }
 
 export function OptimizerStep() {
   // Per-row Budget / Bid modes (Mode column is derived from these).
   const [rowModes, setRowModes] = useState(createInitialRowModes);
+  // Snapshot of starting modes — used for blue “edited cell” styling.
+  const [baselineRowModes] = useState(createInitialRowModes);
   // Mirror so click handlers can read the previous value without nested setState.
   const rowModesRef = useRef(rowModes);
   rowModesRef.current = rowModes;
@@ -229,6 +273,10 @@ export function OptimizerStep() {
     (activeDayPartingRowId && dayPartingLabels[activeDayPartingRowId]) ||
     DEFAULT_DAY_PARTING_LABEL;
 
+  const { level1Key, level2Key, level1Label, level2Label } =
+    useTaxonomyScopeLevels();
+  const sortedOptimizerRows = useSortedTaxonomyRows(OPTIMIZER_SCOPE_ROWS);
+
   return (
     <div className="flex flex-col gap-4 py-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -255,12 +303,17 @@ export function OptimizerStep() {
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-        <table className="w-full min-w-[1100px] border-collapse text-sm">
+        <table className="w-full min-w-[1200px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-600">
-              <th className="min-w-[200px] border-r border-slate-200 px-4 py-3 font-medium">
-                <InfoLabel label="Scope" />
-              </th>
+              <TaxonomyScopeHeader
+                label={level1Label}
+                width={TAXONOMY_LEVEL1_COL_WIDTH}
+              />
+              <TaxonomyScopeHeader
+                label={level2Label}
+                width={TAXONOMY_LEVEL2_COL_WIDTH}
+              />
               <th className="border-r border-slate-200 px-4 py-3 font-medium">
                 <InfoLabel label="Goals" />
               </th>
@@ -298,44 +351,41 @@ export function OptimizerStep() {
             </tr>
           </thead>
           <tbody>
-            {OPTIMIZER_SCOPE_ROWS.map((row) => {
+            {sortedOptimizerRows.map((row, rowIndex) => {
               const modes = rowModes[row.id] ?? {
                 budget: "ally" as const,
                 bid: "ally" as const,
               };
               const isRuleBasedItem = rowHasRuleBasedMode(modes);
+              const showLevel1Label = shouldShowTaxonomyLevel1Label(
+                sortedOptimizerRows,
+                rowIndex,
+                level1Key,
+              );
 
               return (
                 <tr
                   key={row.id}
                   className="border-b border-slate-100 hover:bg-slate-50/50"
                 >
-                  <td className="border-r border-slate-100 px-4 py-3 font-medium text-slate-900">
-                    <div
-                      className={cn(
-                        "flex min-w-0 flex-col gap-1",
-                        "indent" in row && row.indent && "pl-6",
-                      )}
-                    >
-                      <span className="inline-flex min-w-0 items-center gap-1">
-                        {"expandable" in row && row.expandable && (
-                          <ChevronDown className="size-4 shrink-0 text-slate-400" />
-                        )}
-                        <span className="truncate">{row.name}</span>
-                      </span>
-                      {/* Persistent cue while this item uses rule-based */}
-                      {isRuleBasedItem ? (
+                  <TaxonomyScopeCells
+                    row={row}
+                    level1Key={level1Key}
+                    level2Key={level2Key}
+                    showLevel1Label={showLevel1Label}
+                    level2Extra={
+                      isRuleBasedItem ? (
                         <span className="text-2xs font-medium leading-snug text-amber-700">
                           {RULE_BASED_ITEM_SKIP_CUE}
                         </span>
-                      ) : null}
-                    </div>
-                  </td>
+                      ) : null
+                    }
+                  />
                   <td className="border-r border-slate-100 px-4 py-3 text-slate-700">
-                    {"goal" in row ? row.goal : ""}
+                    {row.goal ?? ""}
                   </td>
                   <td className="border-r border-slate-100 px-4 py-3">
-                    {"value" in row && row.value ? (
+                    {row.value ? (
                       <span className="font-medium text-brand-600">
                         {row.value}
                       </span>
@@ -356,9 +406,19 @@ export function OptimizerStep() {
                       row={row}
                       column="budget"
                       budgetMode={modes.budget}
+                      baselineBudgetMode={
+                        baselineRowModes[row.id]?.budget ?? "ally"
+                      }
                       onBudgetModeChange={(mode) =>
                         setBudgetMode(row.id, mode)
                       }
+                      onResetBudgetStrategies={() => {
+                        setBudgetMode(row.id, "ally");
+                        showSetupToast(
+                          `Draft budget strategies cleared for ${row.name}.`,
+                          { variant: "success" },
+                        );
+                      }}
                     />
                   </td>
                   <td className="border-r border-slate-100 px-4 py-3">
@@ -366,7 +426,17 @@ export function OptimizerStep() {
                       row={row}
                       column="bid"
                       bidMode={modes.bid}
+                      baselineBidMode={
+                        baselineRowModes[row.id]?.bid ?? "ally"
+                      }
                       onBidModeChange={(mode) => setBidMode(row.id, mode)}
+                      onResetBidStrategies={() => {
+                        setBidMode(row.id, "ally");
+                        showSetupToast(
+                          `Draft bid strategies cleared for ${row.name}.`,
+                          { variant: "success" },
+                        );
+                      }}
                     />
                   </td>
                   <td className="border-r border-slate-100 px-4 py-3">

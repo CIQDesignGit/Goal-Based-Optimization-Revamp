@@ -133,7 +133,7 @@ export const RULE_BASED_ITEM_MODE_TOAST =
 
 /** Short persistent cue shown on a rule-based Optimizer row. */
 export const RULE_BASED_ITEM_SKIP_CUE =
-  "Skips budget & seasonality for this item";
+  "Since you have selected rule-based, budget entry and seasonality are skipped for this item";
 
 export const ALLY_AI_RECOMMENDATION_NOTICE =
   "Ally AI is recommended — it allocates spend and manages constraints automatically, with no manual rules required.";
@@ -913,6 +913,23 @@ export function getDefaultBudgetWindowEnd(
   );
 }
 
+/**
+ * Taxonomy attributes for every leaf scope row.
+ * Keys match Level 1 / Level 2 option values from retailer vs internal categorization.
+ */
+export type ScopeTaxonomy = {
+  portfolio: string;
+  profiles: string;
+  brand: string;
+  "sub-brand": string;
+  category: string;
+  "sub-category": string;
+  "product-line": string;
+  "campaign-type": string;
+};
+
+export type ScopeTaxonomyKey = keyof ScopeTaxonomy;
+
 export type ScopeRow = {
   id: string;
   name: string;
@@ -923,6 +940,8 @@ export type ScopeRow = {
   last30Days: string;
   monthlyBudgets: string[];
   fyTotal: string;
+  /** Present on leaf rows — used when Level 1 / Level 2 columns are shown. */
+  taxonomy?: ScopeTaxonomy;
 };
 
 /** Monthly budget default from last-30-day spend (prototype uses the row's L30D budget). */
@@ -934,7 +953,8 @@ export function resolveInitialMonthlyBudgets(row: ScopeRow): string[] {
   const defaultBudget = getScopeRowDefaultMonthlyBudget(row);
 
   return Array.from({ length: BUDGET_MONTHS.length }, (_, index) => {
-    if (isBudgetFutureMonth(index)) {
+    // Current + future months stay empty — user must enter them (current gets a red nudge).
+    if (isBudgetFutureMonth(index) || isBudgetCurrentMonth(index)) {
       return "";
     }
 
@@ -946,6 +966,70 @@ export function resolveInitialMonthlyBudgets(row: ScopeRow): string[] {
 /** Parent rollup row — goals are set on child brands only. */
 export const ENTIRE_BUSINESS_SCOPE_ID = "entire-business";
 
+/** Minimal shape needed to read Level 1 / Level 2 labels. */
+export type TaxonomyScopeLike = {
+  id: string;
+  name: string;
+  taxonomy?: ScopeTaxonomy;
+};
+
+/** Level keys that represent the parent rollup label on Entire Business. */
+const ENTIRE_BUSINESS_LEVEL1_KEYS = new Set<string>([
+  "portfolio",
+  "brand",
+  "category",
+  "product-line",
+  "campaign-type",
+]);
+
+/** Read Level 1 or Level 2 cell text from a row's taxonomy (or fall back to name). */
+export function getScopeTaxonomyValue(
+  row: TaxonomyScopeLike,
+  levelKey: string,
+): string {
+  if (row.id === ENTIRE_BUSINESS_SCOPE_ID) {
+    return ENTIRE_BUSINESS_LEVEL1_KEYS.has(levelKey) ? row.name : "";
+  }
+
+  if (!row.taxonomy) {
+    return row.name;
+  }
+
+  const value = row.taxonomy[levelKey as ScopeTaxonomyKey];
+  return value?.trim() ? value : row.name;
+}
+
+/** Keep Entire Business first; sort leaf rows by the selected Level 1 then Level 2. */
+export function sortScopeRowsByLevels<T extends TaxonomyScopeLike>(
+  rows: readonly T[],
+  level1: string,
+  level2: string,
+): T[] {
+  const parent = rows.find((row) => row.id === ENTIRE_BUSINESS_SCOPE_ID);
+  const leaves = rows.filter((row) => row.id !== ENTIRE_BUSINESS_SCOPE_ID);
+
+  const sortedLeaves = [...leaves].sort((a, b) => {
+    const a1 = getScopeTaxonomyValue(a, level1);
+    const b1 = getScopeTaxonomyValue(b, level1);
+    if (a1 !== b1) return a1.localeCompare(b1);
+
+    const a2 = getScopeTaxonomyValue(a, level2);
+    const b2 = getScopeTaxonomyValue(b, level2);
+    return a2.localeCompare(b2);
+  });
+
+  return parent ? [parent, ...sortedLeaves] : sortedLeaves;
+}
+
+/** Shared 12-month budget filler — repeats first filled month through Dec. */
+function fillMonthlyBudgets(amounts: string[]): string[] {
+  const seed =
+    amounts.find((amount) => amount.trim() !== "")?.trim() ?? "$1,000";
+  return Array.from({ length: BUDGET_MONTHS.length }, (_, index) =>
+    amounts[index]?.trim() ? amounts[index] : seed,
+  );
+}
+
 export const GOALS_SCOPE_ROWS: ScopeRow[] = [
   {
     id: "entire-business",
@@ -954,22 +1038,10 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
     goalMetric: "ROAS",
     goalValue: "14.8",
     last30Days: "14.6",
-    monthlyBudgets: [
-      "$22,809",
-      "$22,809",
-      "$22,809",
-      "$22,809",
-      "$22,809",
-      "$22,809",
-      "$22,809",
-      "$22,809",
-      "$22,809",
-      "$22,809",
-      "$22,809",
-      "$22,809",
-    ],
-    fyTotal: "$341,256",
+    monthlyBudgets: fillMonthlyBudgets(["$28,500"]),
+    fyTotal: "$342,000",
   },
+  // --- JBC (brand) — multiple sub-brands ---
   {
     id: "jbc-fresh",
     name: "JBC Fresh",
@@ -977,21 +1049,18 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
     goalMetric: "ROAS",
     goalValue: "17.5",
     last30Days: "18.48",
-    monthlyBudgets: [
-      "$13,808",
-      "$13,808",
-      "$13,808",
-      "$13,808",
-      "$13,808",
-      "$13,808",
-      "$13,808",
-      "$13,808",
-      "$13,808",
-      "$13,808",
-      "$13,808",
-      "$13,808",
-    ],
-    fyTotal: "$206,808",
+    monthlyBudgets: fillMonthlyBudgets(["$13,808"]),
+    fyTotal: "$165,696",
+    taxonomy: {
+      portfolio: "National Grocery",
+      profiles: "JBC Fresh — US",
+      brand: "JBC",
+      "sub-brand": "JBC Fresh",
+      category: "Fresh Foods",
+      "sub-category": "Produce & Chilled",
+      "product-line": "Core Grocery",
+      "campaign-type": "Sponsored Products",
+    },
   },
   {
     id: "jbc-frozen",
@@ -1000,18 +1069,40 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
     goalMetric: "ROAS",
     goalValue: "15.0",
     last30Days: "16.21",
-    monthlyBudgets: [
-      "$3,000",
-      "$3,000",
-      "$3,000",
-      "$3,000",
-      "$3,000",
-      "$3,000",
-      "$3,000",
-      "$3,000",
-    ],
-    fyTotal: "$45,000",
+    monthlyBudgets: fillMonthlyBudgets(["$3,000"]),
+    fyTotal: "$36,000",
+    taxonomy: {
+      portfolio: "National Grocery",
+      profiles: "JBC Frozen — US",
+      brand: "JBC",
+      "sub-brand": "JBC Frozen Prepared",
+      category: "Frozen",
+      "sub-category": "Prepared Meals",
+      "product-line": "Core Grocery",
+      "campaign-type": "Sponsored Products",
+    },
   },
+  {
+    id: "jbc-deli",
+    name: "JBC Deli",
+    indent: true,
+    goalMetric: "ROAS",
+    goalValue: "16.2",
+    last30Days: "15.9",
+    monthlyBudgets: fillMonthlyBudgets(["$2,400"]),
+    fyTotal: "$28,800",
+    taxonomy: {
+      portfolio: "National Grocery",
+      profiles: "JBC Deli — US",
+      brand: "JBC",
+      "sub-brand": "JBC Deli",
+      category: "Fresh Foods",
+      "sub-category": "Deli & Prepared",
+      "product-line": "Core Grocery",
+      "campaign-type": "Sponsored Brands",
+    },
+  },
+  // --- Ocean Adventures ---
   {
     id: "ocean-adventures",
     name: "Ocean Adventures",
@@ -1019,22 +1110,40 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
     goalMetric: "ROAS",
     goalValue: "12.8",
     last30Days: "12.34",
-    monthlyBudgets: [
-      "$2,500",
-      "$2,500",
-      "$2,500",
-      "$2,500",
-      "$2,500",
-      "$2,500",
-      "$2,500",
-      "$2,500",
-      "$2,500",
-      "$2,500",
-      "$2,500",
-      "$2,500",
-    ],
+    monthlyBudgets: fillMonthlyBudgets(["$2,500"]),
     fyTotal: "$30,000",
+    taxonomy: {
+      portfolio: "Specialty Retail",
+      profiles: "Ocean Adventures — Core",
+      brand: "Ocean Adventures",
+      "sub-brand": "Ocean Adventures Classic",
+      category: "Seafood",
+      "sub-category": "Wild Catch",
+      "product-line": "Specialty",
+      "campaign-type": "Sponsored Brands",
+    },
   },
+  {
+    id: "ocean-premium",
+    name: "Ocean Adventures Premium",
+    indent: true,
+    goalMetric: "ROAS",
+    goalValue: "11.4",
+    last30Days: "11.02",
+    monthlyBudgets: fillMonthlyBudgets(["$1,650"]),
+    fyTotal: "$19,800",
+    taxonomy: {
+      portfolio: "Specialty Retail",
+      profiles: "Ocean Adventures — Premium",
+      brand: "Ocean Adventures",
+      "sub-brand": "Ocean Adventures Premium",
+      category: "Seafood",
+      "sub-category": "Premium Cuts",
+      "product-line": "Specialty",
+      "campaign-type": "Sponsored Display",
+    },
+  },
+  // --- Pilgrims ---
   {
     id: "pilgrims",
     name: "Pilgrims",
@@ -1042,18 +1151,40 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
     goalMetric: "ROAS",
     goalValue: "14.2",
     last30Days: "14.56",
-    monthlyBudgets: [
-      "$3,501",
-      "$3,501",
-      "$3,501",
-      "$3,501",
-      "$3,501",
-      "$3,501",
-      "$3,501",
-      "$3,501",
-    ],
-    fyTotal: "$52,515",
+    monthlyBudgets: fillMonthlyBudgets(["$3,501"]),
+    fyTotal: "$42,012",
+    taxonomy: {
+      portfolio: "National Grocery",
+      profiles: "Pilgrims — Classic",
+      brand: "Pilgrims",
+      "sub-brand": "Pilgrims Classic",
+      category: "Meat & Poultry",
+      "sub-category": "Poultry",
+      "product-line": "Core Grocery",
+      "campaign-type": "Sponsored Products",
+    },
   },
+  {
+    id: "pilgrims-organic",
+    name: "Pilgrims Organic",
+    indent: true,
+    goalMetric: "ROAS",
+    goalValue: "13.1",
+    last30Days: "12.85",
+    monthlyBudgets: fillMonthlyBudgets(["$1,900"]),
+    fyTotal: "$22,800",
+    taxonomy: {
+      portfolio: "National Grocery",
+      profiles: "Pilgrims — Organic",
+      brand: "Pilgrims",
+      "sub-brand": "Pilgrims Organic",
+      category: "Meat & Poultry",
+      "sub-category": "Organic Poultry",
+      "product-line": "Organic",
+      "campaign-type": "Sponsored Products",
+    },
+  },
+  // --- Other brands (single sub-brand each) ---
   {
     id: "harvest-gold",
     name: "Harvest Gold",
@@ -1061,17 +1192,18 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
     goalMetric: "ROAS",
     goalValue: "15.5",
     last30Days: "15.02",
-    monthlyBudgets: [
-      "$4,200",
-      "$4,200",
-      "$4,200",
-      "$4,200",
-      "$4,200",
-      "$4,200",
-      "$4,200",
-      "$4,200",
-    ],
+    monthlyBudgets: fillMonthlyBudgets(["$4,200"]),
     fyTotal: "$50,400",
+    taxonomy: {
+      portfolio: "Bakery Network",
+      profiles: "Harvest Gold — National",
+      brand: "Harvest Gold",
+      "sub-brand": "Harvest Gold Bakery",
+      category: "Bakery",
+      "sub-category": "Bread & Rolls",
+      "product-line": "Core Grocery",
+      "campaign-type": "Sponsored Brands",
+    },
   },
   {
     id: "natures-best",
@@ -1080,17 +1212,18 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
     goalMetric: "ROAS",
     goalValue: "11.5",
     last30Days: "11.87",
-    monthlyBudgets: [
-      "$1,850",
-      "$1,850",
-      "$1,850",
-      "$1,850",
-      "$1,850",
-      "$1,850",
-      "$1,850",
-      "$1,850",
-    ],
+    monthlyBudgets: fillMonthlyBudgets(["$1,850"]),
     fyTotal: "$22,200",
+    taxonomy: {
+      portfolio: "Organic Collective",
+      profiles: "Nature's Best — West",
+      brand: "Nature's Best",
+      "sub-brand": "Nature's Best Essentials",
+      category: "Organic Grocery",
+      "sub-category": "Pantry Staples",
+      "product-line": "Organic",
+      "campaign-type": "Sponsored Products",
+    },
   },
   {
     id: "coastal-select",
@@ -1099,21 +1232,18 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
     goalMetric: "ROAS",
     goalValue: "13.2",
     last30Days: "13.44",
-    monthlyBudgets: [
-      "$2,100",
-      "$2,100",
-      "$2,100",
-      "$2,100",
-      "$2,100",
-      "$2,100",
-      "$2,100",
-      "$2,100",
-      "$2,100",
-      "$2,100",
-      "$2,100",
-      "$2,100",
-    ],
+    monthlyBudgets: fillMonthlyBudgets(["$2,100"]),
     fyTotal: "$25,200",
+    taxonomy: {
+      portfolio: "Specialty Retail",
+      profiles: "Coastal Select — East",
+      brand: "Coastal Select",
+      "sub-brand": "Coastal Select Catch",
+      category: "Seafood",
+      "sub-category": "Shellfish",
+      "product-line": "Specialty",
+      "campaign-type": "Sponsored Display",
+    },
   },
   {
     id: "premium-pet",
@@ -1122,17 +1252,18 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
     goalMetric: "ROAS",
     goalValue: "10.5",
     last30Days: "10.92",
-    monthlyBudgets: [
-      "$980",
-      "$980",
-      "$980",
-      "$980",
-      "$980",
-      "$980",
-      "$980",
-      "$980",
-    ],
+    monthlyBudgets: fillMonthlyBudgets(["$980"]),
     fyTotal: "$11,760",
+    taxonomy: {
+      portfolio: "Pet Specialty",
+      profiles: "Premium Pet — National",
+      brand: "Premium Pet Care",
+      "sub-brand": "Premium Pet Nutrition",
+      category: "Pet",
+      "sub-category": "Dog & Cat Food",
+      "product-line": "Pet Care",
+      "campaign-type": "Sponsored Products",
+    },
   },
   {
     id: "sunrise-dairy",
@@ -1141,17 +1272,18 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
     goalMetric: "ROAS",
     goalValue: "16.8",
     last30Days: "17.33",
-    monthlyBudgets: [
-      "$5,600",
-      "$5,600",
-      "$5,600",
-      "$5,600",
-      "$5,600",
-      "$5,600",
-      "$5,600",
-      "$5,600",
-    ],
+    monthlyBudgets: fillMonthlyBudgets(["$5,600"]),
     fyTotal: "$67,200",
+    taxonomy: {
+      portfolio: "National Grocery",
+      profiles: "Sunrise Dairy — Midwest",
+      brand: "Sunrise Dairy",
+      "sub-brand": "Sunrise Dairy Fresh",
+      category: "Dairy",
+      "sub-category": "Milk & Cream",
+      "product-line": "Core Grocery",
+      "campaign-type": "Sponsored Brands",
+    },
   },
   {
     id: "valley-organics",
@@ -1160,17 +1292,18 @@ export const GOALS_SCOPE_ROWS: ScopeRow[] = [
     goalMetric: "ROAS",
     goalValue: "9.5",
     last30Days: "9.78",
-    monthlyBudgets: [
-      "$1,200",
-      "$1,200",
-      "$1,200",
-      "$1,200",
-      "$1,200",
-      "$1,200",
-      "$1,200",
-      "$1,200",
-    ],
+    monthlyBudgets: fillMonthlyBudgets(["$1,200"]),
     fyTotal: "$14,400",
+    taxonomy: {
+      portfolio: "Organic Collective",
+      profiles: "Valley Organics — CA",
+      brand: "Valley Organics",
+      "sub-brand": "Valley Organics Farm",
+      category: "Organic Grocery",
+      "sub-category": "Produce",
+      "product-line": "Organic",
+      "campaign-type": "Sponsored Display",
+    },
   },
 ];
 
@@ -1204,98 +1337,137 @@ export type ConstraintRow = {
   id: string;
   name: string;
   indent?: boolean;
+  taxonomy?: ScopeTaxonomy;
   /** Prefill source — last 30 days of performance (shown until the user edits). */
   last30Days?: ConstraintLast30Days;
 };
 
-export const CONSTRAINTS_SCOPE_ROWS: ConstraintRow[] = [
-  {
-    id: "entire-business",
-    name: "Entire Business",
+/** Historic constraint seeds keyed by Goals brand id. */
+const CONSTRAINT_LAST30_BY_ID: Record<string, ConstraintLast30Days> = {
+  "jbc-fresh": {
+    goalValue: "$28",
+    genericKeyword: "70%",
+    competitorKeyword: "30%",
+    campaignSp: "45%",
+    campaignSb: "15%",
+    campaignSd: "40%",
   },
-  {
-    id: "jbc-fresh",
-    name: "JBC Fresh",
-    indent: true,
-    last30Days: {
-      goalValue: "$28",
-      genericKeyword: "70%",
-      competitorKeyword: "30%",
-      campaignSp: "45%",
-      campaignSb: "15%",
-      campaignSd: "40%",
-    },
+  "jbc-frozen": {
+    goalValue: "$35",
+    genericKeyword: "70%",
+    competitorKeyword: "8%",
+    competitorProduct: "20%",
+    auto: "2%",
+    campaignSp: "45%",
+    campaignSb: "15%",
+    campaignSd: "40%",
   },
-  {
-    id: "jbc-frozen",
-    name: "JBC Frozen Prepared",
-    indent: true,
-    last30Days: {
-      goalValue: "$35",
-      genericKeyword: "70%",
-      competitorKeyword: "8%",
-      competitorProduct: "20%",
-      auto: "2%",
-      campaignSp: "45%",
-      campaignSb: "15%",
-      campaignSd: "40%",
-    },
+  "jbc-deli": {
+    goalValue: "$30",
+    genericKeyword: "65%",
+    competitorKeyword: "25%",
+    auto: "10%",
+    campaignSp: "50%",
+    campaignSb: "30%",
+    campaignSd: "20%",
   },
-  {
-    id: "ocean-adventures",
-    name: "Ocean Adventures",
-    indent: true,
-    last30Days: {
-      goalValue: "$22",
-      genericKeyword: "55%",
-      clientBrandedKeyword: "15%",
-      competitorKeyword: "20%",
-      competitorProduct: "10%",
-    },
+  "ocean-adventures": {
+    goalValue: "$22",
+    genericKeyword: "55%",
+    clientBrandedKeyword: "15%",
+    competitorKeyword: "20%",
+    competitorProduct: "10%",
   },
-  {
-    id: "pilgrims",
-    name: "Pilgrims",
-    indent: true,
-    last30Days: {
-      goalValue: "$40",
-      genericKeyword: "62%",
-      competitorKeyword: "10%",
-      competitorProduct: "20%",
-      auto: "8%",
-    },
+  "ocean-premium": {
+    goalValue: "$26",
+    genericKeyword: "50%",
+    clientBrandedKeyword: "20%",
+    competitorKeyword: "20%",
+    competitorProduct: "10%",
   },
-];
+  pilgrims: {
+    goalValue: "$40",
+    genericKeyword: "62%",
+    competitorKeyword: "10%",
+    competitorProduct: "20%",
+    auto: "8%",
+  },
+  "pilgrims-organic": {
+    goalValue: "$38",
+    genericKeyword: "58%",
+    competitorKeyword: "12%",
+    competitorProduct: "18%",
+    auto: "12%",
+  },
+};
 
-export const OPTIMIZER_SCOPE_ROWS = [
-  { id: "entire-business", name: "Entire Business", expandable: true },
-  {
-    id: "jbc-fresh",
-    name: "JBC Fresh",
-    indent: true,
-    goal: "Brands tROAS",
-    value: "$25",
-    allyMode: true,
+/**
+ * Same brands as Goals — characterization (taxonomy) comes from GOALS_SCOPE_ROWS
+ * so Level 1 / Level 2 columns match across the wizard.
+ */
+export const CONSTRAINTS_SCOPE_ROWS: ConstraintRow[] = GOALS_SCOPE_ROWS.map(
+  (row) => ({
+    id: row.id,
+    name: row.name,
+    indent: row.id !== ENTIRE_BUSINESS_SCOPE_ID,
+    taxonomy: row.taxonomy,
+    last30Days: CONSTRAINT_LAST30_BY_ID[row.id],
+  }),
+);
+
+type OptimizerRowMeta = {
+  goal?: string;
+  value?: string;
+  allyMode?: boolean;
+};
+
+/** Prototype Ally / value overlays for Optimizer — keyed by Goals brand id. */
+const OPTIMIZER_META_BY_ID: Record<string, OptimizerRowMeta> = {
+  "jbc-fresh": { goal: "Brands tROAS", value: "$25", allyMode: true },
+  "jbc-frozen": { goal: "Brands tROAS", value: "$7", allyMode: true },
+  "jbc-deli": { goal: "Brands tROAS", value: "$12", allyMode: true },
+  "ocean-adventures": { goal: "Brands tROAS", value: "$14", allyMode: true },
+  "ocean-premium": { goal: "Brands tROAS", value: "$10", allyMode: true },
+  pilgrims: { goal: "Brands tROAS", value: "$2", allyMode: true },
+  "pilgrims-organic": { goal: "Brands tROAS", value: "$4", allyMode: true },
+  "harvest-gold": { goal: "Brands tROAS", value: "$18", allyMode: true },
+  "natures-best": { goal: "Brands tROAS", value: "$9", allyMode: true },
+  "coastal-select": { goal: "Brands tROAS", value: "$11", allyMode: true },
+  "premium-pet": { goal: "Brands tROAS", value: "$6", allyMode: true },
+  "sunrise-dairy": { goal: "Brands tROAS", value: "$30", allyMode: true },
+  "valley-organics": { goal: "Brands tROAS", value: "$5", allyMode: true },
+};
+
+export type OptimizerScopeRow = {
+  id: string;
+  name: string;
+  indent?: boolean;
+  expandable?: boolean;
+  taxonomy?: ScopeTaxonomy;
+  goal?: string;
+  value?: string;
+  allyMode?: boolean;
+};
+
+/**
+ * Same brand list + taxonomy as Goals.
+ * Every leaf brand gets Optimizer controls (Ally by default) so no row is blank.
+ */
+export const OPTIMIZER_SCOPE_ROWS: OptimizerScopeRow[] = GOALS_SCOPE_ROWS.map(
+  (row) => {
+    const isLeaf = row.id !== ENTIRE_BUSINESS_SCOPE_ID;
+    const meta = OPTIMIZER_META_BY_ID[row.id];
+
+    return {
+      id: row.id,
+      name: row.name,
+      indent: isLeaf,
+      expandable: row.expandable,
+      taxonomy: row.taxonomy,
+      goal: meta?.goal ?? (isLeaf ? "Brands tROAS" : undefined),
+      value: meta?.value ?? (isLeaf ? `$${row.goalValue}` : undefined),
+      // Parent rollup has no per-column mode controls; every brand does.
+      allyMode: isLeaf ? (meta?.allyMode ?? true) : undefined,
+    };
   },
-  {
-    id: "jbc-frozen",
-    name: "JBC Frozen Prepared",
-    indent: true,
-    goal: "Brands tROAS",
-    value: "$7",
-    allyMode: true,
-  },
-  {
-    id: "pilgrims",
-    name: "Pilgrims",
-    indent: true,
-    goal: "Brands tROAS",
-    value: "$2",
-    allyMode: true,
-  },
-  {
-    id: "ocean-adventures",
-    name: "Ocean Adventures",
-    indent: true,
-  },
-] as const;
+);

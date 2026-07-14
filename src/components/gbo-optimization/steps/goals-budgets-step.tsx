@@ -32,8 +32,10 @@ import {
   BUDGET_MONTHS,
   getDefaultBudgetWindowEnd,
   getDefaultBudgetWindowStart,
+  getLevelLabel,
   getNextBudgetMonthIndex,
   getScopeRowDefaultMonthlyBudget,
+  getScopeTaxonomyValue,
   GOALS_GOAL_EDITABLE_ROWS,
   GOALS_SCOPE_ROWS,
   ENTIRE_BUSINESS_SCOPE_ID,
@@ -45,6 +47,7 @@ import {
   getGoalTypeLabel,
   isRoasGoalMetric,
   RULE_BASED_OPTIMIZER_NOTICE,
+  sortScopeRowsByLevels,
   type GoalType,
 } from "@/lib/gbo-optimization/setup-data";
 import {
@@ -88,11 +91,16 @@ const cellInputClass =
   "h-8 w-full min-w-0 border border-transparent px-1.5 text-right text-sm tabular-nums shadow-none hover:border-slate-200 focus-visible:border-slate-300 focus-visible:bg-white";
 const budgetCellInputClass =
   "h-8 w-full min-w-0 border border-transparent px-1.5 text-right text-sm tabular-nums shadow-none hover:border-slate-200 focus-visible:border-brand-300 focus-visible:bg-white";
-const SCOPE_COLUMN_MIN_WIDTH = 200;
-const SCOPE_COLUMN_DEFAULT_WIDTH = 220;
-/** Narrower scope column when budget months are hidden (rule-based flow). */
-const SCOPE_COLUMN_RULE_BASED_MIN_WIDTH = 128;
-const SCOPE_COLUMN_RULE_BASED_DEFAULT_WIDTH = 148;
+/** Level 1 sticky column (parent taxonomy — e.g. Brand / Portfolio). */
+const LEVEL1_COLUMN_MIN_WIDTH = 120;
+const LEVEL1_COLUMN_DEFAULT_WIDTH = 148;
+const LEVEL1_COLUMN_RULE_BASED_MIN_WIDTH = 96;
+const LEVEL1_COLUMN_RULE_BASED_DEFAULT_WIDTH = 112;
+/** Level 2 sticky column (child taxonomy — e.g. Sub Brand / Profiles). */
+const LEVEL2_COLUMN_MIN_WIDTH = 140;
+const LEVEL2_COLUMN_DEFAULT_WIDTH = 172;
+const LEVEL2_COLUMN_RULE_BASED_MIN_WIDTH = 112;
+const LEVEL2_COLUMN_RULE_BASED_DEFAULT_WIDTH = 136;
 const METRIC_COL_WIDTH_PX = 220;
 const TARGET_COL_WIDTH_PX = 112;
 const LAST_30_COL_WIDTH_PX = 120;
@@ -106,12 +114,27 @@ const BUDGET_MONTH_COL_WIDTH_PX = 104;
 const BUDGET_NUDGE_MONTH_COL_WIDTH_PX = 144;
 const FY_COLUMN_WIDTH_PX = 104;
 
-function isBudgetNudgeColumn(monthIndex: number, showNudge: boolean): boolean {
-  return showNudge && isBudgetNextMonth(monthIndex);
+function isBudgetNudgeColumn(
+  monthIndex: number,
+  showCurrentMonthNudge: boolean,
+  showNextMonthNudge: boolean,
+): boolean {
+  return (
+    (showCurrentMonthNudge && isBudgetCurrentMonth(monthIndex)) ||
+    (showNextMonthNudge && isBudgetNextMonth(monthIndex))
+  );
 }
 
-function budgetColumnWidthClass(monthIndex: number, showNudge: boolean): string {
-  return isBudgetNudgeColumn(monthIndex, showNudge)
+function budgetColumnWidthClass(
+  monthIndex: number,
+  showCurrentMonthNudge: boolean,
+  showNextMonthNudge: boolean,
+): string {
+  return isBudgetNudgeColumn(
+    monthIndex,
+    showCurrentMonthNudge,
+    showNextMonthNudge,
+  )
     ? BUDGET_COL_WIDTH_NUDGE
     : BUDGET_COL_WIDTH_NORMAL;
 }
@@ -142,10 +165,9 @@ const METRIC_SELECT_TRIGGER_CLASS =
   "h-auto w-auto gap-1 border-0 bg-transparent p-0 text-sm font-medium text-slate-700 shadow-none ring-0 focus-visible:border-transparent focus-visible:ring-0 hover:bg-transparent";
 const BULK_METRIC_SELECT_TRIGGER_CLASS =
   "flex h-8 w-full items-center justify-between gap-1 rounded-md border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 shadow-none hover:border-slate-300 focus-visible:border-brand-300 focus-visible:ring-2 focus-visible:ring-brand-500/20";
-const STICKY_SCOPE_HEAD =
-  "sticky left-0 z-50 bg-slate-50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]";
-const STICKY_SCOPE_CELL =
-  "sticky left-0 z-50 bg-white shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] group-hover:bg-slate-50";
+const STICKY_SCOPE_HEAD = "sticky z-50 bg-slate-50";
+const STICKY_SCOPE_CELL = "sticky z-50 bg-white group-hover:bg-slate-50";
+const STICKY_SCOPE_EDGE = "shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]";
 const STICKY_GOAL_HEAD = "sticky z-40 bg-slate-50";
 const STICKY_GOAL_CELL = "sticky z-40 bg-white group-hover:bg-slate-50";
 const STICKY_GOAL_EDGE =
@@ -180,6 +202,14 @@ function rowNeedsNextMonthBudget(
 ): boolean {
   if (!row.goalMetric) return false;
   return !(row.monthlyBudgets[nextMonthIndex]?.trim() ?? "");
+}
+
+function rowNeedsCurrentMonthBudget(
+  row: GoalsRowState,
+  currentMonthIndex: number = BUDGET_CURRENT_MONTH_INDEX,
+): boolean {
+  if (!row.goalMetric) return false;
+  return !(row.monthlyBudgets[currentMonthIndex]?.trim() ?? "");
 }
 
 function getBulkGoalMetric(
@@ -331,7 +361,7 @@ function getBudgetCellDiff(
   const last30DayBudgetDefault = scopeRow
     ? normalizeCurrencyDisplay(getScopeRowDefaultMonthlyBudget(scopeRow))
     : "";
-  const from = isBudgetFutureMonth(monthIndex)
+  const from = isBudgetFutureMonth(monthIndex) || isBudgetCurrentMonth(monthIndex)
     ? normalizeCurrencyDisplay(historicValue)
     : normalizeCurrencyDisplay(historicValue) || last30DayBudgetDefault;
 
@@ -367,19 +397,30 @@ function buildBudgetHoverTitle(
 
 function budgetMonthHeadClass(
   monthIndex: number,
+  highlightCurrentMonth = false,
   highlightNextMonth = false,
+  showCurrentMonthNudge = false,
   showNextMonthNudge = false,
 ): string {
   const isCurrent = isBudgetCurrentMonth(monthIndex);
   const isNextMonth = isBudgetNextMonth(monthIndex);
-  const isNudgeColumn = isBudgetNudgeColumn(monthIndex, showNextMonthNudge);
+  const isNudgeColumn = isBudgetNudgeColumn(
+    monthIndex,
+    showCurrentMonthNudge,
+    showNextMonthNudge,
+  );
+  const showNudgeLayout = showCurrentMonthNudge || showNextMonthNudge;
 
   return cn(
     BUDGET_HEAD_BASE,
-    budgetColumnWidthClass(monthIndex, showNextMonthNudge),
+    budgetColumnWidthClass(
+      monthIndex,
+      showCurrentMonthNudge,
+      showNextMonthNudge,
+    ),
     HEAD_ROW_BORDER,
     isNudgeColumn && "overflow-visible",
-    showNextMonthNudge && BUDGET_MONTH_HEADER_WITH_NUDGE_CLASS,
+    showNudgeLayout && BUDGET_MONTH_HEADER_WITH_NUDGE_CLASS,
     isBudgetMonthLocked(monthIndex) && "bg-slate-100 text-slate-400",
     !isBudgetMonthLocked(monthIndex) &&
       !isCurrent &&
@@ -388,12 +429,14 @@ function budgetMonthHeadClass(
     highlightNextMonth &&
       isNextMonth &&
       "next-month-column-nudge bg-amber-50/70 text-amber-900",
+    // Empty current month — red nudge (same pattern as amber next-month).
+    highlightCurrentMonth &&
+      isCurrent &&
+      "current-month-column-nudge border-r-0 border-b-2 border-error-500 bg-error-50 font-semibold text-error-700",
+    // Filled current month — brand accent (no red warning).
     isCurrent &&
-      !highlightNextMonth &&
+      !highlightCurrentMonth &&
       "border-r-0 border-b-2 border-brand-500 bg-brand-50 font-semibold text-brand-700",
-    isCurrent &&
-      highlightNextMonth &&
-      "border-r-0 border-b-2 border-brand-500 bg-brand-50/80 font-semibold text-brand-700",
   );
 }
 
@@ -401,14 +444,21 @@ function budgetMonthTdClass(
   visual: BudgetMonthVisual,
   monthIndex: number,
   goalLocked = false,
+  showCurrentMonthNudge = false,
   showNextMonthNudge = false,
 ): string {
   const isCurrent = isBudgetCurrentMonth(monthIndex);
+  const highlightCurrentEmpty =
+    showCurrentMonthNudge && isCurrent && visual !== "locked";
 
   if (goalLocked) {
     return cn(
       BUDGET_CELL_BASE,
-      budgetColumnWidthClass(monthIndex, showNextMonthNudge),
+      budgetColumnWidthClass(
+        monthIndex,
+        showCurrentMonthNudge,
+        showNextMonthNudge,
+      ),
       ROW_BORDER,
       "bg-slate-100",
     );
@@ -416,10 +466,18 @@ function budgetMonthTdClass(
 
   return cn(
     BUDGET_CELL_BASE,
-    budgetColumnWidthClass(monthIndex, showNextMonthNudge),
+    budgetColumnWidthClass(
+      monthIndex,
+      showCurrentMonthNudge,
+      showNextMonthNudge,
+    ),
     ROW_BORDER,
     visual === "locked" && "bg-slate-100",
-    isCurrent && visual !== "locked" && "border-r-0 bg-brand-50/40",
+    isCurrent &&
+      visual !== "locked" &&
+      !highlightCurrentEmpty &&
+      "border-r-0 bg-brand-50/40",
+    highlightCurrentEmpty && "border-r-0 bg-error-50/40",
     visual === "edited" &&
       "[&_input]:font-medium [&_input]:text-brand-600 [&_input]:not-italic",
   );
@@ -545,10 +603,15 @@ function useResizableColumnWidth(
   return { width, setWidth, onResizeStart };
 }
 
-type ScopeColumnHeaderProps = {
+type TaxonomyScopeHeaderProps = {
+  label: string;
   width: number;
   minWidth: number;
-  onResizeStart: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  left: number;
+  onResizeStart?: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  resizeLabel?: string;
+  /** Soft right edge when another sticky taxonomy column follows. */
+  isLeading?: boolean;
 };
 
 function stickyColumnStyle(
@@ -584,31 +647,42 @@ function MonthRangeToggle({
   );
 }
 
-function ScopeColumnHeader({
+/** Sticky Level 1 or Level 2 header — label comes from General taxonomy pick. */
+function TaxonomyScopeHeader({
+  label,
   width,
   minWidth,
+  left,
   onResizeStart,
-}: ScopeColumnHeaderProps) {
+  resizeLabel,
+  isLeading = false,
+}: TaxonomyScopeHeaderProps) {
   return (
     <th
       rowSpan={2}
-      style={{ width, minWidth, maxWidth: width }}
+      style={{
+        ...stickyColumnStyle(left, width),
+        minWidth,
+      }}
       className={cn(
-        "relative border-r border-slate-200 px-4 py-2.5 text-left font-medium",
+        "relative border-r border-slate-200 px-3 py-2.5 text-left font-medium",
         HEAD_ROW_BORDER,
         STICKY_SCOPE_HEAD,
+        !isLeading && STICKY_SCOPE_EDGE,
       )}
     >
       <div className="truncate pr-2">
-        <InfoLabel label="Scope" />
+        <InfoLabel label={label} />
       </div>
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize scope column"
-        onPointerDown={onResizeStart}
-        className="absolute top-0 right-0 z-10 h-full w-2 translate-x-1/2 cursor-col-resize touch-none select-none hover:bg-brand-200/80"
-      />
+      {onResizeStart ? (
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={resizeLabel ?? `Resize ${label} column`}
+          onPointerDown={onResizeStart}
+          className="absolute top-0 right-0 z-10 h-full w-2 translate-x-1/2 cursor-col-resize touch-none select-none hover:bg-brand-200/80"
+        />
+      ) : null}
     </th>
   );
 }
@@ -643,12 +717,32 @@ export function GoalsBudgetsStep() {
 
   const toggleLabelClass = showToggleHint ? "toggle-label-shimmer" : "";
 
-  const scopeMinWidth = isRuleBased
-    ? SCOPE_COLUMN_RULE_BASED_MIN_WIDTH
-    : SCOPE_COLUMN_MIN_WIDTH;
-  const scopeDefaultWidth = isRuleBased
-    ? SCOPE_COLUMN_RULE_BASED_DEFAULT_WIDTH
-    : SCOPE_COLUMN_DEFAULT_WIDTH;
+  const level1MinWidth = isRuleBased
+    ? LEVEL1_COLUMN_RULE_BASED_MIN_WIDTH
+    : LEVEL1_COLUMN_MIN_WIDTH;
+  const level1DefaultWidth = isRuleBased
+    ? LEVEL1_COLUMN_RULE_BASED_DEFAULT_WIDTH
+    : LEVEL1_COLUMN_DEFAULT_WIDTH;
+  const level2MinWidth = isRuleBased
+    ? LEVEL2_COLUMN_RULE_BASED_MIN_WIDTH
+    : LEVEL2_COLUMN_MIN_WIDTH;
+  const level2DefaultWidth = isRuleBased
+    ? LEVEL2_COLUMN_RULE_BASED_DEFAULT_WIDTH
+    : LEVEL2_COLUMN_DEFAULT_WIDTH;
+
+  const budgetType = useSetupSessionStore(
+    (state) => state.generalConfig.budgetType,
+  );
+  const level1Key = useSetupSessionStore((state) => state.generalConfig.level1);
+  const level2Key = useSetupSessionStore((state) => state.generalConfig.level2);
+  const level1HeaderLabel = getLevelLabel(budgetType, level1Key);
+  const level2HeaderLabel = getLevelLabel(budgetType, level2Key);
+
+  const sortedScopeRows = useMemo(
+    () => sortScopeRowsByLevels(GOALS_SCOPE_ROWS, level1Key, level2Key),
+    [level1Key, level2Key],
+  );
+
   const rowState = useSetupSessionStore((state) => state.goalsRowState);
   const missingGoalHighlightRowIds = useSetupSessionStore(
     (state) => state.missingGoalHighlightRowIds,
@@ -695,27 +789,36 @@ export function GoalsBudgetsStep() {
   );
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const {
-    width: scopeColumnWidth,
-    setWidth: setScopeColumnWidth,
-    onResizeStart: onScopeResizeStart,
-  } = useResizableColumnWidth(scopeMinWidth, scopeDefaultWidth);
+    width: level1ColumnWidth,
+    setWidth: setLevel1ColumnWidth,
+    onResizeStart: onLevel1ResizeStart,
+  } = useResizableColumnWidth(level1MinWidth, level1DefaultWidth);
+  const {
+    width: level2ColumnWidth,
+    setWidth: setLevel2ColumnWidth,
+    onResizeStart: onLevel2ResizeStart,
+  } = useResizableColumnWidth(level2MinWidth, level2DefaultWidth);
 
   useEffect(() => {
     if (!isRuleBased) return;
 
-    setScopeColumnWidth((current) =>
-      Math.max(scopeMinWidth, Math.min(current, scopeDefaultWidth)),
+    setLevel1ColumnWidth((current) =>
+      Math.max(level1MinWidth, Math.min(current, level1DefaultWidth)),
     );
-  }, [isRuleBased, scopeMinWidth, scopeDefaultWidth, setScopeColumnWidth]);
+    setLevel2ColumnWidth((current) =>
+      Math.max(level2MinWidth, Math.min(current, level2DefaultWidth)),
+    );
+  }, [
+    isRuleBased,
+    level1MinWidth,
+    level1DefaultWidth,
+    level2MinWidth,
+    level2DefaultWidth,
+    setLevel1ColumnWidth,
+    setLevel2ColumnWidth,
+  ]);
 
-  const scopeColumnStyle = useMemo(
-    () => ({
-      width: scopeColumnWidth,
-      minWidth: scopeMinWidth,
-      maxWidth: scopeColumnWidth,
-    }),
-    [scopeColumnWidth, scopeMinWidth],
-  );
+  const scopeColumnsWidth = level1ColumnWidth + level2ColumnWidth;
 
   const defaultMonthWindowStart = useMemo(
     () => getDefaultBudgetWindowStart(BUDGET_CURRENT_MONTH_INDEX),
@@ -761,6 +864,16 @@ export function GoalsBudgetsStep() {
     setHistoricHintDismissed,
   ]);
 
+  const hasUnfilledCurrentMonthBudget = useMemo(() => {
+    if (!showBudgetColumns) return false;
+    if (!visibleMonthIndices.includes(BUDGET_CURRENT_MONTH_INDEX)) return false;
+
+    return GOALS_GOAL_EDITABLE_ROWS.some((row) => {
+      const state = rowState[row.id];
+      return state && rowNeedsCurrentMonthBudget(state);
+    });
+  }, [showBudgetColumns, rowState, visibleMonthIndices]);
+
   const hasUnfilledNextMonthBudget = useMemo(() => {
     if (!showBudgetColumns || nextMonthIndex === null) return false;
     if (!visibleMonthIndices.includes(nextMonthIndex)) return false;
@@ -776,30 +889,37 @@ export function GoalsBudgetsStep() {
     visibleMonthIndices,
   ]);
 
+  const showBudgetNudgeLayout =
+    hasUnfilledCurrentMonthBudget || hasUnfilledNextMonthBudget;
+
   const goalStickyOffsets = useMemo(
     () => ({
-      goalSection: scopeColumnWidth,
-      metric: scopeColumnWidth,
-      target: scopeColumnWidth + METRIC_COL_WIDTH_PX,
-      last30: scopeColumnWidth + METRIC_COL_WIDTH_PX + TARGET_COL_WIDTH_PX,
+      goalSection: scopeColumnsWidth,
+      metric: scopeColumnsWidth,
+      target: scopeColumnsWidth + METRIC_COL_WIDTH_PX,
+      last30: scopeColumnsWidth + METRIC_COL_WIDTH_PX + TARGET_COL_WIDTH_PX,
     }),
-    [scopeColumnWidth],
+    [scopeColumnsWidth],
   );
 
   const tableMinWidth = useMemo(() => {
     const goalSectionWidth =
-      scopeColumnWidth + getGoalSectionWidthPx(showGoalDetailColumns);
+      scopeColumnsWidth + getGoalSectionWidthPx(showGoalDetailColumns);
 
     if (!showBudgetColumns) {
       return goalSectionWidth;
     }
 
     const nudgeColumnExtraWidth =
-      hasUnfilledNextMonthBudget &&
+      (hasUnfilledCurrentMonthBudget &&
+      visibleMonthIndices.includes(BUDGET_CURRENT_MONTH_INDEX)
+        ? BUDGET_NUDGE_MONTH_COL_WIDTH_PX - BUDGET_MONTH_COL_WIDTH_PX
+        : 0) +
+      (hasUnfilledNextMonthBudget &&
       nextMonthIndex !== null &&
       visibleMonthIndices.includes(nextMonthIndex)
         ? BUDGET_NUDGE_MONTH_COL_WIDTH_PX - BUDGET_MONTH_COL_WIDTH_PX
-        : 0;
+        : 0);
 
     return (
       goalSectionWidth +
@@ -808,10 +928,11 @@ export function GoalsBudgetsStep() {
       FY_COLUMN_WIDTH_PX
     );
   }, [
-    scopeColumnWidth,
+    scopeColumnsWidth,
     visibleMonthIndices,
     showGoalDetailColumns,
     showBudgetColumns,
+    hasUnfilledCurrentMonthBudget,
     hasUnfilledNextMonthBudget,
     nextMonthIndex,
   ]);
@@ -993,7 +1114,11 @@ export function GoalsBudgetsStep() {
       const raw = monthlyBudgets[monthIndex]?.trim() ?? "";
       const historicValue = row.historicMonthlyBudgets[monthIndex] ?? "";
 
-      if (isBudgetFutureMonth(monthIndex) && raw === "") {
+      if (
+        (isBudgetFutureMonth(monthIndex) ||
+          isBudgetCurrentMonth(monthIndex)) &&
+        raw === ""
+      ) {
         monthlyBudgets[monthIndex] = "";
         const editedMonthlyBudgets = [...row.editedMonthlyBudgets];
         editedMonthlyBudgets[monthIndex] = false;
@@ -1010,9 +1135,11 @@ export function GoalsBudgetsStep() {
             getScopeRowDefaultMonthlyBudget(scopeRow),
           )
         : "";
-      const historicOrDefault = isBudgetFutureMonth(monthIndex)
-        ? normalizeCurrencyDisplay(historicValue)
-        : normalizeCurrencyDisplay(historicValue) || last30DayBudgetDefault;
+      // Current / future months never auto-fill from last-30-day defaults.
+      const historicOrDefault =
+        isBudgetFutureMonth(monthIndex) || isBudgetCurrentMonth(monthIndex)
+          ? normalizeCurrencyDisplay(historicValue)
+          : normalizeCurrencyDisplay(historicValue) || last30DayBudgetDefault;
 
       monthlyBudgets[monthIndex] =
         raw === "" ? historicOrDefault : normalizeCurrencyDisplay(raw);
@@ -1199,7 +1326,8 @@ export function GoalsBudgetsStep() {
             style={{ minWidth: tableMinWidth }}
           >
           <colgroup>
-            <col style={{ width: scopeColumnWidth }} />
+            <col style={{ width: level1ColumnWidth }} />
+            <col style={{ width: level2ColumnWidth }} />
             <col style={{ width: METRIC_COL_WIDTH_PX }} />
             {showGoalDetailColumns ? (
               <>
@@ -1210,10 +1338,22 @@ export function GoalsBudgetsStep() {
           </colgroup>
           <thead>
             <tr className="bg-slate-50 text-xs text-slate-600">
-              <ScopeColumnHeader
-                width={scopeColumnWidth}
-                minWidth={scopeMinWidth}
-                onResizeStart={onScopeResizeStart}
+              <TaxonomyScopeHeader
+                label={level1HeaderLabel}
+                width={level1ColumnWidth}
+                minWidth={level1MinWidth}
+                left={0}
+                isLeading
+                onResizeStart={onLevel1ResizeStart}
+                resizeLabel={`Resize ${level1HeaderLabel} column`}
+              />
+              <TaxonomyScopeHeader
+                label={level2HeaderLabel}
+                width={level2ColumnWidth}
+                minWidth={level2MinWidth}
+                left={level1ColumnWidth}
+                onResizeStart={onLevel2ResizeStart}
+                resizeLabel={`Resize ${level2HeaderLabel} column`}
               />
               <th
                 colSpan={showGoalDetailColumns ? 3 : 1}
@@ -1347,6 +1487,8 @@ export function GoalsBudgetsStep() {
                 visibleMonthIndices.map((monthIndex) => {
                   const isCurrent = isBudgetCurrentMonth(monthIndex);
                   const isNextMonth = isBudgetNextMonth(monthIndex);
+                  const highlightCurrentMonth =
+                    hasUnfilledCurrentMonthBudget && isCurrent;
                   const highlightNextMonth =
                     hasUnfilledNextMonthBudget && isNextMonth;
 
@@ -1355,17 +1497,30 @@ export function GoalsBudgetsStep() {
                       key={BUDGET_MONTHS[monthIndex]}
                       className={budgetMonthHeadClass(
                         monthIndex,
+                        highlightCurrentMonth,
                         highlightNextMonth,
+                        hasUnfilledCurrentMonthBudget,
                         hasUnfilledNextMonthBudget,
                       )}
-                      title={isCurrent ? "Current month" : undefined}
+                      title={
+                        highlightCurrentMonth
+                          ? "Current month budget required"
+                          : isCurrent
+                            ? "Current month"
+                            : undefined
+                      }
                       aria-current={isCurrent ? "date" : undefined}
                     >
-                      {hasUnfilledNextMonthBudget ? (
+                      {showBudgetNudgeLayout ? (
                         <div className="flex h-full flex-col justify-between gap-1">
                           <div className="flex flex-1 items-center justify-end">
                             <span className="inline-flex items-center justify-end gap-1">
-                              {isCurrent ? (
+                              {highlightCurrentMonth ? (
+                                <span
+                                  className="size-1.5 shrink-0 rounded-full bg-error-500"
+                                  aria-hidden
+                                />
+                              ) : isCurrent ? (
                                 <span
                                   className="size-1.5 shrink-0 rounded-full bg-brand-500"
                                   aria-hidden
@@ -1379,7 +1534,16 @@ export function GoalsBudgetsStep() {
                               {BUDGET_MONTHS[monthIndex]}
                             </span>
                           </div>
-                          {highlightNextMonth ? (
+                          {highlightCurrentMonth ? (
+                            <span
+                              className={cn(
+                                BUDGET_MONTH_NUDGE_FOOTER_CLASS,
+                                "whitespace-normal text-error-600",
+                              )}
+                            >
+                              Set {BUDGET_MONTHS[monthIndex]} budget
+                            </span>
+                          ) : highlightNextMonth ? (
                             <span
                               className={cn(
                                 BUDGET_MONTH_NUDGE_FOOTER_CLASS,
@@ -1419,7 +1583,7 @@ export function GoalsBudgetsStep() {
             </tr>
           </thead>
           <tbody>
-            {GOALS_SCOPE_ROWS.map((row) => {
+            {sortedScopeRows.map((row, rowIndex) => {
               const isParent = row.id === ENTIRE_BUSINESS_SCOPE_ID;
               const editable = rowState[row.id];
               const fyTotal = fyTotals[row.id] ?? 0;
@@ -1434,31 +1598,69 @@ export function GoalsBudgetsStep() {
                 canEditGoal &&
                 missingGoalHighlightRowIds.includes(row.id);
 
+              const level1Value = getScopeTaxonomyValue(row, level1Key);
+              const level2Value = getScopeTaxonomyValue(row, level2Key);
+              // Hide repeated Level 1 labels so parent groups read clearly
+              // (Brand once, then each Sub Brand underneath).
+              const previousLeaf = sortedScopeRows
+                .slice(0, rowIndex)
+                .reverse()
+                .find((candidate) => candidate.id !== ENTIRE_BUSINESS_SCOPE_ID);
+              const showLevel1Label =
+                isParent ||
+                !previousLeaf ||
+                getScopeTaxonomyValue(previousLeaf, level1Key) !== level1Value;
+
               return (
                 <tr key={row.id} className="group hover:bg-slate-50/50">
                   <td
-                    style={scopeColumnStyle}
+                    style={stickyColumnStyle(0, level1ColumnWidth)}
                     className={cn(
-                      "overflow-hidden border-r border-slate-100 px-4 py-2.5 text-left",
+                      "overflow-hidden border-r border-slate-100 px-3 py-2.5 text-left",
                       ROW_BORDER,
                       STICKY_SCOPE_CELL,
+                      isParent
+                        ? "font-semibold text-slate-900"
+                        : showLevel1Label
+                          ? "font-medium text-slate-900"
+                          : "font-normal text-slate-400",
+                    )}
+                  >
+                    <span
+                      className="flex min-w-0 items-center gap-1"
+                      title={level1Value || undefined}
+                    >
+                      {isParent && row.expandable ? (
+                        <ChevronDown className="size-4 shrink-0 text-slate-400" />
+                      ) : null}
+                      <span className="truncate">
+                        {showLevel1Label ? level1Value : ""}
+                      </span>
+                    </span>
+                  </td>
+                  <td
+                    style={stickyColumnStyle(
+                      level1ColumnWidth,
+                      level2ColumnWidth,
+                    )}
+                    className={cn(
+                      "overflow-hidden border-r border-slate-100 px-3 py-2.5 text-left",
+                      ROW_BORDER,
+                      STICKY_SCOPE_CELL,
+                      STICKY_SCOPE_EDGE,
                       isParent
                         ? "font-semibold text-slate-900"
                         : "font-medium text-slate-900",
                     )}
                   >
-                    <span
-                      className={cn(
-                        "flex min-w-0 items-center gap-1",
-                        row.indent && "pl-6",
-                      )}
-                      title={row.name}
-                    >
-                      {row.expandable && (
-                        <ChevronDown className="size-4 shrink-0 text-slate-400" />
-                      )}
-                      <span className="truncate">{row.name}</span>
-                    </span>
+                    {!isParent ? (
+                      <span
+                        className="block min-w-0 truncate"
+                        title={level2Value}
+                      >
+                        {level2Value}
+                      </span>
+                    ) : null}
                   </td>
                   <td
                     style={stickyColumnStyle(
@@ -1597,6 +1799,7 @@ export function GoalsBudgetsStep() {
                               "locked",
                               monthIndex,
                               true,
+                              hasUnfilledCurrentMonthBudget,
                               hasUnfilledNextMonthBudget,
                             )}
                             title={BUDGET_GOAL_REQUIRED_HINT}
@@ -1631,6 +1834,7 @@ export function GoalsBudgetsStep() {
                             monthVisual,
                             monthIndex,
                             false,
+                            hasUnfilledCurrentMonthBudget,
                             hasUnfilledNextMonthBudget,
                           )}
                         >

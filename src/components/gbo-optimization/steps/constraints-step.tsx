@@ -15,7 +15,6 @@ import {
 import { createPortal } from "react-dom";
 import {
   AlertTriangle,
-  ChevronDown,
   CircleHelp,
   Eye,
   EyeOff,
@@ -54,8 +53,18 @@ import {
 } from "@/lib/gbo-optimization/constraint-distribution";
 import {
   CONSTRAINTS_SCOPE_ROWS,
+  ENTIRE_BUSINESS_SCOPE_ID,
   type ConstraintRow,
 } from "@/lib/gbo-optimization/setup-data";
+import {
+  TAXONOMY_LEVEL1_COL_WIDTH,
+  TAXONOMY_LEVEL2_COL_WIDTH,
+  TaxonomyScopeCells,
+  TaxonomyScopeHeader,
+  shouldShowTaxonomyLevel1Label,
+  useSortedTaxonomyRows,
+  useTaxonomyScopeLevels,
+} from "@/components/gbo-optimization/taxonomy-scope-columns";
 import {
   getMidMonthConstraintInlineHint,
   shouldWarnMidMonthConstraintTiming,
@@ -80,16 +89,13 @@ const FLOOR_CEILING_FIELDS = [
   "budgetFloor",
   "budgetCeiling",
 ] as const;
-const SCOPE_COL_WIDTH = 200;
+const SCOPE_COL_WIDTH =
+  TAXONOMY_LEVEL1_COL_WIDTH + TAXONOMY_LEVEL2_COL_WIDTH;
 const DATA_COL_WIDTH = 100;
 const HISTORY_DATA_COL_WIDTH = 128;
 const SPEND_TOTAL_COL_WIDTH = 132;
 const PERCENT_TOTAL_TARGET = 100;
 
-const scopeStickyClass =
-  "sticky left-0 z-20 border-r border-slate-200 bg-white group-hover:bg-slate-50";
-const scopeStickyHeaderClass =
-  "sticky left-0 z-30 border-r border-slate-200 bg-slate-50";
 const dataColClass = "w-[100px] min-w-[100px] max-w-[100px] px-2";
 const dataColClassExpanded =
   "w-[128px] min-w-[128px] max-w-[128px] px-2";
@@ -506,7 +512,8 @@ function ConstraintDataColgroup({
 
   return (
     <colgroup>
-      <col style={{ width: SCOPE_COL_WIDTH }} />
+      <col style={{ width: TAXONOMY_LEVEL1_COL_WIDTH }} />
+      <col style={{ width: TAXONOMY_LEVEL2_COL_WIDTH }} />
       <col style={{ width: dataWidth }} />
       {!isRuleBased &&
         Array.from({ length: SPEND_CONSTRAINT_COL_COUNT }).map((_, index) => (
@@ -1195,6 +1202,10 @@ export function ConstraintsStep() {
       : 1
     : 3;
 
+  const { level1Key, level2Key, level1Label, level2Label } =
+    useTaxonomyScopeLevels();
+  const sortedConstraintRows = useSortedTaxonomyRows(CONSTRAINTS_SCOPE_ROWS);
+
   return (
     <div className="flex min-h-full flex-col gap-4 py-4">
       {isRuleBased && (
@@ -1280,15 +1291,21 @@ export function ConstraintsStep() {
           />
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-600">
-              <th
+              <TaxonomyScopeHeader
+                label={level1Label}
+                width={TAXONOMY_LEVEL1_COL_WIDTH}
+                left={0}
+                sticky
+                isLeading
                 rowSpan={scopeHeaderRowSpan}
-                className={cn(
-                  scopeStickyHeaderClass,
-                  "px-4 py-3 font-medium shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]",
-                )}
-              >
-                <InfoLabel label="Scope" />
-              </th>
+              />
+              <TaxonomyScopeHeader
+                label={level2Label}
+                width={TAXONOMY_LEVEL2_COL_WIDTH}
+                left={TAXONOMY_LEVEL1_COL_WIDTH}
+                sticky
+                rowSpan={scopeHeaderRowSpan}
+              />
               <th
                 rowSpan={scopeHeaderRowSpan}
                 className={cn(
@@ -1447,36 +1464,29 @@ export function ConstraintsStep() {
             )}
           </thead>
           <tbody>
-            {CONSTRAINTS_SCOPE_ROWS.map((row: ConstraintRow) => {
+            {sortedConstraintRows.map((row: ConstraintRow, rowIndex) => {
               const state = rowState[row.id];
-              const isEditableRow = Boolean(row.indent);
+              const isEditableRow = row.id !== ENTIRE_BUSINESS_SCOPE_ID;
+              const showLevel1Label = shouldShowTaxonomyLevel1Label(
+                sortedConstraintRows,
+                rowIndex,
+                level1Key,
+              );
 
               return (
                 <tr
                   key={row.id}
                   className="group border-b border-slate-100 hover:bg-slate-50/50"
                 >
-                  <td
-                    className={cn(
-                      scopeStickyClass,
-                      "overflow-hidden px-4 py-3 font-medium text-slate-900 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "inline-flex min-w-0 items-center gap-1",
-                        row.indent && "pl-6",
-                      )}
-                      title={row.name}
-                    >
-                      {!row.indent && (
-                        <ChevronDown className="size-4 shrink-0 text-slate-400" />
-                      )}
-                      <span className="truncate">{row.name}</span>
-                    </span>
-                  </td>
+                  <TaxonomyScopeCells
+                    row={row}
+                    level1Key={level1Key}
+                    level2Key={level2Key}
+                    showLevel1Label={showLevel1Label}
+                    sticky
+                  />
                   <td className={cn(activeDataColClass, "border-r border-slate-100 py-3 text-center")}>
-                    {row.indent && (
+                    {isEditableRow && (
                       <span className="inline-flex items-center justify-center gap-1 text-slate-700">
                         <TrendingUp className="size-4 text-success-500" />
                         ROAS

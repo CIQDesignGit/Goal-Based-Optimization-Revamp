@@ -139,6 +139,8 @@ type OptimizerModeChipProps = {
   selectable?: boolean;
   /** Bid column: show boost mark after the chip label (before chevron). */
   showBoost?: boolean;
+  /** Blue border/label when the user changed this cell from its starting value (FR-013 / FR-021). */
+  edited?: boolean;
   onChange?: (mode: OptimizerColumnMode) => void;
   className?: string;
 };
@@ -152,6 +154,7 @@ export function OptimizerModeChip({
   mode,
   selectable = false,
   showBoost = false,
+  edited = false,
   onChange,
   className,
 }: OptimizerModeChipProps) {
@@ -161,7 +164,7 @@ export function OptimizerModeChip({
   const chipInner = (
     <>
       <ModeOptionIcon mode={mode} className="size-4" />
-      <span>{label}</span>
+      <span className={cn(edited && selectable && "text-brand-600")}>{label}</span>
       {showBoost && mode === "ally" ? (
         <>
           <span className="mx-0.5 h-3.5 w-px shrink-0 bg-slate-200" aria-hidden />
@@ -175,18 +178,29 @@ export function OptimizerModeChip({
         </>
       ) : null}
       {selectable ? (
-        <ChevronDown className="size-3.5 shrink-0 text-slate-400" aria-hidden />
+        <ChevronDown
+          className={cn(
+            "size-3.5 shrink-0",
+            edited ? "text-brand-500" : "text-slate-400",
+          )}
+          aria-hidden
+        />
       ) : null}
     </>
   );
 
   const chipClassName = cn(
     "inline-flex h-7 items-center gap-1.5 rounded-md px-2",
-    "text-xs font-semibold text-slate-900 shadow-none",
+    "text-xs font-semibold shadow-none",
     // Mode (read-only aggregate) has no border; Budget/Bid keep the bordered pill.
     selectable
-      ? "cursor-pointer border border-slate-200 bg-white transition-colors hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
-      : "border-0 bg-transparent",
+      ? cn(
+          "cursor-pointer border bg-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40",
+          edited
+            ? "border-brand-500 text-brand-600 hover:border-brand-600 hover:bg-brand-50/40"
+            : "border-slate-200 text-slate-900 hover:border-slate-300 hover:bg-slate-50",
+        )
+      : "border-0 bg-transparent text-slate-900",
     className,
   );
 

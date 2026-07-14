@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
 import {
   Minus,
@@ -22,7 +22,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +34,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Loader } from "@/components/ui/loader";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export type HourlyBidderPanelMode = "edit" | "add";
@@ -484,6 +488,123 @@ type DayPartingTileProps = {
   onReset: () => void;
 };
 
+const CLEAR_DRAFT_TOOLTIP =
+  "Clear draft strategies — all unsaved draft settings for this scope will be lost";
+
+/**
+ * Reset / refresh control with hover tooltip and a confirm dialog (FR-020).
+ * Used in Day Parting, Budget Optimization, and Bid Optimization cells.
+ */
+export function ClearDraftStrategiesButton({
+  scopeName,
+  onConfirm,
+  description,
+}: {
+  scopeName: string;
+  onConfirm: () => void;
+  /** Optional extra context for the dialog body (defaults to day-parting copy). */
+  description?: ReactNode;
+}) {
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+
+  return (
+    <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label={`Clear draft strategies for ${scopeName}`}
+              className="text-slate-400 hover:text-slate-600"
+              onClick={(event) => {
+                event.stopPropagation();
+                setClearDialogOpen(true);
+              }}
+            />
+          }
+        >
+          <RefreshCw className="size-3.5" />
+        </TooltipTrigger>
+        <TooltipContent side="top">{CLEAR_DRAFT_TOOLTIP}</TooltipContent>
+      </Tooltip>
+
+      <AlertDialogContent
+        size="default"
+        className={cn(
+          "gap-0 overflow-hidden rounded-xl bg-white p-0 shadow-xl ring-1 ring-slate-200",
+          "!max-w-[calc(100%-2rem)] sm:!max-w-lg",
+        )}
+      >
+        <AlertDialogHeader
+          className={cn(
+            "m-0 !grid w-full !place-items-stretch gap-0 border-b border-slate-200 p-0 text-left",
+            "sm:!place-items-stretch sm:text-left",
+          )}
+        >
+          <div className="flex w-full items-center justify-between gap-3 px-5 py-4">
+            <AlertDialogTitle className="min-w-0 flex-1 text-left text-base font-semibold text-slate-900">
+              Clear draft strategies
+            </AlertDialogTitle>
+            <AlertDialogCancel
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Close"
+              className="ml-auto size-8 shrink-0 border-0 bg-transparent text-slate-500 shadow-none hover:bg-slate-100 hover:text-slate-700"
+            >
+              <X className="size-4" />
+            </AlertDialogCancel>
+          </div>
+        </AlertDialogHeader>
+
+        <div className="space-y-3 px-5 py-4">
+          <AlertDialogDescription className="text-sm leading-relaxed text-slate-600">
+            {description ?? (
+              <>
+                You are about to clear the day parting strategy for{" "}
+                <span className="font-semibold text-slate-800">{scopeName}</span>
+                . This cannot be undone.
+              </>
+            )}
+          </AlertDialogDescription>
+          <p className="text-sm leading-relaxed text-slate-600">
+            <span className="font-semibold text-slate-800">
+              Clear draft strategies
+            </span>
+            {" — "}
+            Removes the current draft strategy for this scope. All unsaved
+            settings will be lost.
+          </p>
+        </div>
+
+        <AlertDialogFooter
+          className={cn(
+            "m-0 -mx-0 -mb-0 flex flex-row items-center justify-end gap-3 rounded-none border-t border-slate-200 bg-white p-4",
+            "sm:flex-row sm:justify-end",
+          )}
+        >
+          <AlertDialogCancel
+            variant="link"
+            className="h-auto px-0 text-brand-600 no-underline hover:text-brand-700 hover:no-underline"
+          >
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction
+            className="rounded-md bg-error-600 px-3 text-white hover:bg-error-700"
+            onClick={() => {
+              onConfirm();
+              setClearDialogOpen(false);
+            }}
+          >
+            Clear draft strategies
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 /**
  * Day Parting cell control.
  * - No strategy → "+" only (create)
@@ -498,8 +619,6 @@ export function DayPartingTile({
   onAdd,
   onReset,
 }: DayPartingTileProps) {
-  const [clearDialogOpen, setClearDialogOpen] = useState(false);
-
   return (
     <div className="flex items-center gap-1.5">
       {hasStrategy ? (
@@ -546,90 +665,10 @@ export function DayPartingTile({
       </Button>
 
       {hasStrategy ? (
-        <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
-          <AlertDialogTrigger
-            render={
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                aria-label={`Clear draft strategies for ${scopeName}`}
-                title="Clear draft strategies"
-                className="text-slate-400 hover:text-slate-600"
-                onClick={(event) => event.stopPropagation()}
-              />
-            }
-          >
-            <RefreshCw className="size-3.5" />
-          </AlertDialogTrigger>
-          <AlertDialogContent
-            size="default"
-            className={cn(
-              "gap-0 overflow-hidden rounded-xl bg-white p-0 shadow-xl ring-1 ring-slate-200",
-              "!max-w-[calc(100%-2rem)] sm:!max-w-lg",
-            )}
-          >
-            <AlertDialogHeader
-              className={cn(
-                "m-0 !grid w-full !place-items-stretch gap-0 border-b border-slate-200 p-0 text-left",
-                "sm:!place-items-stretch sm:text-left",
-              )}
-            >
-              <div className="flex w-full items-center justify-between gap-3 px-5 py-4">
-                <AlertDialogTitle className="min-w-0 flex-1 text-left text-base font-semibold text-slate-900">
-                  Clear draft strategies
-                </AlertDialogTitle>
-                <AlertDialogCancel
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Close"
-                  className="ml-auto size-8 shrink-0 border-0 bg-transparent text-slate-500 shadow-none hover:bg-slate-100 hover:text-slate-700"
-                >
-                  <X className="size-4" />
-                </AlertDialogCancel>
-              </div>
-            </AlertDialogHeader>
-
-            <div className="space-y-3 px-5 py-4">
-              <AlertDialogDescription className="text-sm leading-relaxed text-slate-600">
-                You are about to clear the day parting strategy for{" "}
-                <span className="font-semibold text-slate-800">{scopeName}</span>
-                . This cannot be undone.
-              </AlertDialogDescription>
-              <p className="text-sm leading-relaxed text-slate-600">
-                <span className="font-semibold text-slate-800">
-                  Clear draft strategies
-                </span>
-                {" — "}
-                Removes the current draft strategy for this scope. All unsaved
-                day parting settings will be lost.
-              </p>
-            </div>
-
-            <AlertDialogFooter
-              className={cn(
-                "m-0 -mx-0 -mb-0 flex flex-row items-center justify-end gap-3 rounded-none border-t border-slate-200 bg-white p-4",
-                "sm:flex-row sm:justify-end",
-              )}
-            >
-              <AlertDialogCancel
-                variant="link"
-                className="h-auto px-0 text-brand-600 no-underline hover:text-brand-700 hover:no-underline"
-              >
-                Cancel
-              </AlertDialogCancel>
-              <AlertDialogAction
-                className="rounded-md bg-error-600 px-3 text-white hover:bg-error-700"
-                onClick={() => {
-                  onReset();
-                  setClearDialogOpen(false);
-                }}
-              >
-                Clear draft strategies
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <ClearDraftStrategiesButton
+          scopeName={scopeName}
+          onConfirm={onReset}
+        />
       ) : null}
     </div>
   );
