@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Plus, Search, Settings2 } from "lucide-react";
+import { Plus, Search, Settings } from "lucide-react";
 
 import {
   ClearDraftStrategiesButton,
@@ -381,27 +381,33 @@ export function OptimizerStep() {
   } = useNestedTaxonomyScopeRows(OPTIMIZER_SCOPE_ROWS);
 
   return (
-    <div className="flex flex-col gap-4 py-4">
-      <div className="flex items-center gap-3">
-        <div className="relative w-72 shrink-0">
-          <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
-          <Input
-            placeholder="Search"
-            className="h-9 border-slate-200 pl-9 shadow-none"
-          />
+    <div className="flex w-full flex-col gap-4 py-4">
+      <div className="flex w-full items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="relative w-72 shrink-0">
+            <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              placeholder="Search"
+              className="h-9 border-slate-200 pl-9 shadow-none"
+            />
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 gap-1.5 text-slate-600"
+          >
+            <Plus className="size-4" />
+            Add Filters
+          </Button>
         </div>
-        <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-slate-600">
-          <Plus className="size-4" />
-          Add Filters
-        </Button>
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
           aria-label="Optimizer settings"
-          className="ml-auto shrink-0 text-slate-500 hover:text-slate-700"
+          className="shrink-0 text-slate-500 hover:text-slate-700"
         >
-          <Settings2 className="size-4" />
+          <Settings className="size-4" />
         </Button>
       </div>
 
