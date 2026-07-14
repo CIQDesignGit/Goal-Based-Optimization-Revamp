@@ -178,7 +178,8 @@ function SetupWizardContent() {
       />
       <div
         ref={scrollContainerRef}
-        className="min-h-0 flex-1 overflow-y-auto px-6 pb-8"
+        data-setup-scroll-region
+        className="min-h-0 flex-1 overflow-auto px-6 pb-8"
       >
         <StepComponent />
       </div>

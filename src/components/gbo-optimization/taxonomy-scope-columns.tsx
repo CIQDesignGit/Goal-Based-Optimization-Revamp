@@ -184,7 +184,7 @@ export function NestedTaxonomyScopeHeader({
       className={cn(
         "border-r border-slate-200 px-3 py-3 text-left font-medium",
         sticky &&
-          "sticky z-30 bg-slate-50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]",
+          "sticky top-0 z-30 bg-slate-50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]",
         className,
       )}
     >
@@ -225,10 +225,10 @@ export function NestedTaxonomyScopeCell({
       style={
         sticky
           ? { left: 0, width, minWidth: width, maxWidth: width }
-          : undefined
+          : { width, minWidth: width }
       }
       className={cn(
-        "overflow-hidden border-r border-slate-100 px-3 py-3 text-left",
+        "overflow-hidden border-r border-b border-slate-100 px-3 py-3 text-left",
         sticky &&
           "sticky z-20 bg-white shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] group-hover:bg-slate-50",
         isParent ? "font-semibold text-slate-900" : "font-medium text-slate-700",
@@ -261,7 +261,8 @@ export function NestedTaxonomyScopeCell({
           )}
           <span className="truncate">{row.label}</span>
         </span>
-        {extra}
+        {/* Match brand label indent (chevron/spacer + gap-1). */}
+        {extra ? <div className="min-w-0 pl-5">{extra}</div> : null}
       </div>
     </td>
   );

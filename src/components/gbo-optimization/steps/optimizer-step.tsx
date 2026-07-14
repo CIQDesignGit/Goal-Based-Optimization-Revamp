@@ -7,6 +7,7 @@ import {
   ClearDraftStrategiesButton,
   DayPartingTile,
   HourlyBidderPanel,
+  OPTIMIZER_ACTION_ICON_CLASS,
 } from "@/components/gbo-optimization/hourly-bidder-panel";
 import { InfoLabel } from "@/components/gbo-optimization/info-label";
 import {
@@ -17,20 +18,53 @@ import {
 import {
   NestedTaxonomyScopeCell,
   NestedTaxonomyScopeHeader,
-  TAXONOMY_NESTED_SCOPE_COL_WIDTH,
   useNestedTaxonomyScopeRows,
 } from "@/components/gbo-optimization/taxonomy-scope-columns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  getGoalTypeLabel,
   OPTIMIZER_SCOPE_ROWS,
   RULE_BASED_ITEM_MODE_TOAST,
   RULE_BASED_ITEM_SKIP_CUE,
   type OptimizerScopeRow,
 } from "@/lib/gbo-optimization/setup-data";
 import { useSetupSessionStore } from "@/lib/gbo-optimization/setup-session-store";
+import { cn } from "@/lib/utils";
 
-const DEFAULT_DAY_PARTING_LABEL = "Hourly Bid...";
+const DAY_PARTING_TILE_LABEL = "Hourly Bidder";
+
+/** Stored when a row has a strategy but the user has not saved panel edits yet. */
+const DEFAULT_DAY_PARTING_STRATEGY = "Hourly Bidder";
+
+/**
+ * Wider than the shared taxonomy default so the rule-based skip cue
+ * wraps to two lines (not three) under the brand name.
+ */
+const OPTIMIZER_SCOPE_COL_WIDTH = 320;
+const GOALS_COL_WIDTH = 140;
+const VALUE_COL_WIDTH = 96;
+const BUDGET_OPT_COL_WIDTH = 220;
+const BID_OPT_COL_WIDTH = 240;
+/** Must fit "Hourly Bidder" tile + outlined + / refresh with cell padding. */
+const DAY_PARTING_COL_WIDTH = 280;
+const TARGETING_COL_WIDTH = 88;
+
+const OPTIMIZER_TABLE_MIN_WIDTH =
+  OPTIMIZER_SCOPE_COL_WIDTH +
+  GOALS_COL_WIDTH +
+  VALUE_COL_WIDTH +
+  BUDGET_OPT_COL_WIDTH +
+  BID_OPT_COL_WIDTH +
+  DAY_PARTING_COL_WIDTH +
+  TARGETING_COL_WIDTH;
+
+/** Shared row layout: primary control left, action icons inside the cell on the right. */
+const OPTIMIZER_CELL_ACTIONS_ROW =
+  "flex w-full min-w-0 items-center justify-between gap-2";
+
+/** Row bottom border must be on <td>/<th> — tr borders are ignored with border-separate. */
+const OPTIMIZER_ROW_BORDER = "border-b border-slate-100";
 
 /** Hide Mode column for now — keep markup so we can turn it back on later. */
 const SHOW_MODE_COLUMN = false;
@@ -55,7 +89,7 @@ function createInitialDayPartingLabels(): Record<string, string> {
   const initial: Record<string, string> = {};
   for (const row of OPTIMIZER_SCOPE_ROWS) {
     if (row.allyMode) {
-      initial[row.id] = DEFAULT_DAY_PARTING_LABEL;
+      initial[row.id] = DEFAULT_DAY_PARTING_STRATEGY;
     }
   }
   return initial;
@@ -74,8 +108,6 @@ function OptimizerCell({
   onAddDayParting,
   budgetMode,
   bidMode,
-  baselineBudgetMode = "ally",
-  baselineBidMode = "ally",
   onBudgetModeChange,
   onBidModeChange,
   onResetBudgetStrategies,
@@ -90,9 +122,6 @@ function OptimizerCell({
   onAddDayParting?: () => void;
   budgetMode?: OptimizerColumnMode;
   bidMode?: OptimizerColumnMode;
-  /** Starting mode for this session — blue “edited” styling when current differs. */
-  baselineBudgetMode?: OptimizerColumnMode;
-  baselineBidMode?: OptimizerColumnMode;
   onBudgetModeChange?: (mode: OptimizerColumnMode) => void;
   onBidModeChange?: (mode: OptimizerColumnMode) => void;
   onResetBudgetStrategies?: () => void;
@@ -101,16 +130,19 @@ function OptimizerCell({
   // Targeting: always show add (+) — including rows without Ally mode.
   if (column === "targeting") {
     return (
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-xs"
-        aria-label={`Add targeting for ${row.name}`}
-        title="Add targeting"
-        className="text-slate-400 hover:text-slate-600"
-      >
-        <Plus className="size-3.5" />
-      </Button>
+      <div className={OPTIMIZER_CELL_ACTIONS_ROW}>
+        <span className="min-w-0" aria-hidden />
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-xs"
+          aria-label={`Add targeting for ${row.name}`}
+          title="Add targeting"
+          className={OPTIMIZER_ACTION_ICON_CLASS}
+        >
+          <Plus className="size-3.5" />
+        </Button>
+      </div>
     );
   }
 
@@ -122,7 +154,8 @@ function OptimizerCell({
     return (
       <DayPartingTile
         scopeName={row.name}
-        label={dayPartingLabel ?? DEFAULT_DAY_PARTING_LABEL}
+        // Tile always shows the fixed label — panel edits update cell highlight only.
+        label={DAY_PARTING_TILE_LABEL}
         hasStrategy={Boolean(dayPartingLabel)}
         onOpen={onOpenDayParting ?? (() => {})}
         onAdd={onAddDayParting ?? (() => {})}
@@ -143,50 +176,77 @@ function OptimizerCell({
   if (column === "bid") {
     const currentBid = bidMode ?? "ally";
     return (
-      <div className="flex items-center gap-1.5">
-        <OptimizerModeChip
-          mode={currentBid}
-          selectable
-          showBoost
-          edited={currentBid !== baselineBidMode}
-          onChange={onBidModeChange}
-        />
-        <ClearDraftStrategiesButton
-          scopeName={row.name}
-          onConfirm={onResetBidStrategies ?? (() => {})}
-          description={
-            <>
-              You are about to clear draft bid strategies for{" "}
-              <span className="font-semibold text-slate-800">{row.name}</span>
-              . This resets Bid Optimization to Ally and cannot be undone.
-            </>
-          }
-        />
+      <div className={OPTIMIZER_CELL_ACTIONS_ROW}>
+        <div className="min-w-0 shrink">
+          <OptimizerModeChip
+            mode={currentBid}
+            selectable
+            showBoost
+            onChange={onBidModeChange}
+          />
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-xs"
+            aria-label={`Add bid optimization strategy for ${row.name}`}
+            title="Add bid optimization strategy"
+            className={OPTIMIZER_ACTION_ICON_CLASS}
+          >
+            <Plus className="size-3.5" />
+          </Button>
+          <ClearDraftStrategiesButton
+            scopeName={row.name}
+            onConfirm={onResetBidStrategies ?? (() => {})}
+            description={
+              <>
+                You are about to clear draft bid strategies for{" "}
+                <span className="font-semibold text-slate-800">{row.name}</span>
+                . This resets Bid Optimization to Ally and cannot be undone.
+              </>
+            }
+          />
+        </div>
       </div>
     );
   }
 
-  // Budget Optimization — selectable Ally / Rule Based / None + reset
+  // Budget Optimization — mode chip left; outlined + / refresh right-aligned
+  // (Changed state is shown on the <td>, not on the chip.)
   const currentBudget = budgetMode ?? "ally";
   return (
-    <div className="flex items-center gap-1.5">
-      <OptimizerModeChip
-        mode={currentBudget}
-        selectable
-        edited={currentBudget !== baselineBudgetMode}
-        onChange={onBudgetModeChange}
-      />
-      <ClearDraftStrategiesButton
-        scopeName={row.name}
-        onConfirm={onResetBudgetStrategies ?? (() => {})}
-        description={
-          <>
-            You are about to clear draft budget strategies for{" "}
-            <span className="font-semibold text-slate-800">{row.name}</span>
-            . This resets Budget Optimization to Ally and cannot be undone.
-          </>
-        }
-      />
+    <div className={OPTIMIZER_CELL_ACTIONS_ROW}>
+      <div className="min-w-0 shrink">
+        <OptimizerModeChip
+          mode={currentBudget}
+          selectable
+          onChange={onBudgetModeChange}
+        />
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-xs"
+          aria-label={`Add budget optimization strategy for ${row.name}`}
+          title="Add budget optimization strategy"
+          className={OPTIMIZER_ACTION_ICON_CLASS}
+        >
+          <Plus className="size-3.5" />
+        </Button>
+        <ClearDraftStrategiesButton
+          scopeName={row.name}
+          onConfirm={onResetBudgetStrategies ?? (() => {})}
+          description={
+            <>
+              You are about to clear draft budget strategies for{" "}
+              <span className="font-semibold text-slate-800">{row.name}</span>
+              . This resets Budget Optimization to Ally and cannot be undone.
+            </>
+          }
+        />
+      </div>
     </div>
   );
 }
@@ -201,6 +261,8 @@ export function OptimizerStep() {
   rowModesRef.current = rowModes;
 
   const showSetupToast = useSetupSessionStore((state) => state.showSetupToast);
+  // Same target values / goal metrics users set on Goals & Budgets.
+  const goalsRowState = useSetupSessionStore((state) => state.goalsRowState);
 
   // Which brand row the side panel is editing/adding (null = closed).
   const [activeDayPartingRowId, setActiveDayPartingRowId] = useState<
@@ -210,10 +272,12 @@ export function OptimizerStep() {
   const [dayPartingPanelMode, setDayPartingPanelMode] = useState<
     "edit" | "add"
   >("edit");
-  // Tile label per row — key present means a strategy exists for that row.
+  // Tile label per row — key present means a strategy exists (value kept for panel reopen).
   const [dayPartingLabels, setDayPartingLabels] = useState(
     createInitialDayPartingLabels,
   );
+  // Snapshot so Apply / Clear can mark the Day Parting cell as changed.
+  const [baselineDayPartingLabels] = useState(createInitialDayPartingLabels);
 
   const openDayPartingPanel = (rowId: string, mode: "edit" | "add") => {
     setDayPartingPanelMode(mode);
@@ -268,7 +332,7 @@ export function OptimizerStep() {
   );
   const activeLabel =
     (activeDayPartingRowId && dayPartingLabels[activeDayPartingRowId]) ||
-    DEFAULT_DAY_PARTING_LABEL;
+    DEFAULT_DAY_PARTING_STRATEGY;
 
   const {
     visibleRows,
@@ -280,8 +344,8 @@ export function OptimizerStep() {
 
   return (
     <div className="flex flex-col gap-4 py-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative w-72">
+      <div className="flex items-center gap-3">
+        <div className="relative w-72 shrink-0">
           <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
           <Input
             placeholder="Search"
@@ -297,28 +361,42 @@ export function OptimizerStep() {
           variant="ghost"
           size="icon-sm"
           aria-label="Optimizer settings"
-          className="ml-auto text-slate-500 hover:text-slate-700"
+          className="ml-auto shrink-0 text-slate-500 hover:text-slate-700"
         >
           <Settings2 className="size-4" />
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-        <table className="w-full min-w-[1200px] border-collapse text-sm">
+      <div className="rounded-lg border border-slate-200 bg-white">
+        <table
+          className="w-full table-fixed border-separate border-spacing-0 text-sm"
+          style={{ minWidth: OPTIMIZER_TABLE_MIN_WIDTH }}
+        >
+          <colgroup>
+            <col style={{ width: OPTIMIZER_SCOPE_COL_WIDTH }} />
+            <col style={{ width: GOALS_COL_WIDTH }} />
+            <col style={{ width: VALUE_COL_WIDTH }} />
+            {SHOW_MODE_COLUMN ? <col style={{ width: 160 }} /> : null}
+            <col style={{ width: BUDGET_OPT_COL_WIDTH }} />
+            <col style={{ width: BID_OPT_COL_WIDTH }} />
+            <col style={{ width: DAY_PARTING_COL_WIDTH }} />
+            <col style={{ width: TARGETING_COL_WIDTH }} />
+          </colgroup>
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-600">
+            <tr className="bg-slate-50 text-left text-xs text-slate-600">
               <NestedTaxonomyScopeHeader
                 label={scopeHeaderLabel}
-                width={TAXONOMY_NESTED_SCOPE_COL_WIDTH}
+                width={OPTIMIZER_SCOPE_COL_WIDTH}
+                className="sticky top-0 z-20 border-b border-slate-200 bg-slate-50"
               />
-              <th className="border-r border-slate-200 px-4 py-3 font-medium">
+              <th className="sticky top-0 z-20 border-b border-r border-slate-200 bg-slate-50 px-4 py-3 font-medium">
                 <InfoLabel label="Goals" />
               </th>
-              <th className="border-r border-slate-200 px-4 py-3 font-medium">
+              <th className="sticky top-0 z-20 border-b border-r border-slate-200 bg-slate-50 px-4 py-3 font-medium">
                 <InfoLabel label="Value" />
               </th>
               {SHOW_MODE_COLUMN ? (
-                <th className="border-r border-slate-200 px-4 py-3 font-medium">
+                <th className="sticky top-0 z-20 border-b border-r border-slate-200 bg-slate-50 px-4 py-3 font-medium">
                   <div className="flex items-center justify-between gap-2">
                     <InfoLabel
                       label="Mode"
@@ -333,16 +411,16 @@ export function OptimizerStep() {
                   </div>
                 </th>
               ) : null}
-              <th className="border-r border-slate-200 px-4 py-3 font-medium">
+              <th className="sticky top-0 z-20 border-b border-r border-slate-200 bg-slate-50 px-4 py-3 font-medium">
                 <InfoLabel label="Budget Optimization" />
               </th>
-              <th className="border-r border-slate-200 px-4 py-3 font-medium">
+              <th className="sticky top-0 z-20 border-b border-r border-slate-200 bg-slate-50 px-4 py-3 font-medium">
                 <InfoLabel label="Bid Optimization" />
               </th>
-              <th className="border-r border-slate-200 px-4 py-3 font-medium">
+              <th className="sticky top-0 z-20 border-b border-r border-slate-200 bg-slate-50 px-4 py-3 font-medium">
                 <InfoLabel label="Day Parting" />
               </th>
-              <th className="px-4 py-3 font-medium">
+              <th className="sticky top-0 z-20 border-b border-slate-200 bg-slate-50 px-4 py-3 font-medium">
                 <InfoLabel label="Targeting" />
               </th>
             </tr>
@@ -357,17 +435,34 @@ export function OptimizerStep() {
                 budget: "ally" as const,
                 bid: "ally" as const,
               };
+              const baseline = baselineRowModes[nestedRow.id] ?? {
+                budget: "ally" as const,
+                bid: "ally" as const,
+              };
               const isRuleBasedItem = isLeaf && rowHasRuleBasedMode(modes);
+              const budgetEdited = isLeaf && modes.budget !== baseline.budget;
+              const bidEdited = isLeaf && modes.bid !== baseline.bid;
+              const dayPartingEdited =
+                isLeaf &&
+                (dayPartingLabels[nestedRow.id] ?? null) !==
+                  (baselineDayPartingLabels[nestedRow.id] ?? null);
+
+              const goalsState = goalsRowState[nestedRow.id];
+              const goalLabel = goalsState?.goalMetric
+                ? getGoalTypeLabel(goalsState.goalMetric)
+                : "";
+              const goalTargetValue = goalsState?.goalValue?.trim() ?? "";
 
               return (
                 <tr
                   key={nestedRow.id}
-                  className="border-b border-slate-100 hover:bg-slate-50/50"
+                  className="hover:bg-slate-50/50"
                 >
                   <NestedTaxonomyScopeCell
                     row={nestedRow}
                     collapsed={collapsedGroupIds.has(nestedRow.id)}
                     onToggleCollapsed={toggleGroupCollapsed}
+                    width={OPTIMIZER_SCOPE_COL_WIDTH}
                     extra={
                       isRuleBasedItem ? (
                         <span className="text-2xs font-medium leading-snug text-amber-700">
@@ -376,18 +471,33 @@ export function OptimizerStep() {
                       ) : null
                     }
                   />
-                  <td className="border-r border-slate-100 px-4 py-3 text-slate-700">
-                    {isLeaf ? (sourceRow?.goal ?? "") : ""}
+                  <td
+                    className={cn(
+                      OPTIMIZER_ROW_BORDER,
+                      "border-r border-slate-100 px-4 py-3 text-slate-700",
+                    )}
+                  >
+                    {isLeaf ? goalLabel : ""}
                   </td>
-                  <td className="border-r border-slate-100 px-4 py-3">
-                    {isLeaf && sourceRow?.value ? (
+                  <td
+                    className={cn(
+                      OPTIMIZER_ROW_BORDER,
+                      "border-r border-slate-100 px-4 py-3",
+                    )}
+                  >
+                    {isLeaf && goalTargetValue ? (
                       <span className="font-medium text-brand-600">
-                        {sourceRow.value}
+                        {goalTargetValue}
                       </span>
                     ) : null}
                   </td>
                   {SHOW_MODE_COLUMN ? (
-                    <td className="border-r border-slate-100 px-4 py-3">
+                    <td
+                      className={cn(
+                        OPTIMIZER_ROW_BORDER,
+                        "border-r border-slate-100 px-4 py-3",
+                      )}
+                    >
                       {isLeaf && sourceRow ? (
                         <OptimizerCell
                           row={sourceRow}
@@ -398,15 +508,19 @@ export function OptimizerStep() {
                       ) : null}
                     </td>
                   ) : null}
-                  <td className="border-r border-slate-100 px-4 py-3">
+                  <td
+                    className={cn(
+                      OPTIMIZER_ROW_BORDER,
+                      "overflow-hidden border-r border-slate-100 px-3 py-3",
+                      // Changed mode → highlight the whole cell, not the chip.
+                      budgetEdited && "bg-blue-50 ring-1 ring-inset ring-blue-500",
+                    )}
+                  >
                     {isLeaf && sourceRow ? (
                       <OptimizerCell
                         row={sourceRow}
                         column="budget"
                         budgetMode={modes.budget}
-                        baselineBudgetMode={
-                          baselineRowModes[nestedRow.id]?.budget ?? "ally"
-                        }
                         onBudgetModeChange={(mode) =>
                           setBudgetMode(nestedRow.id, mode)
                         }
@@ -420,15 +534,18 @@ export function OptimizerStep() {
                       />
                     ) : null}
                   </td>
-                  <td className="border-r border-slate-100 px-4 py-3">
+                  <td
+                    className={cn(
+                      OPTIMIZER_ROW_BORDER,
+                      "overflow-hidden border-r border-slate-100 px-3 py-3",
+                      bidEdited && "bg-blue-50 ring-1 ring-inset ring-blue-500",
+                    )}
+                  >
                     {isLeaf && sourceRow ? (
                       <OptimizerCell
                         row={sourceRow}
                         column="bid"
                         bidMode={modes.bid}
-                        baselineBidMode={
-                          baselineRowModes[nestedRow.id]?.bid ?? "ally"
-                        }
                         onBidModeChange={(mode) =>
                           setBidMode(nestedRow.id, mode)
                         }
@@ -442,7 +559,14 @@ export function OptimizerStep() {
                       />
                     ) : null}
                   </td>
-                  <td className="border-r border-slate-100 px-4 py-3">
+                  <td
+                    className={cn(
+                      OPTIMIZER_ROW_BORDER,
+                      "overflow-hidden border-r border-slate-100 px-3 py-3",
+                      dayPartingEdited &&
+                        "bg-blue-50 ring-1 ring-inset ring-blue-500",
+                    )}
+                  >
                     {isLeaf && sourceRow ? (
                       <OptimizerCell
                         row={sourceRow}
@@ -464,7 +588,7 @@ export function OptimizerStep() {
                       />
                     ) : null}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className={cn(OPTIMIZER_ROW_BORDER, "overflow-hidden px-3 py-3")}>
                     {isLeaf && sourceRow ? (
                       <OptimizerCell row={sourceRow} column="targeting" />
                     ) : null}

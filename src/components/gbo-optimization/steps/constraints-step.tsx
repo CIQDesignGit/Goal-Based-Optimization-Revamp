@@ -99,6 +99,17 @@ const totalColClass = "text-right";
 const cellInputClass =
   "h-8 w-full min-w-0 px-1 text-center text-sm tabular-nums shadow-none border border-transparent hover:border-slate-200 focus-visible:border-brand-300 focus-visible:bg-white";
 
+/** Stick table header rows under SetupHeader while the page scrolls. */
+const STICKY_HEAD_ROW1 =
+  "sticky top-0 z-20 border-b border-slate-200 bg-slate-50";
+const STICKY_HEAD_ROW2 =
+  "sticky top-10 z-20 border-b border-slate-200 bg-slate-50";
+const STICKY_HEAD_ROW3 =
+  "sticky top-20 z-20 border-b border-slate-200 bg-slate-50";
+/** Rowspan cells that start on row 2 and span into row 3. */
+const STICKY_HEAD_SPAN_FROM_ROW2 =
+  "sticky top-10 z-20 border-b border-slate-200 bg-slate-50";
+
 /** Select numeric portion on focus — keeps ~ / $ prefixes and % suffix out of selection. */
 function selectEditablePortion(input: HTMLInputElement) {
   const { value } = input;
@@ -1276,9 +1287,9 @@ export function ConstraintsStep() {
         </label>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      <div className="rounded-lg border border-slate-200 bg-white">
         <table
-          className="w-full table-fixed border-collapse text-sm"
+          className="w-full table-fixed border-separate border-spacing-0 text-sm"
           style={{ minWidth: tableMinWidth }}
         >
           <ConstraintDataColgroup
@@ -1287,17 +1298,19 @@ export function ConstraintsStep() {
             showHistoricalData={showHistoricalData}
           />
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-600">
+            <tr className="bg-slate-50 text-left text-xs text-slate-600">
               <NestedTaxonomyScopeHeader
                 label={scopeHeaderLabel}
                 width={TAXONOMY_NESTED_SCOPE_COL_WIDTH}
                 sticky
                 rowSpan={scopeHeaderRowSpan}
+                className="border-b border-slate-200"
               />
               <th
                 rowSpan={scopeHeaderRowSpan}
                 className={cn(
                   activeDataColClass,
+                  STICKY_HEAD_ROW1,
                   "border-r border-slate-200 py-3 text-center font-medium",
                   isRuleBased && !showCampaignConstraints && "border-r-0",
                 )}
@@ -1307,7 +1320,10 @@ export function ConstraintsStep() {
               {!isRuleBased && (
                 <th
                   colSpan={SPEND_CONSTRAINT_COL_COUNT}
-                  className="border-b border-slate-200 px-4 py-2 text-center font-medium"
+                  className={cn(
+                    STICKY_HEAD_ROW1,
+                    "px-4 py-2 text-center font-medium",
+                  )}
                 >
                   Spend Constraints (Optional)
                 </th>
@@ -1315,7 +1331,10 @@ export function ConstraintsStep() {
               {showCampaignConstraints && !isRuleBased && (
                 <th
                   colSpan={CAMPAIGN_CONSTRAINT_COL_COUNT}
-                  className="border-b border-l border-slate-200 px-4 py-2 text-center font-medium"
+                  className={cn(
+                    STICKY_HEAD_ROW1,
+                    "border-l border-slate-200 px-4 py-2 text-center font-medium",
+                  )}
                 >
                   <InfoLabel label="Campaign Constraints" />
                 </th>
@@ -1323,35 +1342,61 @@ export function ConstraintsStep() {
               {showCampaignConstraints && isRuleBased && (
                 <th
                   colSpan={RULE_BASED_FLOOR_CEILING_COL_COUNT}
-                  className="border-b border-slate-200 px-4 py-2 text-center font-medium"
+                  className={cn(
+                    STICKY_HEAD_ROW1,
+                    "px-4 py-2 text-center font-medium",
+                  )}
                 >
                   Floor &amp; Ceiling Limits
                 </th>
               )}
             </tr>
             {!isRuleBased && (
-              <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-600">
-                <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}>
+              <tr className="bg-slate-50 text-xs text-slate-600">
+                <th
+                  className={cn(
+                    activeDataColClass,
+                    STICKY_HEAD_ROW2,
+                    "border-r border-slate-200 py-2 text-center",
+                  )}
+                >
                   Generic
                 </th>
-                <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}>
+                <th
+                  className={cn(
+                    activeDataColClass,
+                    STICKY_HEAD_ROW2,
+                    "border-r border-slate-200 py-2 text-center",
+                  )}
+                >
                   Client Branded
                 </th>
                 <th
                   colSpan={2}
-                  className="border-r border-slate-200 px-2 py-2 text-center"
+                  className={cn(
+                    STICKY_HEAD_ROW2,
+                    "border-r border-slate-200 px-2 py-2 text-center",
+                  )}
                 >
                   Competitor Branded
                 </th>
                 <th
                   rowSpan={2}
-                  className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}
+                  className={cn(
+                    activeDataColClass,
+                    STICKY_HEAD_SPAN_FROM_ROW2,
+                    "border-r border-slate-200 py-2 text-center",
+                  )}
                 >
                   Auto
                 </th>
                 <th
                   rowSpan={2}
-                  className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}
+                  className={cn(
+                    activeDataColClass,
+                    STICKY_HEAD_SPAN_FROM_ROW2,
+                    "border-r border-slate-200 py-2 text-center",
+                  )}
                 >
                   Others
                 </th>
@@ -1360,6 +1405,7 @@ export function ConstraintsStep() {
                   className={cn(
                     spendTotalColClass,
                     totalColClass,
+                    STICKY_HEAD_SPAN_FROM_ROW2,
                     "border-r border-slate-200 py-2",
                     !showCampaignConstraints && "border-r-0",
                   )}
@@ -1370,14 +1416,29 @@ export function ConstraintsStep() {
                   <>
                     <th
                       colSpan={4}
-                      className="border-r border-l border-slate-200 px-2 py-2 text-center"
+                      className={cn(
+                        STICKY_HEAD_ROW2,
+                        "border-r border-l border-slate-200 px-2 py-2 text-center",
+                      )}
                     >
                       <InfoLabel label="Campaign Type" />
                     </th>
-                    <th colSpan={2} className="border-r border-slate-200 px-2 py-2 text-center">
+                    <th
+                      colSpan={2}
+                      className={cn(
+                        STICKY_HEAD_ROW2,
+                        "border-r border-slate-200 px-2 py-2 text-center",
+                      )}
+                    >
                       Bid
                     </th>
-                    <th colSpan={2} className="px-2 py-2 text-center">
+                    <th
+                      colSpan={2}
+                      className={cn(
+                        STICKY_HEAD_ROW2,
+                        "px-2 py-2 text-center",
+                      )}
+                    >
                       Budget
                     </th>
                   </>
@@ -1385,65 +1446,156 @@ export function ConstraintsStep() {
               </tr>
             )}
             {isRuleBased && showCampaignConstraints && (
-              <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-600">
-                <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}>
+              <tr className="bg-slate-50 text-xs text-slate-600">
+                <th
+                  className={cn(
+                    activeDataColClass,
+                    STICKY_HEAD_ROW2,
+                    "border-r border-slate-200 py-2 text-center",
+                  )}
+                >
                   Bid Floor
                 </th>
-                <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}>
+                <th
+                  className={cn(
+                    activeDataColClass,
+                    STICKY_HEAD_ROW2,
+                    "border-r border-slate-200 py-2 text-center",
+                  )}
+                >
                   Bid Ceiling
                 </th>
-                <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center")}>
+                <th
+                  className={cn(
+                    activeDataColClass,
+                    STICKY_HEAD_ROW2,
+                    "border-r border-slate-200 py-2 text-center",
+                  )}
+                >
                   Budget Floor
                 </th>
-                <th className={cn(activeDataColClass, "border-r-0 py-2 text-center")}>
+                <th
+                  className={cn(
+                    activeDataColClass,
+                    STICKY_HEAD_ROW2,
+                    "border-r-0 py-2 text-center",
+                  )}
+                >
                   Budget Ceiling
                 </th>
               </tr>
             )}
             {!isRuleBased && (
-              <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500">
-                <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+              <tr className="bg-slate-50 text-xs text-slate-500">
+                <th
+                  className={cn(
+                    activeDataColClass,
+                    STICKY_HEAD_ROW3,
+                    "border-r border-slate-200 py-2 text-center font-normal",
+                  )}
+                >
                   Keyword Targeting
                 </th>
-                <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                <th
+                  className={cn(
+                    activeDataColClass,
+                    STICKY_HEAD_ROW3,
+                    "border-r border-slate-200 py-2 text-center font-normal",
+                  )}
+                >
                   Keyword Targeting
                 </th>
-                <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                <th
+                  className={cn(
+                    activeDataColClass,
+                    STICKY_HEAD_ROW3,
+                    "border-r border-slate-200 py-2 text-center font-normal",
+                  )}
+                >
                   Keyword Targeting
                 </th>
-                <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                <th
+                  className={cn(
+                    activeDataColClass,
+                    STICKY_HEAD_ROW3,
+                    "border-r border-slate-200 py-2 text-center font-normal",
+                  )}
+                >
                   Product Targeting
                 </th>
                 {showCampaignConstraints && (
                   <>
-                    <th className={cn(activeDataColClass, "border-r border-l border-slate-200 py-2 text-center font-normal")}>
+                    <th
+                      className={cn(
+                        activeDataColClass,
+                        STICKY_HEAD_ROW3,
+                        "border-r border-l border-slate-200 py-2 text-center font-normal",
+                      )}
+                    >
                       SP
                     </th>
-                    <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                    <th
+                      className={cn(
+                        activeDataColClass,
+                        STICKY_HEAD_ROW3,
+                        "border-r border-slate-200 py-2 text-center font-normal",
+                      )}
+                    >
                       SB
                     </th>
-                    <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                    <th
+                      className={cn(
+                        activeDataColClass,
+                        STICKY_HEAD_ROW3,
+                        "border-r border-slate-200 py-2 text-center font-normal",
+                      )}
+                    >
                       SD
                     </th>
                     <th
                       className={cn(
                         spendTotalColClass,
                         totalColClass,
+                        STICKY_HEAD_ROW3,
                         "border-r border-slate-200 py-2 text-center font-normal",
                       )}
                     >
                       Total
                     </th>
-                    <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                    <th
+                      className={cn(
+                        activeDataColClass,
+                        STICKY_HEAD_ROW3,
+                        "border-r border-slate-200 py-2 text-center font-normal",
+                      )}
+                    >
                       Floor
                     </th>
-                    <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                    <th
+                      className={cn(
+                        activeDataColClass,
+                        STICKY_HEAD_ROW3,
+                        "border-r border-slate-200 py-2 text-center font-normal",
+                      )}
+                    >
                       Ceiling
                     </th>
-                    <th className={cn(activeDataColClass, "border-r border-slate-200 py-2 text-center font-normal")}>
+                    <th
+                      className={cn(
+                        activeDataColClass,
+                        STICKY_HEAD_ROW3,
+                        "border-r border-slate-200 py-2 text-center font-normal",
+                      )}
+                    >
                       Floor
                     </th>
-                    <th className={cn(activeDataColClass, "py-2 text-center font-normal")}>
+                    <th
+                      className={cn(
+                        activeDataColClass,
+                        STICKY_HEAD_ROW3,
+                        "py-2 text-center font-normal",
+                      )}
+                    >
                       Ceiling
                     </th>
                   </>
@@ -1461,7 +1613,7 @@ export function ConstraintsStep() {
               return (
                 <tr
                   key={nestedRow.id}
-                  className="group border-b border-slate-100 hover:bg-slate-50/50"
+                  className="group hover:bg-slate-50/50"
                 >
                   <NestedTaxonomyScopeCell
                     row={nestedRow}
@@ -1469,7 +1621,7 @@ export function ConstraintsStep() {
                     collapsed={collapsedGroupIds.has(nestedRow.id)}
                     onToggleCollapsed={toggleGroupCollapsed}
                   />
-                  <td className={cn(activeDataColClass, "border-r border-slate-100 py-3 text-center")}>
+                  <td className={cn(activeDataColClass, "border-b border-r border-slate-100 py-3 text-center")}>
                     {isEditableRow && (
                       <span className="inline-flex items-center justify-center gap-1 text-slate-700">
                         <TrendingUp className="size-4 text-success-500" />
@@ -1481,7 +1633,7 @@ export function ConstraintsStep() {
                     SPEND_PERCENT_FIELDS.map((field) => (
                       <td
                         key={field}
-                        className={cn(activeDataColClass, "border-r border-slate-100 p-1 text-center")}
+                        className={cn(activeDataColClass, "border-b border-r border-slate-100 p-1 text-center")}
                       >
                         {isEditableRow && state ? (
                           <PercentConstraintCell
@@ -1518,7 +1670,7 @@ export function ConstraintsStep() {
                       className={cn(
                         spendTotalColClass,
                         totalColClass,
-                        "border-r border-slate-100 py-3",
+                        "border-b border-r border-slate-100 py-3",
                         !showCampaignConstraints && "border-r-0",
                         isEditableRow &&
                           state &&
@@ -1544,7 +1696,7 @@ export function ConstraintsStep() {
                           key={field}
                           className={cn(
                             activeDataColClass,
-                            "border-r border-slate-100 p-1 text-center",
+                            "border-b border-r border-slate-100 p-1 text-center",
                             field === "campaignSp" && "border-l",
                           )}
                         >
@@ -1596,7 +1748,7 @@ export function ConstraintsStep() {
                         className={cn(
                           spendTotalColClass,
                           totalColClass,
-                          "border-r border-slate-100 py-3",
+                          "border-b border-r border-slate-100 py-3",
                           isEditableRow &&
                             state &&
                             percentTotalClassName(
@@ -1618,7 +1770,7 @@ export function ConstraintsStep() {
                           key={field}
                           className={cn(
                             activeDataColClass,
-                            "border-r border-slate-100 p-1 text-center last:border-r-0",
+                            "border-b border-r border-slate-100 p-1 text-center last:border-r-0",
                           )}
                         >
                           {isEditableRow && state ? (
@@ -1662,7 +1814,7 @@ export function ConstraintsStep() {
                           key={field}
                           className={cn(
                             activeDataColClass,
-                            "border-r border-slate-100 p-1 text-center last:border-r-0",
+                            "border-b border-r border-slate-100 p-1 text-center last:border-r-0",
                           )}
                         >
                           {isEditableRow && state ? (

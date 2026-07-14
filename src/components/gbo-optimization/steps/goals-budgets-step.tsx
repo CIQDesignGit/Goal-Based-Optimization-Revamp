@@ -176,15 +176,19 @@ const METRIC_SELECT_TRIGGER_CLASS =
   "h-auto w-auto gap-1 border-0 bg-transparent p-0 text-sm font-medium text-slate-700 shadow-none ring-0 focus-visible:border-transparent focus-visible:ring-0 hover:bg-transparent";
 const BULK_METRIC_SELECT_TRIGGER_CLASS =
   "flex h-8 w-full items-center justify-between gap-1 rounded-md border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 shadow-none hover:border-slate-300 focus-visible:border-brand-300 focus-visible:ring-2 focus-visible:ring-brand-500/20";
-const STICKY_SCOPE_HEAD = "sticky z-50 bg-slate-50";
+const STICKY_SCOPE_HEAD = "sticky top-0 z-50 bg-slate-50";
 const STICKY_SCOPE_CELL = "sticky z-50 bg-white group-hover:bg-slate-50";
 const STICKY_SCOPE_EDGE = "shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]";
 const STICKY_GOAL_HEAD = "sticky z-40 bg-slate-50";
 const STICKY_GOAL_CELL = "sticky z-40 bg-white group-hover:bg-slate-50";
 const STICKY_GOAL_EDGE =
   "shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]";
+/** Vertical stick under SetupHeader — row 1 of the Goals table header. */
+const STICKY_TOP_ROW1 = "top-0";
+/** Vertical stick under row 1 (~2.5rem). */
+const STICKY_TOP_ROW2 = "top-10";
 const STICKY_FY_HEAD =
-  "sticky right-0 z-40 bg-slate-50 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)]";
+  "sticky right-0 top-10 z-40 bg-slate-50 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)]";
 const STICKY_FY_CELL =
   "sticky right-0 z-40 bg-white shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)] group-hover:bg-slate-50";
 const BUDGET_LOCKED_HINT = "Past months are locked and cannot be edited.";
@@ -433,13 +437,14 @@ function budgetMonthHeadClass(
       showNextMonthNudge,
     ),
     HEAD_ROW_BORDER,
+    "sticky top-10 z-30",
     isNudgeColumn && "overflow-visible",
     showNudgeLayout && BUDGET_MONTH_HEADER_WITH_NUDGE_CLASS,
     isBudgetMonthLocked(monthIndex) && "bg-slate-100 text-slate-400",
     !isBudgetMonthLocked(monthIndex) &&
       !isCurrent &&
       !highlightNextMonth &&
-      "bg-white text-slate-600",
+      "bg-slate-50 text-slate-600",
     highlightNextMonth &&
       isNextMonth &&
       "next-month-column-nudge bg-amber-50/70 text-amber-900",
@@ -976,7 +981,11 @@ export function GoalsBudgetsStep() {
 
     setMonthWindowRange(0, monthWindowEnd);
     requestAnimationFrame(() => {
-      tableScrollRef.current?.scrollTo({ left: 0, behavior: "smooth" });
+      const region =
+        tableScrollRef.current?.closest<HTMLElement>(
+          "[data-setup-scroll-region]",
+        ) ?? tableScrollRef.current;
+      region?.scrollTo({ left: 0, behavior: "smooth" });
     });
   };
 
@@ -988,9 +997,12 @@ export function GoalsBudgetsStep() {
 
     setMonthWindowRange(monthWindowStart, BUDGET_MONTHS.length);
     requestAnimationFrame(() => {
-      const container = tableScrollRef.current;
-      if (!container) return;
-      container.scrollTo({ left: container.scrollWidth, behavior: "smooth" });
+      const region =
+        tableScrollRef.current?.closest<HTMLElement>(
+          "[data-setup-scroll-region]",
+        ) ?? tableScrollRef.current;
+      if (!region) return;
+      region.scrollTo({ left: region.scrollWidth, behavior: "smooth" });
     });
   };
 
@@ -1401,10 +1413,7 @@ export function GoalsBudgetsStep() {
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white">
-        <div
-          ref={tableScrollRef}
-          className={cn(showBudgetColumns && "overflow-x-auto")}
-        >
+        <div ref={tableScrollRef}>
           <table
             className="w-full table-fixed overflow-visible border-separate border-spacing-0 text-sm"
             style={{ minWidth: tableMinWidth }}
@@ -1439,6 +1448,7 @@ export function GoalsBudgetsStep() {
                   "border-r border-slate-200 px-4 py-2 text-center font-medium",
                   HEAD_ROW_BORDER,
                   STICKY_GOAL_HEAD,
+                  STICKY_TOP_ROW1,
                   STICKY_GOAL_EDGE,
                 )}
               >
@@ -1458,7 +1468,11 @@ export function GoalsBudgetsStep() {
               {showBudgetColumns && (
                 <th
                   colSpan={visibleMonthIndices.length + 1}
-                  className={cn("px-4 py-2 font-medium", HEAD_ROW_BORDER)}
+                  className={cn(
+                    "sticky z-30 bg-slate-50 px-4 py-2 font-medium",
+                    HEAD_ROW_BORDER,
+                    STICKY_TOP_ROW1,
+                  )}
                 >
                   <div className="flex items-center justify-center gap-3">
                     <div
@@ -1500,6 +1514,7 @@ export function GoalsBudgetsStep() {
                   METRIC_HEAD,
                   HEAD_ROW_BORDER,
                   STICKY_GOAL_HEAD,
+                  STICKY_TOP_ROW2,
                   "overflow-visible",
                   !showGoalDetailColumns && STICKY_GOAL_EDGE,
                 )}
@@ -1525,7 +1540,12 @@ export function GoalsBudgetsStep() {
                       goalStickyOffsets.target,
                       TARGET_COL_WIDTH_PX,
                     )}
-                    className={cn(TARGET_HEAD, HEAD_ROW_BORDER, STICKY_GOAL_HEAD)}
+                    className={cn(
+                      TARGET_HEAD,
+                      HEAD_ROW_BORDER,
+                      STICKY_GOAL_HEAD,
+                      STICKY_TOP_ROW2,
+                    )}
                   >
                     <span className="inline-flex w-full justify-end">
                       <InfoLabel
@@ -1548,6 +1568,7 @@ export function GoalsBudgetsStep() {
                       LAST_30_HEAD,
                       HEAD_ROW_BORDER,
                       STICKY_GOAL_HEAD,
+                      STICKY_TOP_ROW2,
                       STICKY_GOAL_EDGE,
                     )}
                   >

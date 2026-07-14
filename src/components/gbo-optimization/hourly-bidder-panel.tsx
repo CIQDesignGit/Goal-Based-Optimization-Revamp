@@ -48,7 +48,7 @@ type HourlyBidderPanelProps = {
   onOpenChange: (open: boolean) => void;
   /** Brand / scope name shown in the panel title. */
   scopeName: string;
-  /** Summary label shown on the table tile (e.g. "Hourly Bid..."). */
+  /** Summary label used to seed the strategy name field when the panel opens. */
   strategyLabel: string;
   /** edit = Day Parting tile; add = "+" button. */
   mode?: HourlyBidderPanelMode;
@@ -71,6 +71,26 @@ const SAMPLE_CAMPAIGNS: CampaignOption[] = [
 ];
 
 const TARGET_LOAD_MS = 4000;
+
+const DEFAULT_STRATEGY_PLACEHOLDERS = new Set([
+  "Hourly Bidder",
+  "Hourly Bid...",
+]);
+
+function resolveInitialStrategyName(
+  strategyLabel: string,
+  isAddMode: boolean,
+): string {
+  if (isAddMode) {
+    return "New hourly bidder strategy";
+  }
+
+  if (DEFAULT_STRATEGY_PLACEHOLDERS.has(strategyLabel)) {
+    return "Goal Based Optimiser Default HB Strategy";
+  }
+
+  return strategyLabel;
+}
 
 const SKELETON_ROW_CLASSES = [
   "w-11/12",
@@ -308,10 +328,8 @@ export function HourlyBidderPanel({
   const isAddMode = mode === "add";
   const [isTargetsLoading, setIsTargetsLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [strategyName, setStrategyName] = useState(
-    strategyLabel === "Hourly Bid..."
-      ? "Goal Based Optimiser Default HB Strategy"
-      : strategyLabel,
+  const [strategyName, setStrategyName] = useState(() =>
+    resolveInitialStrategyName(strategyLabel, isAddMode),
   );
 
   // When the panel opens, briefly load targets (FR-022 style) then show the dual list.
@@ -321,13 +339,7 @@ export function HourlyBidderPanel({
       return;
     }
 
-    setStrategyName(
-      isAddMode
-        ? "New hourly bidder strategy"
-        : strategyLabel === "Hourly Bid..."
-          ? "Goal Based Optimiser Default HB Strategy"
-          : strategyLabel,
-    );
+    setStrategyName(resolveInitialStrategyName(strategyLabel, isAddMode));
     setSelectedIds(isAddMode ? [] : ["c4"]);
     setIsTargetsLoading(true);
 
@@ -347,7 +359,8 @@ export function HourlyBidderPanel({
   };
 
   const handleConfirm = () => {
-    const label = strategyName.trim() || "Hourly Bid...";
+    // Persist internal strategy name for panel reopen — the table tile stays "Hourly Bidder".
+    const label = strategyName.trim() || "Hourly Bidder";
     onApply?.(label);
     onOpenChange(false);
   };
@@ -491,6 +504,10 @@ type DayPartingTileProps = {
 const CLEAR_DRAFT_TOOLTIP =
   "Clear draft strategies — all unsaved draft settings for this scope will be lost";
 
+/** Shared style for Optimizer cell action icons (+ / refresh). */
+export const OPTIMIZER_ACTION_ICON_CLASS =
+  "border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700";
+
 /**
  * Reset / refresh control with hover tooltip and a confirm dialog (FR-020).
  * Used in Day Parting, Budget Optimization, and Bid Optimization cells.
@@ -514,10 +531,10 @@ export function ClearDraftStrategiesButton({
           render={
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="icon-xs"
               aria-label={`Clear draft strategies for ${scopeName}`}
-              className="text-slate-400 hover:text-slate-600"
+              className={OPTIMIZER_ACTION_ICON_CLASS}
               onClick={(event) => {
                 event.stopPropagation();
                 setClearDialogOpen(true);
@@ -607,6 +624,7 @@ export function ClearDraftStrategiesButton({
 
 /**
  * Day Parting cell control.
+ * - Primary tile on the left; outlined + / refresh pinned to the right edge
  * - No strategy → "+" only (create)
  * - Strategy present → logo + name tile (edit on click; pencil shows on hover)
  * - Clear control warns first (FR-020) before discarding draft strategies
@@ -620,56 +638,58 @@ export function DayPartingTile({
   onReset,
 }: DayPartingTileProps) {
   return (
-    <div className="flex items-center gap-1.5">
-      {hasStrategy ? (
-        <button
+    <div className="flex w-full min-w-0 items-center justify-between gap-2">
+      <div className="min-w-0 shrink">
+        {hasStrategy ? (
+          <button
+            type="button"
+            onClick={onOpen}
+            aria-label={`Edit day parting strategy for ${scopeName}`}
+            className={cn(
+              "group inline-flex h-8 max-w-full min-w-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-left text-xs shadow-none transition-colors",
+              "hover:border-brand-300 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40",
+            )}
+          >
+            <Image
+              src="/icons/day-parting.png"
+              alt=""
+              width={16}
+              height={16}
+              className="size-4 shrink-0"
+              aria-hidden
+            />
+            <span className="truncate font-medium text-slate-700">{label}</span>
+            <Pencil
+              className="size-3.5 shrink-0 text-brand-600 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+              aria-hidden
+            />
+          </button>
+        ) : null}
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1">
+        <Button
           type="button"
-          onClick={onOpen}
-          aria-label={`Edit day parting strategy for ${scopeName}`}
-          className={cn(
-            "group flex h-8 min-w-28 flex-1 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-left text-xs shadow-none transition-colors",
-            "hover:border-brand-300 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40",
-          )}
+          variant="outline"
+          size="icon-xs"
+          aria-label={`Add day parting strategy for ${scopeName}`}
+          title="Add day parting strategy"
+          className={OPTIMIZER_ACTION_ICON_CLASS}
+          onClick={(event) => {
+            event.stopPropagation();
+            onAdd();
+          }}
         >
-          <Image
-            src="/icons/day-parting.png"
-            alt=""
-            width={16}
-            height={16}
-            className="size-4 shrink-0"
-            aria-hidden
-          />
-          <span className="min-w-0 flex-1 truncate font-medium text-slate-700">
-            {label}
-          </span>
-          <Pencil
-            className="size-3.5 shrink-0 text-brand-600 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-            aria-hidden
-          />
-        </button>
-      ) : null}
+          <Plus className="size-3.5" />
+        </Button>
 
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-xs"
-        aria-label={`Add day parting strategy for ${scopeName}`}
-        title="Add day parting strategy"
-        className="text-slate-400 hover:text-slate-600"
-        onClick={(event) => {
-          event.stopPropagation();
-          onAdd();
-        }}
-      >
-        <Plus className="size-3.5" />
-      </Button>
-
-      {hasStrategy ? (
-        <ClearDraftStrategiesButton
-          scopeName={scopeName}
-          onConfirm={onReset}
-        />
-      ) : null}
+        {hasStrategy ? (
+          <ClearDraftStrategiesButton
+            scopeName={scopeName}
+            onConfirm={onReset}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }
