@@ -135,6 +135,21 @@ export const RULE_BASED_ITEM_MODE_TOAST =
 export const RULE_BASED_ITEM_SKIP_CUE =
   "Since you have selected rule-based, budget entry and seasonality are skipped for this item";
 
+/**
+ * Prototype default rules shown under the Rule Based chip (stacked cards).
+ * Top name is visible; remaining count drives the “stack” depth peek.
+ */
+export const DEFAULT_RULE_BASED_BID_STRATEGIES = [
+  "Reward High Performers",
+  "Protect Low Performers",
+  "Maintain Average ROAS",
+] as const;
+
+export const DEFAULT_RULE_BASED_BUDGET_STRATEGIES = [
+  "Redistribute Underperforming",
+  "Pace to Monthly Budget",
+] as const;
+
 export const ALLY_AI_RECOMMENDATION_NOTICE =
   "Ally AI is recommended — it allocates spend and manages constraints automatically, with no manual rules required.";
 

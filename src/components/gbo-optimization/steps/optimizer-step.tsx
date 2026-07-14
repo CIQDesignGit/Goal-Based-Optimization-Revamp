@@ -15,6 +15,8 @@ import {
   OptimizerModeChip,
   type OptimizerColumnMode,
 } from "@/components/gbo-optimization/optimizer-mode-chip";
+import { RuleBasedStrategyPanel } from "@/components/gbo-optimization/rule-based-strategy-panel";
+import { RuleBasedStrategyStack } from "@/components/gbo-optimization/rule-based-strategy-stack";
 import {
   NestedTaxonomyScopeCell,
   NestedTaxonomyScopeHeader,
@@ -23,6 +25,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  DEFAULT_RULE_BASED_BID_STRATEGIES,
+  DEFAULT_RULE_BASED_BUDGET_STRATEGIES,
   getGoalTypeLabel,
   OPTIMIZER_SCOPE_ROWS,
   RULE_BASED_ITEM_MODE_TOAST,
@@ -112,6 +116,7 @@ function OptimizerCell({
   onBidModeChange,
   onResetBudgetStrategies,
   onResetBidStrategies,
+  onOpenRuleBasedStrategies,
 }: {
   row: OptimizerScopeRow;
   column: "mode" | "budget" | "bid" | "dayParting" | "targeting";
@@ -126,6 +131,8 @@ function OptimizerCell({
   onBidModeChange?: (mode: OptimizerColumnMode) => void;
   onResetBudgetStrategies?: () => void;
   onResetBidStrategies?: () => void;
+  /** Opens the Rule Based strategy side panel from the stacked rules chip. */
+  onOpenRuleBasedStrategies?: () => void;
 }) {
   // Targeting: always show add (+) — including rows without Ally mode.
   if (column === "targeting") {
@@ -175,39 +182,51 @@ function OptimizerCell({
 
   if (column === "bid") {
     const currentBid = bidMode ?? "ally";
+    const isRuleBased = currentBid === "rule-based";
     return (
-      <div className={OPTIMIZER_CELL_ACTIONS_ROW}>
-        <div className="min-w-0 shrink">
-          <OptimizerModeChip
-            mode={currentBid}
-            selectable
-            showBoost
-            onChange={onBidModeChange}
-          />
+      <div className="flex w-full min-w-0 flex-col">
+        {/* Mode chip + actions stay on one row; rules stack hangs under the chip */}
+        <div className={OPTIMIZER_CELL_ACTIONS_ROW}>
+          <div className="min-w-0 shrink">
+            <OptimizerModeChip
+              mode={currentBid}
+              selectable
+              showBoost
+              onChange={onBidModeChange}
+            />
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-xs"
+              aria-label={`Add bid optimization strategy for ${row.name}`}
+              title="Add bid optimization strategy"
+              className={OPTIMIZER_ACTION_ICON_CLASS}
+            >
+              <Plus className="size-3.5" />
+            </Button>
+            <ClearDraftStrategiesButton
+              scopeName={row.name}
+              onConfirm={onResetBidStrategies ?? (() => {})}
+              description={
+                <>
+                  You are about to clear draft bid strategies for{" "}
+                  <span className="font-semibold text-slate-800">
+                    {row.name}
+                  </span>
+                  . This resets Bid Optimization to Ally and cannot be undone.
+                </>
+              }
+            />
+          </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-xs"
-            aria-label={`Add bid optimization strategy for ${row.name}`}
-            title="Add bid optimization strategy"
-            className={OPTIMIZER_ACTION_ICON_CLASS}
-          >
-            <Plus className="size-3.5" />
-          </Button>
-          <ClearDraftStrategiesButton
-            scopeName={row.name}
-            onConfirm={onResetBidStrategies ?? (() => {})}
-            description={
-              <>
-                You are about to clear draft bid strategies for{" "}
-                <span className="font-semibold text-slate-800">{row.name}</span>
-                . This resets Bid Optimization to Ally and cannot be undone.
-              </>
-            }
+        {isRuleBased ? (
+          <RuleBasedStrategyStack
+            rules={DEFAULT_RULE_BASED_BID_STRATEGIES}
+            onOpen={onOpenRuleBasedStrategies}
           />
-        </div>
+        ) : null}
       </div>
     );
   }
@@ -215,38 +234,47 @@ function OptimizerCell({
   // Budget Optimization — mode chip left; outlined + / refresh right-aligned
   // (Changed state is shown on the <td>, not on the chip.)
   const currentBudget = budgetMode ?? "ally";
+  const isRuleBasedBudget = currentBudget === "rule-based";
   return (
-    <div className={OPTIMIZER_CELL_ACTIONS_ROW}>
-      <div className="min-w-0 shrink">
-        <OptimizerModeChip
-          mode={currentBudget}
-          selectable
-          onChange={onBudgetModeChange}
-        />
+    <div className="flex w-full min-w-0 flex-col">
+      <div className={OPTIMIZER_CELL_ACTIONS_ROW}>
+        <div className="min-w-0 shrink">
+          <OptimizerModeChip
+            mode={currentBudget}
+            selectable
+            onChange={onBudgetModeChange}
+          />
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-xs"
+            aria-label={`Add budget optimization strategy for ${row.name}`}
+            title="Add budget optimization strategy"
+            className={OPTIMIZER_ACTION_ICON_CLASS}
+          >
+            <Plus className="size-3.5" />
+          </Button>
+          <ClearDraftStrategiesButton
+            scopeName={row.name}
+            onConfirm={onResetBudgetStrategies ?? (() => {})}
+            description={
+              <>
+                You are about to clear draft budget strategies for{" "}
+                <span className="font-semibold text-slate-800">{row.name}</span>
+                . This resets Budget Optimization to Ally and cannot be undone.
+              </>
+            }
+          />
+        </div>
       </div>
-      <div className="flex shrink-0 items-center gap-1">
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-xs"
-          aria-label={`Add budget optimization strategy for ${row.name}`}
-          title="Add budget optimization strategy"
-          className={OPTIMIZER_ACTION_ICON_CLASS}
-        >
-          <Plus className="size-3.5" />
-        </Button>
-        <ClearDraftStrategiesButton
-          scopeName={row.name}
-          onConfirm={onResetBudgetStrategies ?? (() => {})}
-          description={
-            <>
-              You are about to clear draft budget strategies for{" "}
-              <span className="font-semibold text-slate-800">{row.name}</span>
-              . This resets Budget Optimization to Ally and cannot be undone.
-            </>
-          }
+      {isRuleBasedBudget ? (
+        <RuleBasedStrategyStack
+          rules={DEFAULT_RULE_BASED_BUDGET_STRATEGIES}
+          onOpen={onOpenRuleBasedStrategies}
         />
-      </div>
+      ) : null}
     </div>
   );
 }
@@ -278,6 +306,12 @@ export function OptimizerStep() {
   );
   // Snapshot so Apply / Clear can mark the Day Parting cell as changed.
   const [baselineDayPartingLabels] = useState(createInitialDayPartingLabels);
+
+  // Rule Based strategy panel — opened from the stacked rules chip.
+  const [activeRulePanel, setActiveRulePanel] = useState<{
+    rowId: string;
+    column: "budget" | "bid";
+  } | null>(null);
 
   const openDayPartingPanel = (rowId: string, mode: "edit" | "add") => {
     setDayPartingPanelMode(mode);
@@ -333,6 +367,10 @@ export function OptimizerStep() {
   const activeLabel =
     (activeDayPartingRowId && dayPartingLabels[activeDayPartingRowId]) ||
     DEFAULT_DAY_PARTING_STRATEGY;
+
+  const activeRuleRow = OPTIMIZER_SCOPE_ROWS.find(
+    (row) => row.id === activeRulePanel?.rowId,
+  );
 
   const {
     visibleRows,
@@ -531,6 +569,12 @@ export function OptimizerStep() {
                             { variant: "success" },
                           );
                         }}
+                        onOpenRuleBasedStrategies={() =>
+                          setActiveRulePanel({
+                            rowId: nestedRow.id,
+                            column: "budget",
+                          })
+                        }
                       />
                     ) : null}
                   </td>
@@ -556,6 +600,12 @@ export function OptimizerStep() {
                             { variant: "success" },
                           );
                         }}
+                        onOpenRuleBasedStrategies={() =>
+                          setActiveRulePanel({
+                            rowId: nestedRow.id,
+                            column: "bid",
+                          })
+                        }
                       />
                     ) : null}
                   </td>
@@ -619,6 +669,25 @@ export function OptimizerStep() {
             ...current,
             [activeDayPartingRowId]: label,
           }));
+        }}
+      />
+
+      {/* Side panel: stacked Rule Based chip → list of rules + editor */}
+      <RuleBasedStrategyPanel
+        open={activeRulePanel !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setActiveRulePanel(null);
+          }
+        }}
+        scopeName={activeRuleRow?.name ?? "Selected scope"}
+        rowId={activeRulePanel?.rowId ?? ""}
+        column={activeRulePanel?.column ?? "bid"}
+        onSave={() => {
+          showSetupToast(
+            `Rule based strategies saved for ${activeRuleRow?.name ?? "scope"}.`,
+            { variant: "success" },
+          );
         }}
       />
     </div>
