@@ -118,8 +118,7 @@ function uniqueCategories(
 
 /**
  * Tag for the taxonomy dimension that was edited (e.g. Portfolio, Profiles).
- * Squared + outline treatment so it never reads like a Goal/Budget category pill.
- * Level 1 is filled/stronger; Level 2 is outline/lighter.
+ * Level 1 is filled/stronger; Level 2 is outline only (border, no fill).
  */
 function ScopeLevelTag({
   identity,
@@ -142,10 +141,10 @@ function ScopeLevelTag({
   return (
     <span
       className={cn(
-        "inline-flex max-w-full truncate rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold tracking-wide",
+        "inline-flex max-w-full truncate rounded-sm px-1.5 py-0.5 text-[10px] font-semibold tracking-wide",
         isLevel1
-          ? "border-slate-400 bg-slate-200 text-slate-800"
-          : "border-slate-300 bg-white text-slate-600",
+          ? "bg-slate-200 text-slate-800"
+          : "border border-slate-300 bg-transparent text-slate-600",
         className,
       )}
       title={label}

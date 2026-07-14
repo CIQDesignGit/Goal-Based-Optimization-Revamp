@@ -165,11 +165,11 @@ export function OptimizerModeChip({
       <span>{label}</span>
       {showBoost && mode === "ally" ? (
         <span
-          className="ml-0.5 inline-flex h-3.5 shrink-0 items-center gap-1.5 border-l border-slate-200 pl-1.5 text-slate-400"
+          className="ml-0.5 inline-flex h-3.5 shrink-0 items-center gap-1.5 border-l border-slate-200 pl-1.5"
           title="Boost"
           aria-label="Boost"
         >
-          <Zap className="size-3.5" />
+          <Zap className="size-3.5 text-orange-300" />
         </span>
       ) : null}
       {selectable ? (

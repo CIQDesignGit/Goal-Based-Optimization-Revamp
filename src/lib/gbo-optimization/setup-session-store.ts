@@ -233,6 +233,30 @@ export function rowNeedsPerformanceGateGoalValue(
   return !Boolean(state.goalValue.trim());
 }
 
+/**
+ * Goals & Budgets often stores the metric on the Level 1 parent (parent edit mode).
+ * Constraints / Optimizer rows are Level 2 leaves — fall back to the parent when the leaf is empty.
+ */
+export function resolveEffectiveGoalsState(
+  leafId: string,
+  groupId: string | null | undefined,
+  goalsRowState: Record<string, GoalsRowState>,
+): GoalsRowState | undefined {
+  const leaf = goalsRowState[leafId];
+  if (leaf?.goalMetric) {
+    return leaf;
+  }
+
+  if (groupId) {
+    const parent = goalsRowState[groupId];
+    if (parent?.goalMetric) {
+      return parent;
+    }
+  }
+
+  return leaf ?? (groupId ? goalsRowState[groupId] : undefined);
+}
+
 // ---------------------------------------------------------------------------
 // Initial state factories
 // ---------------------------------------------------------------------------

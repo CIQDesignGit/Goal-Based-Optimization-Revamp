@@ -25,7 +25,7 @@ type SetupInlineSelectProps = {
 };
 
 const INLINE_SELECT_TRIGGER_BASE =
-  "flex w-full items-center justify-between gap-1.5 rounded-md border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 h-10";
+  "flex h-10 w-full min-w-0 max-w-full items-center justify-between gap-1.5 rounded-md border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
 /** Dropdown must be wide enough for label + check icon even when the trigger is compact. */
 const MENU_MIN_WIDTH_PX = 144;
@@ -102,14 +102,14 @@ export function SetupInlineSelect({
   }, [listOpen]);
 
   return (
-    <div ref={rootRef} className={cn(!hideLabel && "space-y-1.5")}>
+    <div ref={rootRef} className={cn("min-w-0 w-full", !hideLabel && "space-y-1.5")}>
       {!hideLabel ? (
         <Label id={labelId} htmlFor={triggerId} className="text-sm font-normal text-slate-500">
           {label}
         </Label>
       ) : null}
 
-      <div className="relative">
+      <div className="relative min-w-0 w-full">
         <button
           ref={triggerRef}
           id={triggerId}
@@ -120,12 +120,12 @@ export function SetupInlineSelect({
           aria-haspopup="listbox"
           aria-labelledby={hideLabel ? undefined : labelId}
           aria-label={hideLabel ? label : undefined}
-          className={cn(INLINE_SELECT_TRIGGER_BASE, triggerClassName)}
+          className={cn(INLINE_SELECT_TRIGGER_BASE, "min-w-0 max-w-full", triggerClassName)}
           onClick={() => setListOpen((current) => !current)}
         >
           <span
             className={cn(
-              "flex flex-1 text-left text-sm",
+              "min-w-0 flex-1 truncate text-left text-sm",
               // Inherit trigger color so edited (blue) styling can apply.
               selectedLabel ? "text-inherit" : "text-slate-400",
             )}

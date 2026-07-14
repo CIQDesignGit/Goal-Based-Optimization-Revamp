@@ -179,7 +179,15 @@ function SetupWizardContent() {
       <div
         ref={scrollContainerRef}
         data-setup-scroll-region
-        className="min-h-0 flex-1 overflow-auto px-6 pb-8"
+        className={cn(
+          "flex min-h-0 min-w-0 flex-1 flex-col px-6 pb-8",
+          // Wide tables: one step scrollport so sticky top + left don’t fight page scroll.
+          currentStep === "goals-budgets" ||
+            currentStep === "constraints" ||
+            currentStep === "optimizer"
+            ? "overflow-hidden"
+            : "overflow-auto",
+        )}
       >
         <StepComponent />
       </div>

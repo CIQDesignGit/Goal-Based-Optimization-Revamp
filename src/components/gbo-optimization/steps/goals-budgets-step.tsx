@@ -11,6 +11,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -150,7 +151,7 @@ function budgetColumnWidthClass(
     : BUDGET_COL_WIDTH_NORMAL;
 }
 const METRIC_HEAD = cn(
-  "border-r border-slate-200 px-4 py-2 text-left text-xs font-medium text-slate-600",
+  "border-r border-slate-200 px-2 py-2 text-left text-xs font-medium text-slate-600",
 );
 const METRIC_CELL = cn("border-r border-slate-100 p-1.5 text-left", ROW_BORDER);
 const LAST_30_HEAD = cn(
@@ -175,22 +176,23 @@ const GOAL_METRIC_MENU_MIN_WIDTH_PX = 220;
 const METRIC_SELECT_TRIGGER_CLASS =
   "h-auto w-auto gap-1 border-0 bg-transparent p-0 text-sm font-medium text-slate-700 shadow-none ring-0 focus-visible:border-transparent focus-visible:ring-0 hover:bg-transparent";
 const BULK_METRIC_SELECT_TRIGGER_CLASS =
-  "flex h-8 w-full items-center justify-between gap-1 rounded-md border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 shadow-none hover:border-slate-300 focus-visible:border-brand-300 focus-visible:ring-2 focus-visible:ring-brand-500/20";
+  "flex h-8 w-full min-w-0 max-w-full items-center justify-between gap-1 overflow-hidden rounded-md border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 shadow-none hover:border-slate-300 focus-visible:border-brand-300 focus-visible:ring-2 focus-visible:ring-brand-500/20";
 const STICKY_SCOPE_HEAD = "sticky top-0 z-50 bg-slate-50";
-const STICKY_SCOPE_CELL = "sticky z-50 bg-white group-hover:bg-slate-50";
+const STICKY_SCOPE_CELL = "sticky z-40 bg-white group-hover:bg-slate-50";
 const STICKY_SCOPE_EDGE = "shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]";
-const STICKY_GOAL_HEAD = "sticky z-40 bg-slate-50";
-const STICKY_GOAL_CELL = "sticky z-40 bg-white group-hover:bg-slate-50";
+/** Goal freeze columns — below scope, above scrolling months. */
+const STICKY_GOAL_HEAD = "sticky z-30 bg-slate-50";
+const STICKY_GOAL_CELL = "sticky z-20 bg-white group-hover:bg-slate-50";
 const STICKY_GOAL_EDGE =
   "shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]";
 /** Vertical stick under SetupHeader — row 1 of the Goals table header. */
 const STICKY_TOP_ROW1 = "top-0";
-/** Vertical stick under row 1 (~2.5rem). */
-const STICKY_TOP_ROW2 = "top-10";
-const STICKY_FY_HEAD =
-  "sticky right-0 top-10 z-40 bg-slate-50 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)]";
+/** Seal sub-pixel seams against the row above (slate-50). */
+const STICKY_ROW2_SEAL = "shadow-[0_-2px_0_0_#f8fafc]";
+const STICKY_FY_HEAD_BASE =
+  "sticky right-0 top-0 z-40 bg-slate-50 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)]";
 const STICKY_FY_CELL =
-  "sticky right-0 z-40 bg-white shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)] group-hover:bg-slate-50";
+  "sticky right-0 z-20 bg-white shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)] group-hover:bg-slate-50";
 const BUDGET_LOCKED_HINT = "Past months are locked and cannot be edited.";
 const BUDGET_GOAL_REQUIRED_HINT =
   "Select a goal before entering budget.";
@@ -437,8 +439,9 @@ function budgetMonthHeadClass(
       showNextMonthNudge,
     ),
     HEAD_ROW_BORDER,
-    "sticky top-10 z-30",
-    isNudgeColumn && "overflow-visible",
+    "sticky z-10 bg-slate-50",
+    STICKY_ROW2_SEAL,
+    isNudgeColumn && "overflow-hidden",
     showNudgeLayout && BUDGET_MONTH_HEADER_WITH_NUDGE_CLASS,
     isBudgetMonthLocked(monthIndex) && "bg-slate-100 text-slate-400",
     !isBudgetMonthLocked(monthIndex) &&
@@ -496,7 +499,7 @@ function budgetMonthTdClass(
       visual !== "locked" &&
       !highlightCurrentEmpty &&
       "border-r-0 bg-brand-50/40",
-    highlightCurrentEmpty && "border-r-0 bg-error-50/40",
+    highlightCurrentEmpty && "border-r-0",
     visual === "edited" &&
       "[&_input]:font-medium [&_input]:text-blue-600 [&_input]:not-italic",
   );
@@ -816,6 +819,10 @@ export function GoalsBudgetsStep() {
     (state) => state.setPerformanceGateMinSpendFloor,
   );
   const tableScrollRef = useRef<HTMLDivElement>(null);
+  const headerRow1Ref = useRef<HTMLTableRowElement>(null);
+  /** Exact row-1 height so row-2 sticky top seals flush (no gap). */
+  const [stickyHeaderRow1Height, setStickyHeaderRow1Height] = useState(40);
+
   const {
     width: scopeColumnWidth,
     setWidth: setScopeColumnWidth,
@@ -981,11 +988,7 @@ export function GoalsBudgetsStep() {
 
     setMonthWindowRange(0, monthWindowEnd);
     requestAnimationFrame(() => {
-      const region =
-        tableScrollRef.current?.closest<HTMLElement>(
-          "[data-setup-scroll-region]",
-        ) ?? tableScrollRef.current;
-      region?.scrollTo({ left: 0, behavior: "smooth" });
+      tableScrollRef.current?.scrollTo({ left: 0, behavior: "smooth" });
     });
   };
 
@@ -997,10 +1000,7 @@ export function GoalsBudgetsStep() {
 
     setMonthWindowRange(monthWindowStart, BUDGET_MONTHS.length);
     requestAnimationFrame(() => {
-      const region =
-        tableScrollRef.current?.closest<HTMLElement>(
-          "[data-setup-scroll-region]",
-        ) ?? tableScrollRef.current;
+      const region = tableScrollRef.current;
       if (!region) return;
       region.scrollTo({ left: region.scrollWidth, behavior: "smooth" });
     });
@@ -1239,6 +1239,62 @@ export function GoalsBudgetsStep() {
     return activeGoalRowIds.some((rowId) => !rowState[rowId]?.goalMetric);
   }, [includePerformanceGate, activeGoalRowIds, rowState]);
 
+  useLayoutEffect(() => {
+    const row = headerRow1Ref.current;
+    if (!row) return;
+
+    const update = () => {
+      const next = Math.ceil(row.getBoundingClientRect().height);
+      if (next > 0) setStickyHeaderRow1Height(next);
+    };
+
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, [
+    showBudgetColumns,
+    showGoalDetailColumns,
+    hasPerformanceGateGoalGap,
+    scopeColumnWidth,
+  ]);
+
+  const stickyRow2TopStyle = useMemo(
+    () => ({ top: stickyHeaderRow1Height }),
+    [stickyHeaderRow1Height],
+  );
+
+  // Pin Budget FY controls in the visible strip between Goal cols and FY col.
+  const budgetToolbarStickyLeft =
+    scopeColumnsWidth + getGoalSectionWidthPx(showGoalDetailColumns);
+  const [budgetToolbarWidth, setBudgetToolbarWidth] = useState(0);
+
+  useLayoutEffect(() => {
+    const scrollEl = tableScrollRef.current;
+    if (!scrollEl) {
+      setBudgetToolbarWidth(0);
+      return;
+    }
+
+    const updateWidths = () => {
+      if (!showBudgetColumns) {
+        setBudgetToolbarWidth(0);
+        return;
+      }
+      setBudgetToolbarWidth(
+        Math.max(
+          0,
+          scrollEl.clientWidth - budgetToolbarStickyLeft - FY_COLUMN_WIDTH_PX,
+        ),
+      );
+    };
+
+    updateWidths();
+    const observer = new ResizeObserver(updateWidths);
+    observer.observe(scrollEl);
+    return () => observer.disconnect();
+  }, [budgetToolbarStickyLeft, showBudgetColumns]);
+
   const toggleGroupCollapsed = (groupId: string) => {
     setCollapsedGroupIds((current) => {
       const next = new Set(current);
@@ -1296,17 +1352,18 @@ export function GoalsBudgetsStep() {
   };
 
   return (
-    <div className="flex flex-col gap-3 py-4">
-      {isRuleBased && !ruleBasedNoticeDismissed && (
-        <ImpactBanner
-          title="Rule-based — goals only"
-          onDismiss={() => setRuleBasedNoticeDismissed(true)}
-        >
-          {RULE_BASED_OPTIMIZER_NOTICE}
-        </ImpactBanner>
-      )}
+    <div className="flex min-h-0 flex-1 flex-col gap-3 py-4">
+      {/* Chrome outside table scroll — never moves sideways with wide tables. */}
+      <div className="flex shrink-0 flex-col gap-3">
+        {isRuleBased && !ruleBasedNoticeDismissed && (
+          <ImpactBanner
+            title="Rule-based — goals only"
+            onDismiss={() => setRuleBasedNoticeDismissed(true)}
+          >
+            {RULE_BASED_OPTIMIZER_NOTICE}
+          </ImpactBanner>
+        )}
 
-      <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative w-72">
@@ -1409,15 +1466,17 @@ export function GoalsBudgetsStep() {
             onMinSpendFloorChange={setPerformanceGateMinSpendFloor}
           />
         ) : null}
-
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white">
-        <div ref={tableScrollRef}>
-          <table
-            className="w-full table-fixed overflow-visible border-separate border-spacing-0 text-sm"
-            style={{ minWidth: tableMinWidth }}
-          >
+      {/* Horizontal (+ vertical) scroll stays inside the table only. */}
+      <div
+        ref={tableScrollRef}
+        className="min-h-0 min-w-0 flex-1 overflow-auto rounded-lg border border-slate-200 bg-white"
+      >
+        <table
+          className="w-full table-fixed border-separate border-spacing-0 text-sm"
+          style={{ minWidth: tableMinWidth }}
+        >
           <colgroup>
             <col style={{ width: scopeColumnWidth }} />
             <col style={{ width: METRIC_COL_WIDTH_PX }} />
@@ -1429,7 +1488,10 @@ export function GoalsBudgetsStep() {
             ) : null}
           </colgroup>
           <thead>
-            <tr className="bg-slate-50 text-xs text-slate-600">
+            <tr
+              ref={headerRow1Ref}
+              className="bg-slate-50 text-xs text-slate-600"
+            >
               <TaxonomyScopeHeader
                 label={scopeHeaderLabel}
                 width={scopeColumnWidth}
@@ -1466,61 +1528,90 @@ export function GoalsBudgetsStep() {
                 </div>
               </th>
               {showBudgetColumns && (
-                <th
-                  colSpan={visibleMonthIndices.length + 1}
-                  className={cn(
-                    "sticky z-30 bg-slate-50 px-4 py-2 font-medium",
-                    HEAD_ROW_BORDER,
-                    STICKY_TOP_ROW1,
-                  )}
-                >
-                  <div className="flex items-center justify-center gap-3">
+                <>
+                  <th
+                    colSpan={visibleMonthIndices.length}
+                    className={cn(
+                      "bg-slate-50 p-0",
+                      HEAD_ROW_BORDER,
+                      "sticky top-0 z-20",
+                    )}
+                  >
+                    {/* Stays in the visible months strip — does not scroll sideways with months. */}
                     <div
-                      className="inline-flex rounded-md bg-slate-100 p-0.5"
-                      role="group"
-                      aria-label="Show previous months"
+                      className="sticky top-0 z-20 flex items-center justify-center gap-3 bg-slate-50 px-4 py-2 font-medium"
+                      style={{
+                        left: budgetToolbarStickyLeft,
+                        width:
+                          budgetToolbarWidth > 0
+                            ? budgetToolbarWidth
+                            : undefined,
+                      }}
                     >
-                      <MonthRangeToggle
-                        label="Previous months"
-                        pressed={showPreviousMonths}
-                        onClick={togglePreviousMonths}
-                      />
+                      <div
+                        className="inline-flex rounded-md bg-slate-100 p-0.5"
+                        role="group"
+                        aria-label="Show previous months"
+                      >
+                        <MonthRangeToggle
+                          label="Previous months"
+                          pressed={showPreviousMonths}
+                          onClick={togglePreviousMonths}
+                        />
+                      </div>
+                      <span className="shrink-0 text-center text-xs font-medium text-slate-600">
+                        <InfoLabel label="Budget FY2026" />
+                      </span>
+                      <div
+                        className="inline-flex rounded-md bg-slate-100 p-0.5"
+                        role="group"
+                        aria-label="Show future months"
+                      >
+                        <MonthRangeToggle
+                          label="Future months"
+                          pressed={showFutureMonths}
+                          onClick={toggleFutureMonths}
+                        />
+                      </div>
                     </div>
-                    <span className="shrink-0 text-center text-xs font-medium text-slate-600">
-                      <InfoLabel label="Budget FY2026" />
+                  </th>
+                  {/* Rowspan keeps FY off the Budget FY controls strip (no vertical overlap). */}
+                  <th
+                    rowSpan={2}
+                    className={cn(
+                      BUDGET_HEAD,
+                      "border-r-0 align-middle",
+                      HEAD_ROW_BORDER,
+                      STICKY_FY_HEAD_BASE,
+                    )}
+                  >
+                    <span className="inline-flex w-full justify-end px-2">
+                      <InfoLabel label="FY 2026" />
                     </span>
-                    <div
-                      className="inline-flex rounded-md bg-slate-100 p-0.5"
-                      role="group"
-                      aria-label="Show future months"
-                    >
-                      <MonthRangeToggle
-                        label="Future months"
-                        pressed={showFutureMonths}
-                        onClick={toggleFutureMonths}
-                      />
-                    </div>
-                  </div>
-                </th>
+                  </th>
+                </>
               )}
             </tr>
             <tr className="bg-slate-50 text-xs text-slate-600">
               <th
-                style={stickyColumnStyle(
-                  goalStickyOffsets.metric,
-                  METRIC_COL_WIDTH_PX,
-                )}
+                style={{
+                  ...stickyColumnStyle(
+                    goalStickyOffsets.metric,
+                    METRIC_COL_WIDTH_PX,
+                  ),
+                  ...stickyRow2TopStyle,
+                }}
                 className={cn(
                   METRIC_HEAD,
                   HEAD_ROW_BORDER,
                   STICKY_GOAL_HEAD,
-                  STICKY_TOP_ROW2,
-                  "overflow-visible",
+                  STICKY_ROW2_SEAL,
+                  "overflow-hidden",
                   !showGoalDetailColumns && STICKY_GOAL_EDGE,
                 )}
               >
-                <div className="flex flex-col gap-1.5">
-                  <InfoLabel label="Metric to optimize" />
+                <div className="flex min-w-0 max-w-full flex-col gap-1.5 overflow-hidden">
+                  <InfoLabel label="Metrics to optimize" />
                   <SetupInlineSelect
                     hideLabel
                     label="Apply goal to all rows"
@@ -1536,15 +1627,18 @@ export function GoalsBudgetsStep() {
               {showGoalDetailColumns ? (
                 <>
                   <th
-                    style={stickyColumnStyle(
-                      goalStickyOffsets.target,
-                      TARGET_COL_WIDTH_PX,
-                    )}
+                    style={{
+                      ...stickyColumnStyle(
+                        goalStickyOffsets.target,
+                        TARGET_COL_WIDTH_PX,
+                      ),
+                      ...stickyRow2TopStyle,
+                    }}
                     className={cn(
                       TARGET_HEAD,
                       HEAD_ROW_BORDER,
                       STICKY_GOAL_HEAD,
-                      STICKY_TOP_ROW2,
+                      STICKY_ROW2_SEAL,
                     )}
                   >
                     <span className="inline-flex w-full justify-end">
@@ -1560,15 +1654,18 @@ export function GoalsBudgetsStep() {
                     </div>
                   </th>
                   <th
-                    style={stickyColumnStyle(
-                      goalStickyOffsets.last30,
-                      LAST_30_COL_WIDTH_PX,
-                    )}
+                    style={{
+                      ...stickyColumnStyle(
+                        goalStickyOffsets.last30,
+                        LAST_30_COL_WIDTH_PX,
+                      ),
+                      ...stickyRow2TopStyle,
+                    }}
                     className={cn(
                       LAST_30_HEAD,
                       HEAD_ROW_BORDER,
                       STICKY_GOAL_HEAD,
-                      STICKY_TOP_ROW2,
+                      STICKY_ROW2_SEAL,
                       STICKY_GOAL_EDGE,
                     )}
                   >
@@ -1590,6 +1687,7 @@ export function GoalsBudgetsStep() {
                   return (
                     <th
                       key={BUDGET_MONTHS[monthIndex]}
+                      style={stickyRow2TopStyle}
                       className={budgetMonthHeadClass(
                         monthIndex,
                         highlightCurrentMonth,
@@ -1668,13 +1766,6 @@ export function GoalsBudgetsStep() {
                     </th>
                   );
                 })}
-              {showBudgetColumns && (
-                <th className={cn(BUDGET_HEAD, "border-r-0", HEAD_ROW_BORDER, STICKY_FY_HEAD)}>
-                  <span className="inline-flex justify-end">
-                    <InfoLabel label="FY 2026" />
-                  </span>
-                </th>
-              )}
             </tr>
           </thead>
           <tbody>
@@ -1826,7 +1917,7 @@ export function GoalsBudgetsStep() {
                         >
                           <SetupInlineSelect
                             hideLabel
-                            label={`Metric to optimize for ${row.label}`}
+                            label={`Metrics to optimize for ${row.label}`}
                             value={editable.goalMetric}
                             options={GOAL_METRIC_SELECT_OPTIONS}
                             placeholder="Select goal"
@@ -2110,7 +2201,6 @@ export function GoalsBudgetsStep() {
             })}
           </tbody>
         </table>
-        </div>
       </div>
 
       <AlertDialog

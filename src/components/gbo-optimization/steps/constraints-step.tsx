@@ -21,7 +21,6 @@ import {
   History,
   Plus,
   Search,
-  TrendingUp,
   X,
 } from "lucide-react";
 
@@ -53,6 +52,7 @@ import {
 } from "@/lib/gbo-optimization/constraint-distribution";
 import {
   CONSTRAINTS_SCOPE_ROWS,
+  getGoalTypeLabel,
 } from "@/lib/gbo-optimization/setup-data";
 import {
   TAXONOMY_NESTED_SCOPE_COL_WIDTH,
@@ -67,6 +67,7 @@ import {
 import {
   getLatestCellChange,
   recordConstraintFieldChange,
+  resolveEffectiveGoalsState,
   useSetupSessionStore,
   type ConstraintRowState,
   type ConstraintValueField,
@@ -85,11 +86,15 @@ const FLOOR_CEILING_FIELDS = [
   "budgetCeiling",
 ] as const;
 const SCOPE_COL_WIDTH = TAXONOMY_NESTED_SCOPE_COL_WIDTH;
+/** Matches Goals & Budgets / Optimizer “Metrics to optimize” width. */
+const METRICS_COL_WIDTH = 220;
 const DATA_COL_WIDTH = 100;
 const HISTORY_DATA_COL_WIDTH = 128;
 const SPEND_TOTAL_COL_WIDTH = 132;
 const PERCENT_TOTAL_TARGET = 100;
 
+const metricsColClass =
+  "w-[220px] min-w-[220px] max-w-[220px] px-3";
 const dataColClass = "w-[100px] min-w-[100px] max-w-[100px] px-2";
 const dataColClassExpanded =
   "w-[128px] min-w-[128px] max-w-[128px] px-2";
@@ -99,16 +104,27 @@ const totalColClass = "text-right";
 const cellInputClass =
   "h-8 w-full min-w-0 px-1 text-center text-sm tabular-nums shadow-none border border-transparent hover:border-slate-200 focus-visible:border-brand-300 focus-visible:bg-white";
 
-/** Stick table header rows under SetupHeader while the page scrolls. */
+/**
+ * Sticky thead rows use exact h-10 (40px) + py-0 so sticky `top-10` /
+ * `top-20` match real row heights. Row 1 is z-30 so its bottom border stays
+ * visible above row 2 (an upward “seal” previously painted over that line).
+ */
 const STICKY_HEAD_ROW1 =
-  "sticky top-0 z-20 border-b border-slate-200 bg-slate-50";
+  "sticky top-0 z-30 border-b border-slate-200 bg-slate-50";
+/** Group labels (Spend / Bid Constraints) — reinforced bottom hairline. */
+const STICKY_HEAD_ROW1_GROUP = cn(
+  STICKY_HEAD_ROW1,
+  "h-10 px-4 py-0 text-center font-medium shadow-[0_1px_0_0_#e2e8f0]",
+);
+/** Sticky thead row 2 — under row 1 (top: 2.5rem). */
 const STICKY_HEAD_ROW2 =
-  "sticky top-10 z-20 border-b border-slate-200 bg-slate-50";
+  "sticky top-10 z-20 h-10 border-b border-slate-200 bg-slate-50 py-0";
+/** Sticky thead row 3 — under rows 1+2 (top: 5rem). */
 const STICKY_HEAD_ROW3 =
-  "sticky top-20 z-20 border-b border-slate-200 bg-slate-50";
-/** Rowspan cells that start on row 2 and span into row 3. */
+  "sticky top-20 z-20 h-10 border-b border-slate-200 bg-slate-50 py-0";
+/** Auto / Others / portfolio title — rowSpan from row 2; stick under row 1. */
 const STICKY_HEAD_SPAN_FROM_ROW2 =
-  "sticky top-10 z-20 border-b border-slate-200 bg-slate-50";
+  "sticky top-10 z-20 border-b border-slate-200 bg-slate-50 py-0";
 
 /** Select numeric portion on focus — keeps ~ / $ prefixes and % suffix out of selection. */
 function selectEditablePortion(input: HTMLInputElement) {
@@ -518,7 +534,7 @@ function ConstraintDataColgroup({
   return (
     <colgroup>
       <col style={{ width: TAXONOMY_NESTED_SCOPE_COL_WIDTH }} />
-      <col style={{ width: dataWidth }} />
+      <col style={{ width: METRICS_COL_WIDTH }} />
       {!isRuleBased &&
         Array.from({ length: SPEND_CONSTRAINT_COL_COUNT }).map((_, index) => (
           <col
@@ -781,6 +797,8 @@ export function ConstraintsStep() {
   const setRowState = useSetupSessionStore(
     (state) => state.setConstraintsRowState,
   );
+  // Same goals as Goals & Budgets — read-only here; fall back to parent if leaf empty.
+  const goalsRowState = useSetupSessionStore((state) => state.goalsRowState);
   const editSessionsRef = useRef<Record<string, string>>({});
   const [pendingWarning, setPendingWarning] =
     useState<PendingPercentWarning | null>(null);
@@ -1190,7 +1208,7 @@ export function ConstraintsStep() {
     : dataColClass;
   const tableMinWidth =
     SCOPE_COL_WIDTH +
-    dataColWidth +
+    METRICS_COL_WIDTH +
     (isRuleBased
       ? 0
       : dataColWidth * (SPEND_CONSTRAINT_COL_COUNT - 1) + SPEND_TOTAL_COL_WIDTH) +
@@ -1215,79 +1233,83 @@ export function ConstraintsStep() {
   } = useNestedTaxonomyScopeRows(CONSTRAINTS_SCOPE_ROWS);
 
   return (
-    <div className="flex min-h-full flex-col gap-4 py-4">
-      {isRuleBased && (
-        <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Rule-based mode — only floor and ceiling constraints apply. Other
-          constraint types are used with Ally AI only.
-        </p>
-      )}
+    <div className="flex min-h-0 flex-1 flex-col gap-4 py-4">
+      {/* Chrome outside table scroll — never moves sideways with wide tables. */}
+      <div className="flex shrink-0 flex-col gap-4">
+        {isRuleBased && (
+          <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Rule-based mode — only floor and ceiling constraints apply. Other
+            constraint types are used with Ally AI only.
+          </p>
+        )}
 
-      {showMidMonthWarning ? (
-        <div className="flex items-start gap-2 rounded-md bg-amber-50 px-2.5 py-2 text-xs leading-relaxed text-slate-600">
-          <span className="flex size-5 shrink-0 items-center justify-center rounded bg-amber-100">
-            <AlertTriangle className="size-3 text-amber-600" />
-          </span>
-          <span>{getMidMonthConstraintInlineHint()}</span>
-        </div>
-      ) : null}
-
-      <div className="flex flex-wrap items-center justify-between gap-4 px-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative w-72">
-            <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
-            <Input
-              placeholder="Search by budget category level"
-              className="pl-9"
-            />
+        {showMidMonthWarning ? (
+          <div className="flex items-start gap-2 rounded-md bg-amber-50 px-2.5 py-2 text-xs leading-relaxed text-slate-600">
+            <span className="flex size-5 shrink-0 items-center justify-center rounded bg-amber-100">
+              <AlertTriangle className="size-3 text-amber-600" />
+            </span>
+            <span>{getMidMonthConstraintInlineHint()}</span>
           </div>
-          <Button variant="outline" size="sm" className="gap-1.5">
-            <Plus className="size-4" />
-            Add Filters
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn(
-              "gap-1.5",
-              showHistoricalData
-                ? "bg-muted text-foreground"
-                : "text-brand-600",
-            )}
-            aria-pressed={showHistoricalData}
-            onClick={() => setShowHistoricalData((current) => !current)}
-          >
-            {showHistoricalData ? (
-              <EyeOff className="size-4" />
-            ) : (
-              <Eye className="size-4" />
-            )}
-            {showHistoricalData
-              ? "Hide historical data"
-              : "View historical data"}
-          </Button>
-        </div>
+        ) : null}
 
-        <label className="flex items-center gap-2 text-sm text-slate-600">
-          <Switch
-            checked={showCampaignConstraints}
-            onCheckedChange={(checked) => {
-              if (checked === true) {
-                markMidMonthConstraintActivity();
-              }
-              setShowCampaignConstraints(checked === true);
-            }}
-          />
-          <span>
-            {isRuleBased
-              ? "Set floor and ceiling limits"
-              : "Set campaign constraints"}
-          </span>
-          <CircleHelp className="size-4 text-slate-400" />
-        </label>
+        <div className="flex flex-wrap items-center justify-between gap-4 px-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative w-72">
+              <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                placeholder="Search by budget category level"
+                className="pl-9"
+              />
+            </div>
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <Plus className="size-4" />
+              Add Filters
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "gap-1.5",
+                showHistoricalData
+                  ? "bg-muted text-foreground"
+                  : "text-brand-600",
+              )}
+              aria-pressed={showHistoricalData}
+              onClick={() => setShowHistoricalData((current) => !current)}
+            >
+              {showHistoricalData ? (
+                <EyeOff className="size-4" />
+              ) : (
+                <Eye className="size-4" />
+              )}
+              {showHistoricalData
+                ? "Hide historical data"
+                : "View historical data"}
+            </Button>
+          </div>
+
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            <Switch
+              checked={showCampaignConstraints}
+              onCheckedChange={(checked) => {
+                if (checked === true) {
+                  markMidMonthConstraintActivity();
+                }
+                setShowCampaignConstraints(checked === true);
+              }}
+            />
+            <span>
+              {isRuleBased
+                ? "Set floor and ceiling limits"
+                : "Set campaign constraints"}
+            </span>
+            <CircleHelp className="size-4 text-slate-400" />
+          </label>
+        </div>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white">
+      {/* Horizontal (+ vertical) scroll stays inside the table only. */}
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto rounded-lg border border-slate-200 bg-white">
         <table
           className="w-full table-fixed border-separate border-spacing-0 text-sm"
           style={{ minWidth: tableMinWidth }}
@@ -1309,21 +1331,18 @@ export function ConstraintsStep() {
               <th
                 rowSpan={scopeHeaderRowSpan}
                 className={cn(
-                  activeDataColClass,
+                  metricsColClass,
                   STICKY_HEAD_ROW1,
-                  "border-r border-slate-200 py-3 text-center font-medium",
+                  "border-r border-slate-200 py-0 text-left align-middle font-medium",
                   isRuleBased && !showCampaignConstraints && "border-r-0",
                 )}
               >
-                <InfoLabel label="Goal" />
+                <InfoLabel label="Metrics to optimize" />
               </th>
               {!isRuleBased && (
                 <th
                   colSpan={SPEND_CONSTRAINT_COL_COUNT}
-                  className={cn(
-                    STICKY_HEAD_ROW1,
-                    "px-4 py-2 text-center font-medium",
-                  )}
+                  className={STICKY_HEAD_ROW1_GROUP}
                 >
                   Spend Constraints (Optional)
                 </th>
@@ -1332,8 +1351,8 @@ export function ConstraintsStep() {
                 <th
                   colSpan={CAMPAIGN_CONSTRAINT_COL_COUNT}
                   className={cn(
-                    STICKY_HEAD_ROW1,
-                    "border-l border-slate-200 px-4 py-2 text-center font-medium",
+                    STICKY_HEAD_ROW1_GROUP,
+                    "border-l border-slate-200",
                   )}
                 >
                   <InfoLabel label="Campaign Constraints" />
@@ -1342,10 +1361,7 @@ export function ConstraintsStep() {
               {showCampaignConstraints && isRuleBased && (
                 <th
                   colSpan={RULE_BASED_FLOOR_CEILING_COL_COUNT}
-                  className={cn(
-                    STICKY_HEAD_ROW1,
-                    "px-4 py-2 text-center font-medium",
-                  )}
+                  className={STICKY_HEAD_ROW1_GROUP}
                 >
                   Floor &amp; Ceiling Limits
                 </th>
@@ -1357,7 +1373,7 @@ export function ConstraintsStep() {
                   className={cn(
                     activeDataColClass,
                     STICKY_HEAD_ROW2,
-                    "border-r border-slate-200 py-2 text-center",
+                    "border-r border-slate-200 text-center",
                   )}
                 >
                   Generic
@@ -1366,7 +1382,7 @@ export function ConstraintsStep() {
                   className={cn(
                     activeDataColClass,
                     STICKY_HEAD_ROW2,
-                    "border-r border-slate-200 py-2 text-center",
+                    "border-r border-slate-200 text-center",
                   )}
                 >
                   Client Branded
@@ -1375,7 +1391,7 @@ export function ConstraintsStep() {
                   colSpan={2}
                   className={cn(
                     STICKY_HEAD_ROW2,
-                    "border-r border-slate-200 px-2 py-2 text-center",
+                    "border-r border-slate-200 px-2 text-center",
                   )}
                 >
                   Competitor Branded
@@ -1385,7 +1401,7 @@ export function ConstraintsStep() {
                   className={cn(
                     activeDataColClass,
                     STICKY_HEAD_SPAN_FROM_ROW2,
-                    "border-r border-slate-200 py-2 text-center",
+                    "border-r border-slate-200 text-center",
                   )}
                 >
                   Auto
@@ -1395,7 +1411,7 @@ export function ConstraintsStep() {
                   className={cn(
                     activeDataColClass,
                     STICKY_HEAD_SPAN_FROM_ROW2,
-                    "border-r border-slate-200 py-2 text-center",
+                    "border-r border-slate-200 text-center",
                   )}
                 >
                   Others
@@ -1406,7 +1422,7 @@ export function ConstraintsStep() {
                     spendTotalColClass,
                     totalColClass,
                     STICKY_HEAD_SPAN_FROM_ROW2,
-                    "border-r border-slate-200 py-2",
+                    "border-r border-slate-200",
                     !showCampaignConstraints && "border-r-0",
                   )}
                 >
@@ -1418,7 +1434,7 @@ export function ConstraintsStep() {
                       colSpan={4}
                       className={cn(
                         STICKY_HEAD_ROW2,
-                        "border-r border-l border-slate-200 px-2 py-2 text-center",
+                        "border-r border-l border-slate-200 px-2 text-center",
                       )}
                     >
                       <InfoLabel label="Campaign Type" />
@@ -1427,7 +1443,7 @@ export function ConstraintsStep() {
                       colSpan={2}
                       className={cn(
                         STICKY_HEAD_ROW2,
-                        "border-r border-slate-200 px-2 py-2 text-center",
+                        "border-r border-slate-200 px-2 text-center",
                       )}
                     >
                       Bid
@@ -1436,7 +1452,7 @@ export function ConstraintsStep() {
                       colSpan={2}
                       className={cn(
                         STICKY_HEAD_ROW2,
-                        "px-2 py-2 text-center",
+                        "px-2 text-center",
                       )}
                     >
                       Budget
@@ -1451,7 +1467,7 @@ export function ConstraintsStep() {
                   className={cn(
                     activeDataColClass,
                     STICKY_HEAD_ROW2,
-                    "border-r border-slate-200 py-2 text-center",
+                    "border-r border-slate-200 text-center",
                   )}
                 >
                   Bid Floor
@@ -1460,7 +1476,7 @@ export function ConstraintsStep() {
                   className={cn(
                     activeDataColClass,
                     STICKY_HEAD_ROW2,
-                    "border-r border-slate-200 py-2 text-center",
+                    "border-r border-slate-200 text-center",
                   )}
                 >
                   Bid Ceiling
@@ -1469,7 +1485,7 @@ export function ConstraintsStep() {
                   className={cn(
                     activeDataColClass,
                     STICKY_HEAD_ROW2,
-                    "border-r border-slate-200 py-2 text-center",
+                    "border-r border-slate-200 text-center",
                   )}
                 >
                   Budget Floor
@@ -1478,7 +1494,7 @@ export function ConstraintsStep() {
                   className={cn(
                     activeDataColClass,
                     STICKY_HEAD_ROW2,
-                    "border-r-0 py-2 text-center",
+                    "border-r-0 text-center",
                   )}
                 >
                   Budget Ceiling
@@ -1491,7 +1507,7 @@ export function ConstraintsStep() {
                   className={cn(
                     activeDataColClass,
                     STICKY_HEAD_ROW3,
-                    "border-r border-slate-200 py-2 text-center font-normal",
+                    "border-r border-slate-200 text-center font-normal",
                   )}
                 >
                   Keyword Targeting
@@ -1500,7 +1516,7 @@ export function ConstraintsStep() {
                   className={cn(
                     activeDataColClass,
                     STICKY_HEAD_ROW3,
-                    "border-r border-slate-200 py-2 text-center font-normal",
+                    "border-r border-slate-200 text-center font-normal",
                   )}
                 >
                   Keyword Targeting
@@ -1509,7 +1525,7 @@ export function ConstraintsStep() {
                   className={cn(
                     activeDataColClass,
                     STICKY_HEAD_ROW3,
-                    "border-r border-slate-200 py-2 text-center font-normal",
+                    "border-r border-slate-200 text-center font-normal",
                   )}
                 >
                   Keyword Targeting
@@ -1518,7 +1534,7 @@ export function ConstraintsStep() {
                   className={cn(
                     activeDataColClass,
                     STICKY_HEAD_ROW3,
-                    "border-r border-slate-200 py-2 text-center font-normal",
+                    "border-r border-slate-200 text-center font-normal",
                   )}
                 >
                   Product Targeting
@@ -1529,7 +1545,7 @@ export function ConstraintsStep() {
                       className={cn(
                         activeDataColClass,
                         STICKY_HEAD_ROW3,
-                        "border-r border-l border-slate-200 py-2 text-center font-normal",
+                        "border-r border-l border-slate-200 text-center font-normal",
                       )}
                     >
                       SP
@@ -1538,7 +1554,7 @@ export function ConstraintsStep() {
                       className={cn(
                         activeDataColClass,
                         STICKY_HEAD_ROW3,
-                        "border-r border-slate-200 py-2 text-center font-normal",
+                        "border-r border-slate-200 text-center font-normal",
                       )}
                     >
                       SB
@@ -1547,7 +1563,7 @@ export function ConstraintsStep() {
                       className={cn(
                         activeDataColClass,
                         STICKY_HEAD_ROW3,
-                        "border-r border-slate-200 py-2 text-center font-normal",
+                        "border-r border-slate-200 text-center font-normal",
                       )}
                     >
                       SD
@@ -1557,7 +1573,7 @@ export function ConstraintsStep() {
                         spendTotalColClass,
                         totalColClass,
                         STICKY_HEAD_ROW3,
-                        "border-r border-slate-200 py-2 text-center font-normal",
+                        "border-r border-slate-200 text-center font-normal",
                       )}
                     >
                       Total
@@ -1566,7 +1582,7 @@ export function ConstraintsStep() {
                       className={cn(
                         activeDataColClass,
                         STICKY_HEAD_ROW3,
-                        "border-r border-slate-200 py-2 text-center font-normal",
+                        "border-r border-slate-200 text-center font-normal",
                       )}
                     >
                       Floor
@@ -1575,7 +1591,7 @@ export function ConstraintsStep() {
                       className={cn(
                         activeDataColClass,
                         STICKY_HEAD_ROW3,
-                        "border-r border-slate-200 py-2 text-center font-normal",
+                        "border-r border-slate-200 text-center font-normal",
                       )}
                     >
                       Ceiling
@@ -1584,7 +1600,7 @@ export function ConstraintsStep() {
                       className={cn(
                         activeDataColClass,
                         STICKY_HEAD_ROW3,
-                        "border-r border-slate-200 py-2 text-center font-normal",
+                        "border-r border-slate-200 text-center font-normal",
                       )}
                     >
                       Floor
@@ -1593,7 +1609,7 @@ export function ConstraintsStep() {
                       className={cn(
                         activeDataColClass,
                         STICKY_HEAD_ROW3,
-                        "py-2 text-center font-normal",
+                        "text-center font-normal",
                       )}
                     >
                       Ceiling
@@ -1609,6 +1625,15 @@ export function ConstraintsStep() {
               const state = rowState[nestedRow.id];
               const isEditableRow = nestedRow.kind === "level2-child";
               const displayName = sourceRow?.name ?? nestedRow.label;
+              const effectiveGoals = resolveEffectiveGoalsState(
+                nestedRow.id,
+                nestedRow.groupId,
+                goalsRowState,
+              );
+              const goalMetric = effectiveGoals?.goalMetric ?? null;
+              const goalLabel = goalMetric
+                ? getGoalTypeLabel(goalMetric)
+                : null;
 
               return (
                 <tr
@@ -1621,13 +1646,17 @@ export function ConstraintsStep() {
                     collapsed={collapsedGroupIds.has(nestedRow.id)}
                     onToggleCollapsed={toggleGroupCollapsed}
                   />
-                  <td className={cn(activeDataColClass, "border-b border-r border-slate-100 py-3 text-center")}>
-                    {isEditableRow && (
-                      <span className="inline-flex items-center justify-center gap-1 text-slate-700">
-                        <TrendingUp className="size-4 text-success-500" />
-                        ROAS
-                      </span>
+                  <td
+                    className={cn(
+                      metricsColClass,
+                      "border-b border-r border-slate-100 px-3 py-3 text-left",
                     )}
+                  >
+                    {isEditableRow && goalLabel ? (
+                      <span className="text-sm font-medium text-slate-700">
+                        {goalLabel}
+                      </span>
+                    ) : null}
                   </td>
                   {!isRuleBased &&
                     SPEND_PERCENT_FIELDS.map((field) => (
@@ -1859,7 +1888,7 @@ export function ConstraintsStep() {
       </div>
 
       {!historicHintDismissed && !isRuleBased && (
-        <div className="sticky bottom-0 z-20 mt-auto shrink-0 -mx-2 border-t border-slate-200 bg-slate-50/95 px-4 py-3 shadow-[0_-4px_12px_-2px_rgba(0,0,0,0.08)] backdrop-blur-sm">
+        <div className="shrink-0 border-t border-slate-200 bg-slate-50/95 px-4 py-3 shadow-[0_-4px_12px_-2px_rgba(0,0,0,0.08)] backdrop-blur-sm">
           <div className="flex items-start gap-2 text-sm text-slate-600">
             <History className="mt-0.5 size-4 shrink-0 text-slate-400" />
             <p className="flex-1 pr-2">

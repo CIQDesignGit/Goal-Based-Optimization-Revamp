@@ -40,6 +40,7 @@ import {
   recordOptimizerDayPartingChange,
   recordOptimizerModeChange,
   recordOptimizerRuleStrategiesChange,
+  resolveEffectiveGoalsState,
   useSetupSessionStore,
   type GoalsRowState,
 } from "@/lib/gbo-optimization/setup-session-store";
@@ -47,7 +48,7 @@ import { cn } from "@/lib/utils";
 
 const DAY_PARTING_TILE_LABEL = "Hourly Bidder";
 
-/** Same options + styling as Goals & Budgets “Metric to optimize” column. */
+/** Same options + styling as Goals & Budgets “Metrics to optimize” column. */
 const GOAL_METRIC_SELECT_OPTIONS = GOAL_TYPE_OPTIONS.map((option) => ({
   value: option.value,
   label: option.label,
@@ -64,30 +65,6 @@ function goalMetricTriggerClass(hasMetric: boolean): string {
   );
 }
 
-/**
- * Goals & Budgets often stores the metric on the Level 1 parent (parent edit mode).
- * Optimizer rows are Level 2 leaves — fall back to the parent group when the leaf is empty.
- */
-function resolveEffectiveGoalsState(
-  leafId: string,
-  groupId: string | null | undefined,
-  goalsRowState: Record<string, GoalsRowState>,
-): GoalsRowState | undefined {
-  const leaf = goalsRowState[leafId];
-  if (leaf?.goalMetric) {
-    return leaf;
-  }
-
-  if (groupId) {
-    const parent = goalsRowState[groupId];
-    if (parent?.goalMetric) {
-      return parent;
-    }
-  }
-
-  return leaf ?? (groupId ? goalsRowState[groupId] : undefined);
-}
-
 /** Stored when a row has a strategy but the user has not saved panel edits yet. */
 const DEFAULT_DAY_PARTING_STRATEGY = "Hourly Bidder";
 
@@ -96,7 +73,7 @@ const DEFAULT_DAY_PARTING_STRATEGY = "Hourly Bidder";
  * wraps to two lines (not three) under the brand name.
  */
 const OPTIMIZER_SCOPE_COL_WIDTH = 320;
-const GOALS_COL_WIDTH = 140;
+const GOALS_COL_WIDTH = 220;
 const VALUE_COL_WIDTH = 96;
 const BUDGET_OPT_COL_WIDTH = 220;
 const BID_OPT_COL_WIDTH = 240;
@@ -463,8 +440,9 @@ export function OptimizerStep() {
   } = useNestedTaxonomyScopeRows(OPTIMIZER_SCOPE_ROWS);
 
   return (
-    <div className="flex w-full flex-col gap-4 py-4">
-      <div className="flex w-full items-center justify-between gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 py-4">
+      {/* Chrome outside table scroll — never moves sideways with wide tables. */}
+      <div className="flex shrink-0 w-full min-w-0 items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <div className="relative w-72 shrink-0">
             <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
@@ -493,7 +471,8 @@ export function OptimizerStep() {
         </Button>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white">
+      {/* Horizontal (+ vertical) scroll stays inside the table only. */}
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto rounded-lg border border-slate-200 bg-white">
         <table
           className="w-full table-fixed border-separate border-spacing-0 text-sm"
           style={{ minWidth: OPTIMIZER_TABLE_MIN_WIDTH }}
@@ -513,10 +492,11 @@ export function OptimizerStep() {
               <NestedTaxonomyScopeHeader
                 label={scopeHeaderLabel}
                 width={OPTIMIZER_SCOPE_COL_WIDTH}
-                className="sticky top-0 z-20 border-b border-slate-200 bg-slate-50"
+                sticky
+                className="border-b border-slate-200"
               />
               <th className="sticky top-0 z-20 border-b border-r border-slate-200 bg-slate-50 px-4 py-3 font-medium">
-                <InfoLabel label="Metric to optimize" />
+                <InfoLabel label="Metrics to optimize" />
               </th>
               <th className="sticky top-0 z-20 border-b border-r border-slate-200 bg-slate-50 px-4 py-3 font-medium">
                 <InfoLabel label="Value" />
@@ -583,10 +563,11 @@ export function OptimizerStep() {
               return (
                 <tr
                   key={nestedRow.id}
-                  className="hover:bg-slate-50/50"
+                  className="group hover:bg-slate-50/50"
                 >
                   <NestedTaxonomyScopeCell
                     row={nestedRow}
+                    sticky
                     collapsed={collapsedGroupIds.has(nestedRow.id)}
                     onToggleCollapsed={toggleGroupCollapsed}
                     width={OPTIMIZER_SCOPE_COL_WIDTH}
@@ -608,7 +589,7 @@ export function OptimizerStep() {
                       <div className="min-w-0">
                         <SetupInlineSelect
                           hideLabel
-                          label={`Metric to optimize for ${sourceRow.name}`}
+                          label={`Metrics to optimize for ${sourceRow.name}`}
                           value={goalsState?.goalMetric ?? null}
                           options={GOAL_METRIC_SELECT_OPTIONS}
                           placeholder="Select goal"
