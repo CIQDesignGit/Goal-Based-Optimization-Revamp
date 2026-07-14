@@ -24,6 +24,10 @@ import {
 } from "@/lib/gbo-optimization/setup-data";
 import {
   hasTaxonomyChanged,
+  recordGeneralAggressivenessChange,
+  recordGeneralGoalTypeChange,
+  recordGeneralGranularityChange,
+  recordGeneralOptimizerTypeChange,
   useSetupSessionStore,
   type BudgetDefinitionType,
 } from "@/lib/gbo-optimization/setup-session-store";
@@ -140,9 +144,12 @@ export function GeneralStep() {
   const showGoalGuidance = isSovSelected || showGoalChangeImpact;
 
   const handleGoalTypeChange = (goalType: GoalType) => {
+    const previous = generalConfig.goalType;
     setGoalType(goalType);
+    recordGeneralGoalTypeChange(previous, goalType);
 
     if (isSovGoal(goalType) && optimizerType === "ally-ai") {
+      recordGeneralOptimizerTypeChange(optimizerType, "rule-based");
       setOptimizerType("rule-based");
     }
   };
@@ -156,6 +163,7 @@ export function GeneralStep() {
       return;
     }
 
+    recordGeneralOptimizerTypeChange(optimizerType, value);
     setOptimizerType(value);
   };
 
@@ -199,9 +207,14 @@ export function GeneralStep() {
                     type="button"
                     role="tab"
                     aria-selected={isSelected}
-                    onClick={() =>
-                      updateGeneralConfig({ granularity: option })
-                    }
+                    onClick={() => {
+                      if (option === generalConfig.granularity) return;
+                      recordGeneralGranularityChange(
+                        generalConfig.granularity,
+                        option,
+                      );
+                      updateGeneralConfig({ granularity: option });
+                    }}
                     className={cn(
                       "rounded-md px-2 py-2.5 text-center text-sm transition-colors",
                       isSelected
@@ -323,7 +336,10 @@ export function GeneralStep() {
               onValueChange={(value) =>
                 handleGoalTypeChange(value as GoalType)
               }
-              onClear={() => setGoalType(null)}
+              onClear={() => {
+                recordGeneralGoalTypeChange(generalConfig.goalType, null);
+                setGoalType(null);
+              }}
               triggerClassName={SETUP_SELECT_TRIGGER_CLASS}
             />
             {selectedGoalOption ? (
@@ -476,9 +492,14 @@ export function GeneralStep() {
                       key={option.value}
                       type="button"
                       title={option.description}
-                      onClick={() =>
-                        setAggressiveness(isSelected ? null : option.value)
-                      }
+                      onClick={() => {
+                        const next = isSelected ? null : option.value;
+                        recordGeneralAggressivenessChange(
+                          generalConfig.aggressiveness,
+                          next,
+                        );
+                        setAggressiveness(next);
+                      }}
                       className={cn(
                         "flex items-start gap-2 rounded-md border px-2.5 py-2 text-left transition-colors",
                         isSelected

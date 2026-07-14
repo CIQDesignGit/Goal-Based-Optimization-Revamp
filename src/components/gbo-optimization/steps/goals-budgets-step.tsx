@@ -498,7 +498,7 @@ function budgetMonthTdClass(
       "border-r-0 bg-brand-50/40",
     highlightCurrentEmpty && "border-r-0 bg-error-50/40",
     visual === "edited" &&
-      "[&_input]:font-medium [&_input]:text-brand-600 [&_input]:not-italic",
+      "[&_input]:font-medium [&_input]:text-blue-600 [&_input]:not-italic",
   );
 }
 
@@ -528,7 +528,7 @@ function goalInputVisualClass(
     "bg-white not-italic placeholder:text-slate-400",
     // Match budget/constraint edited styling (blue = user changed).
     visual === "edited"
-      ? "font-medium text-brand-600"
+      ? "font-medium text-blue-600"
       : "text-slate-900",
   );
 }
@@ -546,7 +546,7 @@ function goalMetricTriggerClass(state: GoalsRowState): string {
   return cn(
     METRIC_SELECT_TRIGGER_CLASS,
     "w-full min-w-0",
-    visual === "edited" && "font-medium text-brand-600",
+    visual === "edited" && "font-medium text-blue-600",
   );
 }
 
@@ -570,7 +570,7 @@ function budgetInputVisualClass(
     budgetCellInputClass,
     visual === "prefilled" &&
       "bg-slate-50 text-slate-700 italic placeholder:text-slate-300",
-    visual === "edited" && "bg-white font-medium text-brand-600",
+    visual === "edited" && "bg-white font-medium text-blue-600",
     isAggregateRow && visual !== "edited" && PARENT_BUDGET_VALUE_CLASS,
     isAggregateRow && visual === "edited" && "font-semibold",
   );

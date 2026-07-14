@@ -17,6 +17,7 @@ import {
 } from "@/components/gbo-optimization/optimizer-mode-chip";
 import { RuleBasedStrategyPanel } from "@/components/gbo-optimization/rule-based-strategy-panel";
 import { RuleBasedStrategyStack } from "@/components/gbo-optimization/rule-based-strategy-stack";
+import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
 import {
   NestedTaxonomyScopeCell,
   NestedTaxonomyScopeHeader,
@@ -27,16 +28,65 @@ import { Input } from "@/components/ui/input";
 import {
   DEFAULT_RULE_BASED_BID_STRATEGIES,
   DEFAULT_RULE_BASED_BUDGET_STRATEGIES,
-  getGoalTypeLabel,
+  GOAL_TYPE_OPTIONS,
   OPTIMIZER_SCOPE_ROWS,
   RULE_BASED_ITEM_MODE_TOAST,
   RULE_BASED_ITEM_SKIP_CUE,
+  type GoalType,
   type OptimizerScopeRow,
 } from "@/lib/gbo-optimization/setup-data";
-import { useSetupSessionStore } from "@/lib/gbo-optimization/setup-session-store";
+import {
+  recordGoalsGoalMetricChange,
+  recordOptimizerDayPartingChange,
+  recordOptimizerModeChange,
+  recordOptimizerRuleStrategiesChange,
+  useSetupSessionStore,
+  type GoalsRowState,
+} from "@/lib/gbo-optimization/setup-session-store";
 import { cn } from "@/lib/utils";
 
 const DAY_PARTING_TILE_LABEL = "Hourly Bidder";
+
+/** Same options + styling as Goals & Budgets “Metric to optimize” column. */
+const GOAL_METRIC_SELECT_OPTIONS = GOAL_TYPE_OPTIONS.map((option) => ({
+  value: option.value,
+  label: option.label,
+}));
+const GOAL_METRIC_MENU_MIN_WIDTH_PX = 220;
+const METRIC_SELECT_TRIGGER_CLASS =
+  "h-auto w-auto gap-1 border-0 bg-transparent p-0 text-sm font-medium text-slate-700 shadow-none ring-0 focus-visible:border-transparent focus-visible:ring-0 hover:bg-transparent";
+
+function goalMetricTriggerClass(hasMetric: boolean): string {
+  return cn(
+    METRIC_SELECT_TRIGGER_CLASS,
+    "w-full min-w-0",
+    hasMetric && "font-medium text-blue-600",
+  );
+}
+
+/**
+ * Goals & Budgets often stores the metric on the Level 1 parent (parent edit mode).
+ * Optimizer rows are Level 2 leaves — fall back to the parent group when the leaf is empty.
+ */
+function resolveEffectiveGoalsState(
+  leafId: string,
+  groupId: string | null | undefined,
+  goalsRowState: Record<string, GoalsRowState>,
+): GoalsRowState | undefined {
+  const leaf = goalsRowState[leafId];
+  if (leaf?.goalMetric) {
+    return leaf;
+  }
+
+  if (groupId) {
+    const parent = goalsRowState[groupId];
+    if (parent?.goalMetric) {
+      return parent;
+    }
+  }
+
+  return leaf ?? (groupId ? goalsRowState[groupId] : undefined);
+}
 
 /** Stored when a row has a strategy but the user has not saved panel edits yet. */
 const DEFAULT_DAY_PARTING_STRATEGY = "Hourly Bidder";
@@ -291,6 +341,34 @@ export function OptimizerStep() {
   const showSetupToast = useSetupSessionStore((state) => state.showSetupToast);
   // Same target values / goal metrics users set on Goals & Budgets.
   const goalsRowState = useSetupSessionStore((state) => state.goalsRowState);
+  const setGoalsRowState = useSetupSessionStore(
+    (state) => state.setGoalsRowState,
+  );
+
+  const updateGoalMetric = (
+    rowId: string,
+    groupId: string | null | undefined,
+    value: string,
+  ) => {
+    const previous =
+      resolveEffectiveGoalsState(rowId, groupId, goalsRowState)?.goalMetric ??
+      null;
+    const nextMetric = value as GoalType;
+
+    setGoalsRowState((current) => {
+      const row = current[rowId];
+      if (!row) return current;
+      const nextRow: GoalsRowState = {
+        ...row,
+        goalMetric: nextMetric,
+      };
+      return { ...current, [rowId]: nextRow };
+    });
+
+    if (previous !== nextMetric) {
+      recordGoalsGoalMetricChange(rowId, previous, nextMetric);
+    }
+  };
 
   // Which brand row the side panel is editing/adding (null = closed).
   const [activeDayPartingRowId, setActiveDayPartingRowId] = useState<
@@ -342,6 +420,10 @@ export function OptimizerStep() {
       ...current,
       [rowId]: nextRow,
     }));
+
+    if (previousColumnMode !== nextMode) {
+      recordOptimizerModeChange(rowId, column, previousColumnMode, nextMode);
+    }
 
     // First time this row gains rule-based → bottom-left toast (same pattern as other setup toasts).
     if (
@@ -434,7 +516,7 @@ export function OptimizerStep() {
                 className="sticky top-0 z-20 border-b border-slate-200 bg-slate-50"
               />
               <th className="sticky top-0 z-20 border-b border-r border-slate-200 bg-slate-50 px-4 py-3 font-medium">
-                <InfoLabel label="Goals" />
+                <InfoLabel label="Metric to optimize" />
               </th>
               <th className="sticky top-0 z-20 border-b border-r border-slate-200 bg-slate-50 px-4 py-3 font-medium">
                 <InfoLabel label="Value" />
@@ -491,10 +573,11 @@ export function OptimizerStep() {
                 (dayPartingLabels[nestedRow.id] ?? null) !==
                   (baselineDayPartingLabels[nestedRow.id] ?? null);
 
-              const goalsState = goalsRowState[nestedRow.id];
-              const goalLabel = goalsState?.goalMetric
-                ? getGoalTypeLabel(goalsState.goalMetric)
-                : "";
+              const goalsState = resolveEffectiveGoalsState(
+                nestedRow.id,
+                nestedRow.groupId,
+                goalsRowState,
+              );
               const goalTargetValue = goalsState?.goalValue?.trim() ?? "";
 
               return (
@@ -518,10 +601,31 @@ export function OptimizerStep() {
                   <td
                     className={cn(
                       OPTIMIZER_ROW_BORDER,
-                      "border-r border-slate-100 px-4 py-3 text-slate-700",
+                      "border-r border-slate-100 px-3 py-2",
                     )}
                   >
-                    {isLeaf ? goalLabel : ""}
+                    {isLeaf && sourceRow ? (
+                      <div className="min-w-0">
+                        <SetupInlineSelect
+                          hideLabel
+                          label={`Metric to optimize for ${sourceRow.name}`}
+                          value={goalsState?.goalMetric ?? null}
+                          options={GOAL_METRIC_SELECT_OPTIONS}
+                          placeholder="Select goal"
+                          menuMinWidth={GOAL_METRIC_MENU_MIN_WIDTH_PX}
+                          onValueChange={(value) =>
+                            updateGoalMetric(
+                              nestedRow.id,
+                              nestedRow.groupId,
+                              value,
+                            )
+                          }
+                          triggerClassName={goalMetricTriggerClass(
+                            Boolean(goalsState?.goalMetric),
+                          )}
+                        />
+                      </div>
+                    ) : null}
                   </td>
                   <td
                     className={cn(
@@ -530,7 +634,7 @@ export function OptimizerStep() {
                     )}
                   >
                     {isLeaf && goalTargetValue ? (
-                      <span className="font-medium text-brand-600">
+                      <span className="font-medium text-blue-600">
                         {goalTargetValue}
                       </span>
                     ) : null}
@@ -634,13 +738,22 @@ export function OptimizerStep() {
                         onAddDayParting={() =>
                           openDayPartingPanel(nestedRow.id, "add")
                         }
-                        onResetDayParting={() =>
+                        onResetDayParting={() => {
+                          const previousLabel =
+                            dayPartingLabels[nestedRow.id] ?? "";
                           setDayPartingLabels((current) => {
                             const next = { ...current };
                             delete next[nestedRow.id];
                             return next;
-                          })
-                        }
+                          });
+                          if (previousLabel) {
+                            recordOptimizerDayPartingChange(
+                              nestedRow.id,
+                              previousLabel,
+                              "",
+                            );
+                          }
+                        }}
                       />
                     ) : null}
                   </td>
@@ -671,10 +784,17 @@ export function OptimizerStep() {
           if (!activeDayPartingRowId) {
             return;
           }
+          const previousLabel =
+            dayPartingLabels[activeDayPartingRowId] ?? "";
           setDayPartingLabels((current) => ({
             ...current,
             [activeDayPartingRowId]: label,
           }));
+          recordOptimizerDayPartingChange(
+            activeDayPartingRowId,
+            previousLabel,
+            label,
+          );
         }}
       />
 
@@ -690,6 +810,18 @@ export function OptimizerStep() {
         rowId={activeRulePanel?.rowId ?? ""}
         column={activeRulePanel?.column ?? "bid"}
         onSave={() => {
+          if (activeRulePanel) {
+            const columnLabel =
+              activeRulePanel.column === "budget"
+                ? "Budget"
+                : "Bid";
+            recordOptimizerRuleStrategiesChange(
+              activeRulePanel.rowId,
+              activeRulePanel.column,
+              "Previous rules",
+              `${columnLabel} rule strategies saved`,
+            );
+          }
           showSetupToast(
             `Rule based strategies saved for ${activeRuleRow?.name ?? "scope"}.`,
             { variant: "success" },

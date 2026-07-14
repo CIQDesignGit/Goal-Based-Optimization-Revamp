@@ -19,6 +19,7 @@ import {
   getDefaultBudgetWindowEnd,
   getDefaultBudgetWindowStart,
   getDefaultLevelsForBudgetType,
+  getOptimizerLabel,
   getGoalTypeLabel,
   getLevel2Options,
   getLevelLabel,
@@ -28,6 +29,7 @@ import {
   type ConstraintLast30Days,
   type GoalType,
   type GoalMetricValue,
+  type OptimizerType,
   type ScopeRow,
 } from "@/lib/gbo-optimization/setup-data";
 import {
@@ -100,7 +102,8 @@ export type SetupChangeCategory =
   | "budget"
   | "constraint"
   | "seasonality"
-  | "general";
+  | "general"
+  | "optimizer";
 
 export type ChangeLedgerEntry = {
   id: string;
@@ -1007,6 +1010,7 @@ export const SETUP_CHANGE_CATEGORY_LABELS: Record<SetupChangeCategory, string> =
   constraint: "Constraint",
   seasonality: "Seasonality",
   general: "General",
+  optimizer: "Optimizer",
 };
 
 export function groupChangesByStep(
@@ -1115,5 +1119,200 @@ export function recordGoalsBudgetChange(
     from,
     to,
     category: "budget",
+  });
+}
+
+/** Portfolio-level General step changes (goal, aggressiveness, optimizer, granularity). */
+const PORTFOLIO_CHANGE_SCOPE_ID = "__portfolio__";
+
+export function recordGeneralPortfolioChange(
+  field: string,
+  fieldLabel: string,
+  from: string,
+  to: string,
+): void {
+  const { recordChange } = useSetupSessionStore.getState();
+
+  recordChange({
+    step: "general",
+    scopeId: PORTFOLIO_CHANGE_SCOPE_ID,
+    scopeName: "Portfolio",
+    field,
+    fieldLabel,
+    from,
+    to,
+    category: "general",
+  });
+}
+
+export function recordGeneralGoalTypeChange(
+  from: GoalType | null,
+  to: GoalType | null,
+): void {
+  const formatMetric = (metric: GoalType | null) =>
+    metric ? getGoalTypeLabel(metric) : "None";
+
+  recordGeneralPortfolioChange(
+    "goalType",
+    "Goal type",
+    formatMetric(from),
+    formatMetric(to),
+  );
+}
+
+export function recordGeneralAggressivenessChange(
+  from: AggressivenessLevel | null,
+  to: AggressivenessLevel | null,
+): void {
+  const formatLevel = (level: AggressivenessLevel | null) => {
+    if (!level) return "None";
+    return level === "aggressive" ? "Aggressive" : "Moderate";
+  };
+
+  recordGeneralPortfolioChange(
+    "aggressiveness",
+    "Aggressiveness",
+    formatLevel(from),
+    formatLevel(to),
+  );
+}
+
+export function recordGeneralOptimizerTypeChange(
+  from: OptimizerType,
+  to: OptimizerType,
+): void {
+  recordGeneralPortfolioChange(
+    "optimizerType",
+    "Optimizer",
+    getOptimizerLabel(from),
+    getOptimizerLabel(to),
+  );
+}
+
+export function recordGeneralGranularityChange(from: string, to: string): void {
+  recordGeneralPortfolioChange("granularity", "Budget granularity", from, to);
+}
+
+export function recordSeasonalityEventAdded(eventLabel: string): void {
+  const { recordChange } = useSetupSessionStore.getState();
+
+  recordChange({
+    step: "seasonality",
+    scopeId: ENTIRE_BUSINESS_SCOPE_ID,
+    scopeName: "Entire business",
+    field: `seasonality.add.${Date.now()}`,
+    fieldLabel: "Seasonality event",
+    from: "—",
+    to: eventLabel,
+    category: "seasonality",
+  });
+}
+
+export function recordSeasonalityEventUpdated(
+  fromLabel: string,
+  toLabel: string,
+): void {
+  const { recordChange } = useSetupSessionStore.getState();
+
+  recordChange({
+    step: "seasonality",
+    scopeId: ENTIRE_BUSINESS_SCOPE_ID,
+    scopeName: "Entire business",
+    field: `seasonality.update.${Date.now()}`,
+    fieldLabel: "Seasonality event",
+    from: fromLabel,
+    to: toLabel,
+    category: "seasonality",
+  });
+}
+
+export function recordSeasonalityEventRemoved(eventLabel: string): void {
+  const { recordChange } = useSetupSessionStore.getState();
+
+  recordChange({
+    step: "seasonality",
+    scopeId: ENTIRE_BUSINESS_SCOPE_ID,
+    scopeName: "Entire business",
+    field: `seasonality.remove.${Date.now()}`,
+    fieldLabel: "Seasonality event",
+    from: eventLabel,
+    to: "Removed",
+    category: "seasonality",
+  });
+}
+
+export type OptimizerModeValue = "ally" | "rule-based" | "none";
+
+function formatOptimizerMode(mode: OptimizerModeValue): string {
+  if (mode === "ally") return "Ally";
+  if (mode === "rule-based") return "Rule Based";
+  return "None";
+}
+
+export function recordOptimizerModeChange(
+  rowId: string,
+  column: "budget" | "bid",
+  from: OptimizerModeValue,
+  to: OptimizerModeValue,
+): void {
+  const { recordChange } = useSetupSessionStore.getState();
+
+  recordChange({
+    step: "optimizer",
+    scopeId: rowId,
+    scopeName: resolveScopeName(rowId),
+    field:
+      column === "budget" ? "optimizer.budgetMode" : "optimizer.bidMode",
+    fieldLabel:
+      column === "budget" ? "Budget Optimization" : "Bid Optimization",
+    from: formatOptimizerMode(from),
+    to: formatOptimizerMode(to),
+    category: "optimizer",
+  });
+}
+
+export function recordOptimizerDayPartingChange(
+  rowId: string,
+  from: string,
+  to: string,
+): void {
+  const { recordChange } = useSetupSessionStore.getState();
+  const formatLabel = (value: string) => value.trim() || "None";
+
+  recordChange({
+    step: "optimizer",
+    scopeId: rowId,
+    scopeName: resolveScopeName(rowId),
+    field: "optimizer.dayParting",
+    fieldLabel: "Day Parting",
+    from: formatLabel(from),
+    to: formatLabel(to),
+    category: "optimizer",
+  });
+}
+
+export function recordOptimizerRuleStrategiesChange(
+  rowId: string,
+  column: "budget" | "bid",
+  from: string,
+  to: string,
+): void {
+  const { recordChange } = useSetupSessionStore.getState();
+
+  recordChange({
+    step: "optimizer",
+    scopeId: rowId,
+    scopeName: resolveScopeName(rowId),
+    field:
+      column === "budget"
+        ? "optimizer.ruleBasedBudget"
+        : "optimizer.ruleBasedBid",
+    fieldLabel:
+      column === "budget"
+        ? "Budget rule strategies"
+        : "Bid rule strategies",
+    from,
+    to,
+    category: "optimizer",
   });
 }

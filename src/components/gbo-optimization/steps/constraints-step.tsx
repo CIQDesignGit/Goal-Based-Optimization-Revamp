@@ -438,16 +438,16 @@ function cellInputVisualClass(
     visual === "edited" && isPercentField(field)
       ? isHistoricDeviationWarning(state, field)
         ? "bg-error-50 font-medium !text-destructive"
-        : "bg-sky-50/60 font-medium !text-sky-700"
+        : "bg-blue-50 font-medium !text-blue-600"
       : visual === "edited"
-        ? "bg-white font-medium !text-brand-600"
+        ? "bg-white font-medium !text-blue-600"
         : null;
 
   return cn(
     cellInputClass,
     visual === "historic" &&
       "bg-slate-50 text-slate-400 italic placeholder:text-slate-300",
-    visual === "adjusted" && "bg-sky-50/60 text-slate-600",
+    visual === "adjusted" && "bg-blue-50/60 text-slate-600",
     editedDeviationClass,
     extra,
   );
@@ -1875,7 +1875,7 @@ export function ConstraintsStep() {
               rebalance automatically to keep the total at{" "}
               <span className="font-medium text-slate-700">100%</span>. Edits
               within{" "}
-              <span className="font-medium text-sky-700">±15%</span> of
+              <span className="font-medium text-blue-600">±15%</span> of
               historical show in blue; beyond that shows in{" "}
               <span className="font-medium text-destructive">red</span> as a
               warning (you can still continue).

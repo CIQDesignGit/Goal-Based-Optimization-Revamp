@@ -52,6 +52,7 @@ const CATEGORY_BADGE_CLASS: Record<SetupChangeCategory, string> = {
   constraint: "bg-violet-50 text-violet-700 hover:bg-violet-50",
   seasonality: "bg-amber-50 text-amber-700 hover:bg-amber-50",
   general: "bg-slate-100 text-slate-700 hover:bg-slate-100",
+  optimizer: "bg-blue-50 text-blue-700 hover:bg-blue-50",
 };
 
 /** How line-item changes are arranged in the Summary review widget. */

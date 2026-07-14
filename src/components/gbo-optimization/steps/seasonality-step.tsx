@@ -20,6 +20,11 @@ import {
   SEASONALITY_CHART_DATA,
   type SeasonalityEvent,
 } from "@/lib/gbo-optimization/setup-data";
+import {
+  recordSeasonalityEventAdded,
+  recordSeasonalityEventRemoved,
+  recordSeasonalityEventUpdated,
+} from "@/lib/gbo-optimization/setup-session-store";
 import { cn } from "@/lib/utils";
 
 const CHART_CONFIG = {
@@ -35,6 +40,18 @@ function formatCurrency(value: number) {
   }
 
   return `$${value}`;
+}
+
+function formatSeasonalityEventLabel(event: SeasonalityEvent): string {
+  const range =
+    event.startDate && event.endDate
+      ? `${event.startDate} → ${event.endDate}`
+      : event.startDate || event.endDate || "";
+  const budget = event.budgetValue
+    ? `${event.budgetMode} ${event.budgetValue}`
+    : "";
+  const parts = [event.name, range, budget].filter(Boolean);
+  return parts.join(" · ");
 }
 
 export function SeasonalityStep() {
@@ -58,17 +75,37 @@ export function SeasonalityStep() {
 
       <SeasonalityEventsSection
         events={events}
-        onAddEvent={(event) => setEvents((current) => [...current, event])}
-        onUpdateEvent={(updatedEvent) =>
+        onAddEvent={(event) => {
+          setEvents((current) => [...current, event]);
+          recordSeasonalityEventAdded(
+            formatSeasonalityEventLabel(event) || event.name || "New event",
+          );
+        }}
+        onUpdateEvent={(updatedEvent) => {
+          const previous = events.find((event) => event.id === updatedEvent.id);
           setEvents((current) =>
             current.map((event) =>
               event.id === updatedEvent.id ? updatedEvent : event,
             ),
-          )
-        }
-        onRemoveEvent={(eventId) =>
-          setEvents((current) => current.filter((event) => event.id !== eventId))
-        }
+          );
+          if (previous) {
+            recordSeasonalityEventUpdated(
+              formatSeasonalityEventLabel(previous),
+              formatSeasonalityEventLabel(updatedEvent),
+            );
+          }
+        }}
+        onRemoveEvent={(eventId) => {
+          const previous = events.find((event) => event.id === eventId);
+          setEvents((current) =>
+            current.filter((event) => event.id !== eventId),
+          );
+          if (previous) {
+            recordSeasonalityEventRemoved(
+              formatSeasonalityEventLabel(previous),
+            );
+          }
+        }}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
