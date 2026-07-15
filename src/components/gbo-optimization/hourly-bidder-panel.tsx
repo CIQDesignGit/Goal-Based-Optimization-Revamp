@@ -202,35 +202,65 @@ function TargetListSkeleton({ scopeName }: { scopeName: string }) {
   );
 }
 
+type TargetListStatus = "added" | "removed" | "unchanged";
+
 function TargetPicker({
   campaigns,
   selectedIds,
+  /** Snapshot when the panel opened — used to mark adds (green) / deletes (red). */
+  baselineSelectedIds,
   onToggle,
 }: {
   campaigns: CampaignOption[];
   selectedIds: string[];
+  baselineSelectedIds: string[];
   onToggle: (id: string) => void;
 }) {
   const [availableQuery, setAvailableQuery] = useState("");
   const [selectedQuery, setSelectedQuery] = useState("");
 
+  const baselineSet = useMemo(
+    () => new Set(baselineSelectedIds),
+    [baselineSelectedIds],
+  );
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+
+  // Left list: not currently selected, and not a pending deletion (those stay on the right in red).
   const available = useMemo(() => {
     const q = availableQuery.trim().toLowerCase();
-    return campaigns.filter(
-      (c) =>
-        !selectedIds.includes(c.id) &&
-        (!q || c.name.toLowerCase().includes(q)),
-    );
-  }, [campaigns, selectedIds, availableQuery]);
+    return campaigns.filter((c) => {
+      if (selectedSet.has(c.id)) return false;
+      if (baselineSet.has(c.id)) return false; // deleted-from-baseline → Target List (red)
+      return !q || c.name.toLowerCase().includes(q);
+    });
+  }, [campaigns, selectedSet, baselineSet, availableQuery]);
 
-  const selected = useMemo(() => {
+  // Right list: current targets + baseline items the user removed (so deletes stay visible).
+  const targetRows = useMemo(() => {
     const q = selectedQuery.trim().toLowerCase();
-    return campaigns.filter(
-      (c) =>
-        selectedIds.includes(c.id) &&
-        (!q || c.name.toLowerCase().includes(q)),
-    );
-  }, [campaigns, selectedIds, selectedQuery]);
+    const matches = (name: string) => !q || name.toLowerCase().includes(q);
+    const rows: { campaign: CampaignOption; status: TargetListStatus }[] = [];
+
+    for (const campaign of campaigns) {
+      if (!selectedSet.has(campaign.id) || !matches(campaign.name)) continue;
+      rows.push({
+        campaign,
+        status: baselineSet.has(campaign.id) ? "unchanged" : "added",
+      });
+    }
+
+    for (const campaign of campaigns) {
+      if (!baselineSet.has(campaign.id) || selectedSet.has(campaign.id)) {
+        continue;
+      }
+      if (!matches(campaign.name)) continue;
+      rows.push({ campaign, status: "removed" });
+    }
+
+    return rows;
+  }, [campaigns, selectedSet, baselineSet, selectedQuery]);
+
+  const selectedCount = selectedIds.length;
 
   return (
     <div className="grid gap-3 md:grid-cols-2">
@@ -274,7 +304,7 @@ function TargetPicker({
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
         <div className="border-b border-slate-100 px-3 py-2.5 text-sm font-semibold text-slate-800">
-          Target List ({selected.length})
+          Target List ({selectedCount})
         </div>
         <div className="relative border-b border-slate-100 p-2.5">
           <Search className="pointer-events-none absolute top-1/2 left-4.5 size-3.5 -translate-y-1/2 text-slate-400" />
@@ -286,23 +316,47 @@ function TargetPicker({
           />
         </div>
         <ul className="max-h-56 divide-y divide-slate-50 overflow-y-auto">
-          {selected.map((campaign) => (
+          {targetRows.map(({ campaign, status }) => (
             <li
               key={campaign.id}
-              className="flex items-center gap-2 px-3 py-2.5 text-xs text-slate-700"
+              className={cn(
+                "flex items-center gap-2 px-3 py-2.5 text-xs text-slate-700",
+                status === "added" && "bg-green-50",
+                status === "removed" && "bg-red-50",
+              )}
             >
-              <span className="min-w-0 flex-1 truncate">{campaign.name}</span>
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate",
+                  status === "removed" && "line-through text-slate-500",
+                )}
+              >
+                {campaign.name}
+              </span>
               <button
                 type="button"
-                aria-label={`Remove ${campaign.name}`}
+                aria-label={
+                  status === "removed"
+                    ? `Restore ${campaign.name}`
+                    : `Remove ${campaign.name}`
+                }
                 onClick={() => onToggle(campaign.id)}
-                className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-error-600"
+                className={cn(
+                  "inline-flex size-6 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-white/70",
+                  status === "removed"
+                    ? "hover:text-brand-600"
+                    : "hover:text-error-600",
+                )}
               >
-                <Minus className="size-3.5" />
+                {status === "removed" ? (
+                  <Plus className="size-3.5" />
+                ) : (
+                  <Minus className="size-3.5" />
+                )}
               </button>
             </li>
           ))}
-          {selected.length === 0 ? (
+          {targetRows.length === 0 ? (
             <li className="px-3 py-6 text-center text-xs text-slate-400">
               Add campaigns from the left list
             </li>
@@ -328,6 +382,8 @@ export function HourlyBidderPanel({
   const isAddMode = mode === "add";
   const [isTargetsLoading, setIsTargetsLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  // Frozen when the panel opens — Target List compares against this for green/red highlights.
+  const [baselineSelectedIds, setBaselineSelectedIds] = useState<string[]>([]);
   const [strategyName, setStrategyName] = useState(() =>
     resolveInitialStrategyName(strategyLabel, isAddMode),
   );
@@ -339,8 +395,10 @@ export function HourlyBidderPanel({
       return;
     }
 
+    const initialIds = isAddMode ? [] : ["c4"];
     setStrategyName(resolveInitialStrategyName(strategyLabel, isAddMode));
-    setSelectedIds(isAddMode ? [] : ["c4"]);
+    setSelectedIds(initialIds);
+    setBaselineSelectedIds(initialIds);
     setIsTargetsLoading(true);
 
     const timer = window.setTimeout(() => {
@@ -427,6 +485,7 @@ export function HourlyBidderPanel({
               <TargetPicker
                 campaigns={SAMPLE_CAMPAIGNS}
                 selectedIds={selectedIds}
+                baselineSelectedIds={baselineSelectedIds}
                 onToggle={handleToggleCampaign}
               />
             )}
