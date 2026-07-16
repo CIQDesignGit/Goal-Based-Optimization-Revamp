@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus, Search, Settings } from "lucide-react";
 
 import {
@@ -13,10 +13,12 @@ import { InfoLabel } from "@/components/gbo-optimization/info-label";
 import {
   getAggregateOptimizerMode,
   OptimizerModeChip,
+  type AggregatedOptimizerMode,
   type OptimizerColumnMode,
 } from "@/components/gbo-optimization/optimizer-mode-chip";
 import { RuleBasedStrategyPanel } from "@/components/gbo-optimization/rule-based-strategy-panel";
 import { RuleBasedStrategyStack } from "@/components/gbo-optimization/rule-based-strategy-stack";
+import { useSetupContext } from "@/components/gbo-optimization/setup-context";
 import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
 import {
   NestedTaxonomyScopeCell,
@@ -25,6 +27,7 @@ import {
 } from "@/components/gbo-optimization/taxonomy-scope-columns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   DEFAULT_RULE_BASED_BID_STRATEGIES,
   DEFAULT_RULE_BASED_BUDGET_STRATEGIES,
@@ -34,6 +37,7 @@ import {
   RULE_BASED_ITEM_SKIP_CUE,
   type GoalType,
   type OptimizerScopeRow,
+  type OptimizerType,
 } from "@/lib/gbo-optimization/setup-data";
 import {
   recordGoalsGoalMetricChange,
@@ -74,21 +78,28 @@ const DEFAULT_DAY_PARTING_STRATEGY = "Hourly Bidder";
  */
 const OPTIMIZER_SCOPE_COL_WIDTH = 320;
 const GOALS_COL_WIDTH = 220;
-const VALUE_COL_WIDTH = 96;
+const MODE_COL_WIDTH = 160;
 const BUDGET_OPT_COL_WIDTH = 220;
 const BID_OPT_COL_WIDTH = 240;
 /** Must fit "Hourly Bidder" tile + outlined + / refresh with cell padding. */
 const DAY_PARTING_COL_WIDTH = 280;
 const TARGETING_COL_WIDTH = 88;
 
-const OPTIMIZER_TABLE_MIN_WIDTH =
-  OPTIMIZER_SCOPE_COL_WIDTH +
-  GOALS_COL_WIDTH +
-  VALUE_COL_WIDTH +
-  BUDGET_OPT_COL_WIDTH +
-  BID_OPT_COL_WIDTH +
-  DAY_PARTING_COL_WIDTH +
-  TARGETING_COL_WIDTH;
+/** Table min-width: Mode always; Budget + Bid when expanded. */
+function getOptimizerTableMinWidth(bidBudgetExpanded: boolean): number {
+  const bidBudgetWidth = bidBudgetExpanded
+    ? BUDGET_OPT_COL_WIDTH + BID_OPT_COL_WIDTH
+    : 0;
+
+  return (
+    OPTIMIZER_SCOPE_COL_WIDTH +
+    GOALS_COL_WIDTH +
+    MODE_COL_WIDTH +
+    bidBudgetWidth +
+    DAY_PARTING_COL_WIDTH +
+    TARGETING_COL_WIDTH
+  );
+}
 
 /** Shared row layout: primary control left, action icons inside the cell on the right. */
 const OPTIMIZER_CELL_ACTIONS_ROW =
@@ -97,19 +108,33 @@ const OPTIMIZER_CELL_ACTIONS_ROW =
 /** Row bottom border must be on <td>/<th> — tr borders are ignored with border-separate. */
 const OPTIMIZER_ROW_BORDER = "border-b border-slate-100";
 
-/** Hide Mode column for now — keep markup so we can turn it back on later. */
-const SHOW_MODE_COLUMN = false;
-
 type RowOptimizerModes = {
-  budget: OptimizerColumnMode;
-  bid: OptimizerColumnMode;
+  budget: OptimizerColumnMode | null;
+  bid: OptimizerColumnMode | null;
 };
 
-function createInitialRowModes(): Record<string, RowOptimizerModes> {
+/** Map General-page optimizer to per-row Budget / Bid defaults. */
+function columnModesForOptimizerType(
+  optimizerType: OptimizerType,
+): RowOptimizerModes {
+  if (optimizerType === "rule-based") {
+    return { budget: "rule-based", bid: "rule-based" };
+  }
+  if (optimizerType === "custom") {
+    // Empty until the user picks a mode per brand.
+    return { budget: null, bid: null };
+  }
+  return { budget: "ally", bid: "ally" };
+}
+
+function createRowModesForOptimizer(
+  optimizerType: OptimizerType,
+): Record<string, RowOptimizerModes> {
+  const columnPair = columnModesForOptimizerType(optimizerType);
   const initial: Record<string, RowOptimizerModes> = {};
   for (const row of OPTIMIZER_SCOPE_ROWS) {
     if (row.allyMode) {
-      initial[row.id] = { budget: "ally", bid: "ally" };
+      initial[row.id] = { ...columnPair };
     }
   }
   return initial;
@@ -130,6 +155,20 @@ function rowHasRuleBasedMode(modes: RowOptimizerModes): boolean {
   return modes.budget === "rule-based" || modes.bid === "rule-based";
 }
 
+/** Mode column: empty when both unset; Custom when they differ or one is unset. */
+function getModeColumnValue(
+  budget: OptimizerColumnMode | null,
+  bid: OptimizerColumnMode | null,
+): AggregatedOptimizerMode | null {
+  if (budget === null && bid === null) {
+    return null;
+  }
+  if (budget === null || bid === null) {
+    return "custom";
+  }
+  return getAggregateOptimizerMode(budget, bid);
+}
+
 function OptimizerCell({
   row,
   column,
@@ -144,6 +183,7 @@ function OptimizerCell({
   onResetBudgetStrategies,
   onResetBidStrategies,
   onOpenRuleBasedStrategies,
+  defaultColumnMode = "ally",
 }: {
   row: OptimizerScopeRow;
   column: "mode" | "budget" | "bid" | "dayParting" | "targeting";
@@ -152,14 +192,16 @@ function OptimizerCell({
   onResetDayParting?: () => void;
   /** Opens the "add day parting strategy" side panel from the Day Parting column. */
   onAddDayParting?: () => void;
-  budgetMode?: OptimizerColumnMode;
-  bidMode?: OptimizerColumnMode;
+  budgetMode?: OptimizerColumnMode | null;
+  bidMode?: OptimizerColumnMode | null;
   onBudgetModeChange?: (mode: OptimizerColumnMode) => void;
   onBidModeChange?: (mode: OptimizerColumnMode) => void;
   onResetBudgetStrategies?: () => void;
   onResetBidStrategies?: () => void;
   /** Opens the Rule Based strategy side panel from the stacked rules chip. */
   onOpenRuleBasedStrategies?: () => void;
+  /** Portfolio default used when clearing draft strategies. */
+  defaultColumnMode?: OptimizerColumnMode | null;
 }) {
   // Targeting: always show add (+) — including rows without Ally mode.
   if (column === "targeting") {
@@ -200,15 +242,12 @@ function OptimizerCell({
 
   // Mode = read-only aggregate of Budget + Bid (no chevron / no dropdown).
   if (column === "mode") {
-    const aggregate = getAggregateOptimizerMode(
-      budgetMode ?? "ally",
-      bidMode ?? "ally",
-    );
+    const aggregate = getModeColumnValue(budgetMode ?? null, bidMode ?? null);
     return <OptimizerModeChip mode={aggregate} selectable={false} />;
   }
 
   if (column === "bid") {
-    const currentBid = bidMode ?? "ally";
+    const currentBid = bidMode ?? null;
     const isRuleBased = currentBid === "rule-based";
     return (
       <div className="flex w-full min-w-0 flex-col">
@@ -218,7 +257,7 @@ function OptimizerCell({
             <OptimizerModeChip
               mode={currentBid}
               selectable
-              showBoost
+              showBoost={currentBid === "ally"}
               onChange={onBidModeChange}
             />
           </div>
@@ -242,7 +281,13 @@ function OptimizerCell({
                   <span className="font-semibold text-slate-800">
                     {row.name}
                   </span>
-                  . This resets Bid Optimization to Ally and cannot be undone.
+                  . This resets Bid Optimization
+                  {defaultColumnMode === "rule-based"
+                    ? " to Rule Based"
+                    : defaultColumnMode === null
+                      ? ""
+                      : " to Ally"}{" "}
+                  and cannot be undone.
                 </>
               }
             />
@@ -260,7 +305,7 @@ function OptimizerCell({
 
   // Budget Optimization — mode chip left; outlined + / refresh right-aligned
   // (Changed state is shown on the <td>, not on the chip.)
-  const currentBudget = budgetMode ?? "ally";
+  const currentBudget = budgetMode ?? null;
   const isRuleBasedBudget = currentBudget === "rule-based";
   return (
     <div className="flex w-full min-w-0 flex-col">
@@ -290,7 +335,13 @@ function OptimizerCell({
               <>
                 You are about to clear draft budget strategies for{" "}
                 <span className="font-semibold text-slate-800">{row.name}</span>
-                . This resets Budget Optimization to Ally and cannot be undone.
+                . This resets Budget Optimization
+                {defaultColumnMode === "rule-based"
+                  ? " to Rule Based"
+                  : defaultColumnMode === null
+                    ? ""
+                    : " to Ally"}{" "}
+                and cannot be undone.
               </>
             }
           />
@@ -307,13 +358,35 @@ function OptimizerCell({
 }
 
 export function OptimizerStep() {
-  // Per-row Budget / Bid modes (Mode column is derived from these).
-  const [rowModes, setRowModes] = useState(createInitialRowModes);
+  const { optimizerType } = useSetupContext();
+  // Ally AI: start with Budget/Bid collapsed into Mode; Expand reveals them.
+  const isAllyAi = optimizerType === "ally-ai";
+  const [bidBudgetExpanded, setBidBudgetExpanded] = useState(!isAllyAi);
+  const portfolioColumnDefaults = columnModesForOptimizerType(optimizerType);
+  const defaultColumnMode = portfolioColumnDefaults.budget;
+
+  // Per-row Budget / Bid modes — seeded from General optimizer choice.
+  const [rowModes, setRowModes] = useState(() =>
+    createRowModesForOptimizer(optimizerType),
+  );
   // Snapshot of starting modes — used for blue “edited cell” styling.
-  const [baselineRowModes] = useState(createInitialRowModes);
+  const [baselineRowModes, setBaselineRowModes] = useState(() =>
+    createRowModesForOptimizer(optimizerType),
+  );
   // Mirror so click handlers can read the previous value without nested setState.
   const rowModesRef = useRef(rowModes);
   rowModesRef.current = rowModes;
+
+  useEffect(() => {
+    // Switching optimizer on General resets expand/collapse + row modes.
+    setBidBudgetExpanded(optimizerType !== "ally-ai");
+    const nextModes = createRowModesForOptimizer(optimizerType);
+    setRowModes(nextModes);
+    setBaselineRowModes(nextModes);
+    rowModesRef.current = nextModes;
+  }, [optimizerType]);
+
+  const tableMinWidth = getOptimizerTableMinWidth(bidBudgetExpanded);
 
   const showSetupToast = useSetupSessionStore((state) => state.showSetupToast);
   // Same target values / goal metrics users set on Goals & Budgets.
@@ -380,8 +453,7 @@ export function OptimizerStep() {
     nextMode: OptimizerColumnMode,
   ) => {
     const previous = rowModesRef.current[rowId] ?? {
-      budget: "ally" as const,
-      bid: "ally" as const,
+      ...portfolioColumnDefaults,
     };
     const previousColumnMode = previous[column];
     const nextRow: RowOptimizerModes = {
@@ -399,7 +471,12 @@ export function OptimizerStep() {
     }));
 
     if (previousColumnMode !== nextMode) {
-      recordOptimizerModeChange(rowId, column, previousColumnMode, nextMode);
+      recordOptimizerModeChange(
+        rowId,
+        column,
+        previousColumnMode ?? "none",
+        nextMode,
+      );
     }
 
     // First time this row gains rule-based → bottom-left toast (same pattern as other setup toasts).
@@ -412,11 +489,32 @@ export function OptimizerStep() {
     }
   };
 
-  const setBudgetMode = (rowId: string, mode: OptimizerColumnMode) => {
+  const setBudgetMode = (
+    rowId: string,
+    mode: OptimizerColumnMode | null,
+  ) => {
+    if (mode === null) {
+      const previous = rowModesRef.current[rowId] ?? {
+        ...portfolioColumnDefaults,
+      };
+      const nextRow: RowOptimizerModes = { ...previous, budget: null };
+      rowModesRef.current = { ...rowModesRef.current, [rowId]: nextRow };
+      setRowModes((current) => ({ ...current, [rowId]: nextRow }));
+      return;
+    }
     applyColumnMode(rowId, "budget", mode);
   };
 
-  const setBidMode = (rowId: string, mode: OptimizerColumnMode) => {
+  const setBidMode = (rowId: string, mode: OptimizerColumnMode | null) => {
+    if (mode === null) {
+      const previous = rowModesRef.current[rowId] ?? {
+        ...portfolioColumnDefaults,
+      };
+      const nextRow: RowOptimizerModes = { ...previous, bid: null };
+      rowModesRef.current = { ...rowModesRef.current, [rowId]: nextRow };
+      setRowModes((current) => ({ ...current, [rowId]: nextRow }));
+      return;
+    }
     applyColumnMode(rowId, "bid", mode);
   };
 
@@ -459,6 +557,16 @@ export function OptimizerStep() {
             <Plus className="size-4" />
             Add Filters
           </Button>
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            <Switch
+              checked={bidBudgetExpanded}
+              onCheckedChange={(checked) =>
+                setBidBudgetExpanded(checked === true)
+              }
+              aria-controls="optimizer-bid-budget-columns"
+            />
+            Show bid & budget
+          </label>
         </div>
         <Button
           type="button"
@@ -475,15 +583,18 @@ export function OptimizerStep() {
       <div className="min-h-0 min-w-0 flex-1 overflow-auto rounded-lg border border-slate-200 bg-white">
         <table
           className="w-full table-fixed border-separate border-spacing-0 text-sm"
-          style={{ minWidth: OPTIMIZER_TABLE_MIN_WIDTH }}
+          style={{ minWidth: tableMinWidth }}
         >
           <colgroup>
             <col style={{ width: OPTIMIZER_SCOPE_COL_WIDTH }} />
             <col style={{ width: GOALS_COL_WIDTH }} />
-            <col style={{ width: VALUE_COL_WIDTH }} />
-            {SHOW_MODE_COLUMN ? <col style={{ width: 160 }} /> : null}
-            <col style={{ width: BUDGET_OPT_COL_WIDTH }} />
-            <col style={{ width: BID_OPT_COL_WIDTH }} />
+            <col style={{ width: MODE_COL_WIDTH }} />
+            {bidBudgetExpanded ? (
+              <>
+                <col style={{ width: BUDGET_OPT_COL_WIDTH }} />
+                <col style={{ width: BID_OPT_COL_WIDTH }} />
+              </>
+            ) : null}
             <col style={{ width: DAY_PARTING_COL_WIDTH }} />
             <col style={{ width: TARGETING_COL_WIDTH }} />
           </colgroup>
@@ -499,30 +610,24 @@ export function OptimizerStep() {
                 <InfoLabel label="Metrics to optimize" />
               </th>
               <th className="sticky top-0 z-20 border-b border-r border-slate-200 bg-slate-50 px-4 py-3 font-medium">
-                <InfoLabel label="Value" />
+                <InfoLabel
+                  label="Mode"
+                  tooltip="Combined bid and budget mode for this scope."
+                />
               </th>
-              {SHOW_MODE_COLUMN ? (
-                <th className="sticky top-0 z-20 border-b border-r border-slate-200 bg-slate-50 px-4 py-3 font-medium">
-                  <div className="flex items-center justify-between gap-2">
-                    <InfoLabel
-                      label="Mode"
-                      tooltip="Shows the combined mode from Budget Optimization and Bid Optimization."
-                    />
-                    <button
-                      type="button"
-                      className="text-xs font-medium text-brand-600 hover:text-brand-700"
-                    >
-                      Collapse
-                    </button>
-                  </div>
-                </th>
+              {bidBudgetExpanded ? (
+                <>
+                  <th
+                    id="optimizer-bid-budget-columns"
+                    className="sticky top-0 z-20 border-b border-r border-slate-200 bg-slate-50 px-4 py-3 font-medium"
+                  >
+                    <InfoLabel label="Budget Optimization" />
+                  </th>
+                  <th className="sticky top-0 z-20 border-b border-r border-slate-200 bg-slate-50 px-4 py-3 font-medium">
+                    <InfoLabel label="Bid Optimization" />
+                  </th>
+                </>
               ) : null}
-              <th className="sticky top-0 z-20 border-b border-r border-slate-200 bg-slate-50 px-4 py-3 font-medium">
-                <InfoLabel label="Budget Optimization" />
-              </th>
-              <th className="sticky top-0 z-20 border-b border-r border-slate-200 bg-slate-50 px-4 py-3 font-medium">
-                <InfoLabel label="Bid Optimization" />
-              </th>
               <th className="sticky top-0 z-20 border-b border-r border-slate-200 bg-slate-50 px-4 py-3 font-medium">
                 <InfoLabel label="Day Parting" />
               </th>
@@ -538,12 +643,10 @@ export function OptimizerStep() {
                 | undefined;
               const isLeaf = nestedRow.kind === "level2-child";
               const modes = rowModes[nestedRow.id] ?? {
-                budget: "ally" as const,
-                bid: "ally" as const,
+                ...portfolioColumnDefaults,
               };
               const baseline = baselineRowModes[nestedRow.id] ?? {
-                budget: "ally" as const,
-                bid: "ally" as const,
+                ...portfolioColumnDefaults,
               };
               const isRuleBasedItem = isLeaf && rowHasRuleBasedMode(modes);
               const budgetEdited = isLeaf && modes.budget !== baseline.budget;
@@ -558,7 +661,6 @@ export function OptimizerStep() {
                 nestedRow.groupId,
                 goalsRowState,
               );
-              const goalTargetValue = goalsState?.goalValue?.trim() ?? "";
 
               return (
                 <tr
@@ -614,92 +716,86 @@ export function OptimizerStep() {
                       "border-r border-slate-100 px-4 py-3",
                     )}
                   >
-                    {isLeaf && goalTargetValue ? (
-                      <span className="font-medium text-blue-600">
-                        {goalTargetValue}
-                      </span>
-                    ) : null}
-                  </td>
-                  {SHOW_MODE_COLUMN ? (
-                    <td
-                      className={cn(
-                        OPTIMIZER_ROW_BORDER,
-                        "border-r border-slate-100 px-4 py-3",
-                      )}
-                    >
-                      {isLeaf && sourceRow ? (
-                        <OptimizerCell
-                          row={sourceRow}
-                          column="mode"
-                          budgetMode={modes.budget}
-                          bidMode={modes.bid}
-                        />
-                      ) : null}
-                    </td>
-                  ) : null}
-                  <td
-                    className={cn(
-                      OPTIMIZER_ROW_BORDER,
-                      "overflow-hidden border-r border-slate-100 px-3 py-3",
-                      // Changed mode → highlight the whole cell, not the chip.
-                      budgetEdited && "bg-blue-50 ring-1 ring-inset ring-blue-500",
-                    )}
-                  >
                     {isLeaf && sourceRow ? (
                       <OptimizerCell
                         row={sourceRow}
-                        column="budget"
+                        column="mode"
                         budgetMode={modes.budget}
-                        onBudgetModeChange={(mode) =>
-                          setBudgetMode(nestedRow.id, mode)
-                        }
-                        onResetBudgetStrategies={() => {
-                          setBudgetMode(nestedRow.id, "ally");
-                          showSetupToast(
-                            `Draft budget strategies cleared for ${sourceRow.name}.`,
-                            { variant: "success" },
-                          );
-                        }}
-                        onOpenRuleBasedStrategies={() =>
-                          setActiveRulePanel({
-                            rowId: nestedRow.id,
-                            column: "budget",
-                          })
-                        }
-                      />
-                    ) : null}
-                  </td>
-                  <td
-                    className={cn(
-                      OPTIMIZER_ROW_BORDER,
-                      "overflow-hidden border-r border-slate-100 px-3 py-3",
-                      bidEdited && "bg-blue-50 ring-1 ring-inset ring-blue-500",
-                    )}
-                  >
-                    {isLeaf && sourceRow ? (
-                      <OptimizerCell
-                        row={sourceRow}
-                        column="bid"
                         bidMode={modes.bid}
-                        onBidModeChange={(mode) =>
-                          setBidMode(nestedRow.id, mode)
-                        }
-                        onResetBidStrategies={() => {
-                          setBidMode(nestedRow.id, "ally");
-                          showSetupToast(
-                            `Draft bid strategies cleared for ${sourceRow.name}.`,
-                            { variant: "success" },
-                          );
-                        }}
-                        onOpenRuleBasedStrategies={() =>
-                          setActiveRulePanel({
-                            rowId: nestedRow.id,
-                            column: "bid",
-                          })
-                        }
                       />
                     ) : null}
                   </td>
+                  {bidBudgetExpanded ? (
+                    <>
+                      <td
+                        className={cn(
+                          OPTIMIZER_ROW_BORDER,
+                          "overflow-hidden border-r border-slate-100 px-3 py-3",
+                          // Changed mode → highlight the whole cell, not the chip.
+                          budgetEdited &&
+                            "bg-blue-50 ring-1 ring-inset ring-blue-500",
+                        )}
+                      >
+                        {isLeaf && sourceRow ? (
+                          <OptimizerCell
+                            row={sourceRow}
+                            column="budget"
+                            budgetMode={modes.budget}
+                            defaultColumnMode={defaultColumnMode}
+                            onBudgetModeChange={(mode) =>
+                              setBudgetMode(nestedRow.id, mode)
+                            }
+                            onResetBudgetStrategies={() => {
+                              setBudgetMode(nestedRow.id, defaultColumnMode);
+                              showSetupToast(
+                                `Draft budget strategies cleared for ${sourceRow.name}.`,
+                                { variant: "success" },
+                              );
+                            }}
+                            onOpenRuleBasedStrategies={() =>
+                              setActiveRulePanel({
+                                rowId: nestedRow.id,
+                                column: "budget",
+                              })
+                            }
+                          />
+                        ) : null}
+                      </td>
+                      <td
+                        className={cn(
+                          OPTIMIZER_ROW_BORDER,
+                          "overflow-hidden border-r border-slate-100 px-3 py-3",
+                          bidEdited &&
+                            "bg-blue-50 ring-1 ring-inset ring-blue-500",
+                        )}
+                      >
+                        {isLeaf && sourceRow ? (
+                          <OptimizerCell
+                            row={sourceRow}
+                            column="bid"
+                            bidMode={modes.bid}
+                            defaultColumnMode={defaultColumnMode}
+                            onBidModeChange={(mode) =>
+                              setBidMode(nestedRow.id, mode)
+                            }
+                            onResetBidStrategies={() => {
+                              setBidMode(nestedRow.id, defaultColumnMode);
+                              showSetupToast(
+                                `Draft bid strategies cleared for ${sourceRow.name}.`,
+                                { variant: "success" },
+                              );
+                            }}
+                            onOpenRuleBasedStrategies={() =>
+                              setActiveRulePanel({
+                                rowId: nestedRow.id,
+                                column: "bid",
+                              })
+                            }
+                          />
+                        ) : null}
+                      </td>
+                    </>
+                  ) : null}
                   <td
                     className={cn(
                       OPTIMIZER_ROW_BORDER,

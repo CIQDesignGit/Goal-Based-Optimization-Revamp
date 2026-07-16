@@ -134,7 +134,8 @@ function ModeOptionIcon({
 }
 
 type OptimizerModeChipProps = {
-  mode: AggregatedOptimizerMode;
+  /** Null = empty / unset (Custom portfolio default until the user picks). */
+  mode: AggregatedOptimizerMode | null;
   /** When true, shows chevron and opens the Ally / Rule Based / None menu. */
   selectable?: boolean;
   /** Bid column: show boost mark after the chip label (before chevron). */
@@ -157,12 +158,15 @@ export function OptimizerModeChip({
   className,
 }: OptimizerModeChipProps) {
   const [open, setOpen] = useState(false);
-  const label = AGGREGATE_MODE_LABELS[mode];
+  const isEmpty = mode === null;
+  const label = isEmpty ? "Select" : AGGREGATE_MODE_LABELS[mode];
 
   const chipInner = (
     <>
-      <ModeOptionIcon mode={mode} className="size-4" />
-      <span>{label}</span>
+      {!isEmpty ? (
+        <ModeOptionIcon mode={mode} className="size-4" />
+      ) : null}
+      <span className={cn(isEmpty && "font-medium text-slate-400")}>{label}</span>
       {showBoost && mode === "ally" ? (
         <span
           className="ml-0.5 inline-flex h-3.5 shrink-0 items-center gap-1.5 border-l border-slate-200 pl-1.5"
@@ -192,6 +196,9 @@ export function OptimizerModeChip({
   );
 
   if (!selectable) {
+    if (isEmpty) {
+      return null;
+    }
     return (
       <span className={chipClassName} title="Aggregate of Budget and Bid modes">
         {chipInner}
@@ -203,7 +210,11 @@ export function OptimizerModeChip({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         className={chipClassName}
-        aria-label={`Change optimization mode, currently ${label}`}
+        aria-label={
+          isEmpty
+            ? "Select optimization mode"
+            : `Change optimization mode, currently ${label}`
+        }
       >
         {chipInner}
       </PopoverTrigger>
