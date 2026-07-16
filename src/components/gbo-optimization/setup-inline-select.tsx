@@ -32,7 +32,7 @@ type SetupInlineSelectProps = {
 };
 
 const INLINE_SELECT_TRIGGER_BASE =
-  "flex h-10 w-full min-w-0 max-w-full items-center justify-between gap-1.5 rounded-md border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+  "flex h-10 w-full min-w-0 max-w-full items-center justify-between gap-1.5 rounded-md border border-input bg-transparent py-2 pr-2 pl-2.5 font-sans text-sm transition-colors outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
 /** Dropdown must be wide enough for label + check icon even when the trigger is compact. */
 const MENU_MIN_WIDTH_PX = 144;
@@ -160,17 +160,15 @@ export function SetupInlineSelect({
           onClick={() => setListOpen((current) => !current)}
         >
           {showInlineLabel ? (
-            // Gray dimension label + bold selected value (Brand NutriChef pattern)
-            <span className="flex items-baseline gap-1.5 whitespace-nowrap text-left">
-              <span className="shrink-0 text-sm font-normal text-slate-500">
+            // Dimension label + value — same Inter / medium weight as other filter chips
+            <span className="flex items-center gap-1.5 whitespace-nowrap text-left font-sans text-sm">
+              <span className="shrink-0 font-medium text-slate-500">
                 {label}
               </span>
               <span
                 className={cn(
-                  "text-sm whitespace-nowrap",
-                  selectedLabel
-                    ? "font-semibold text-slate-900"
-                    : "font-normal text-slate-400",
+                  "whitespace-nowrap font-medium",
+                  selectedLabel ? "text-slate-900" : "text-slate-400",
                 )}
               >
                 {selectedLabel ?? placeholder}
@@ -218,7 +216,7 @@ export function SetupInlineSelect({
                   left: menuPosition.left,
                   width: menuPosition.width,
                 }}
-                className="z-50 flex max-h-60 flex-col gap-0.5 overflow-y-auto rounded-md border border-slate-200 bg-white p-1 shadow-md ring-1 ring-foreground/10"
+                className="z-50 flex max-h-60 flex-col gap-0.5 overflow-y-auto rounded-md border border-slate-200 bg-white p-1 font-sans shadow-md ring-1 ring-foreground/10"
               >
                 {options.map((option) => {
                   const isSelected = value === option.value;
@@ -230,7 +228,7 @@ export function SetupInlineSelect({
                         role="option"
                         aria-selected={isSelected}
                         className={cn(
-                          "flex w-full cursor-default items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-hidden select-none hover:bg-slate-100 focus:bg-slate-100",
+                          "flex w-full cursor-default items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left font-sans text-sm outline-hidden select-none hover:bg-slate-100 focus:bg-slate-100",
                           isSelected && "bg-accent text-accent-foreground",
                         )}
                         onClick={() => {

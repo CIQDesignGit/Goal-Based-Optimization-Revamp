@@ -106,11 +106,11 @@ const cellInputClass =
 
 /**
  * Sticky thead rows use exact h-10 (40px) + py-0 so sticky `top-10` /
- * `top-20` match real row heights. Row 1 is z-30 so its bottom border stays
- * visible above row 2 (an upward “seal” previously painted over that line).
+ * `top-20` match real row heights. Row 1 is z-20 so scrolling headers
+ * pass under the Scope column (Scope uses z-40).
  */
 const STICKY_HEAD_ROW1 =
-  "sticky top-0 z-30 border-b border-slate-200 bg-slate-50";
+  "sticky top-0 z-20 border-b border-slate-200 bg-slate-50";
 /** Group labels (Spend / Bid Constraints) — reinforced bottom hairline. */
 const STICKY_HEAD_ROW1_GROUP = cn(
   STICKY_HEAD_ROW1,
@@ -118,13 +118,13 @@ const STICKY_HEAD_ROW1_GROUP = cn(
 );
 /** Sticky thead row 2 — under row 1 (top: 2.5rem). */
 const STICKY_HEAD_ROW2 =
-  "sticky top-10 z-20 h-10 border-b border-slate-200 bg-slate-50 py-0";
+  "sticky top-10 z-10 h-10 border-b border-slate-200 bg-slate-50 py-0";
 /** Sticky thead row 3 — under rows 1+2 (top: 5rem). */
 const STICKY_HEAD_ROW3 =
-  "sticky top-20 z-20 h-10 border-b border-slate-200 bg-slate-50 py-0";
+  "sticky top-20 z-10 h-10 border-b border-slate-200 bg-slate-50 py-0";
 /** Auto / Others / portfolio title — rowSpan from row 2; stick under row 1. */
 const STICKY_HEAD_SPAN_FROM_ROW2 =
-  "sticky top-10 z-20 border-b border-slate-200 bg-slate-50 py-0";
+  "sticky top-10 z-10 border-b border-slate-200 bg-slate-50 py-0";
 
 /** Select numeric portion on focus — keeps ~ / $ prefixes and % suffix out of selection. */
 function selectEditablePortion(input: HTMLInputElement) {
@@ -1634,6 +1634,13 @@ export function ConstraintsStep() {
               const goalLabel = goalMetric
                 ? getGoalTypeLabel(goalMetric)
                 : null;
+              // Blue = session change (same as Goals & Budgets / Optimizer).
+              const goalMetricEdited = Boolean(goalMetric);
+              const goalMetricChange =
+                getLatestCellChange(nestedRow.id, "goalMetric") ??
+                (nestedRow.groupId
+                  ? getLatestCellChange(nestedRow.groupId, "goalMetric")
+                  : undefined);
 
               return (
                 <tr
@@ -1653,9 +1660,22 @@ export function ConstraintsStep() {
                     )}
                   >
                     {isEditableRow && goalLabel ? (
-                      <span className="text-sm font-medium text-slate-700">
-                        {goalLabel}
-                      </span>
+                      <ChangedCellTooltip
+                        visual={goalMetricEdited ? "edited" : "historic"}
+                        from={goalMetricChange?.from ?? "None"}
+                        to={goalMetricChange?.to ?? goalLabel}
+                      >
+                        <span
+                          className={cn(
+                            "text-sm font-medium",
+                            goalMetricEdited
+                              ? "text-blue-600"
+                              : "text-slate-700",
+                          )}
+                        >
+                          {goalLabel}
+                        </span>
+                      </ChangedCellTooltip>
                     ) : null}
                   </td>
                   {!isRuleBased &&

@@ -194,8 +194,8 @@ export function GeneralStep() {
             </div>
 
             <div
-              className="grid grid-cols-4 gap-1 rounded-lg bg-slate-100 p-1"
-              role="tablist"
+              className="grid grid-cols-2 gap-2 sm:grid-cols-4"
+              role="radiogroup"
               aria-label="Budget granularity"
             >
               {BUDGET_GRANULARITIES.map((option) => {
@@ -205,8 +205,8 @@ export function GeneralStep() {
                   <button
                     key={option}
                     type="button"
-                    role="tab"
-                    aria-selected={isSelected}
+                    role="radio"
+                    aria-checked={isSelected}
                     onClick={() => {
                       if (option === generalConfig.granularity) return;
                       recordGeneralGranularityChange(
@@ -216,13 +216,23 @@ export function GeneralStep() {
                       updateGeneralConfig({ granularity: option });
                     }}
                     className={cn(
-                      "rounded-md px-2 py-2.5 text-center text-sm transition-colors",
+                      "flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors",
                       isSelected
-                        ? "border border-brand-600 bg-white font-semibold text-brand-600"
-                        : "border border-transparent bg-transparent font-normal text-slate-500 hover:text-slate-700",
+                        ? "border-brand-600 bg-brand-50"
+                        : "border-slate-200 bg-white hover:bg-slate-50",
                     )}
                   >
-                    {option}
+                    <RadioIndicator selected={isSelected} compact />
+                    <span
+                      className={cn(
+                        "text-sm",
+                        isSelected
+                          ? "font-semibold text-slate-900"
+                          : "font-medium text-slate-700",
+                      )}
+                    >
+                      {option}
+                    </span>
                   </button>
                 );
               })}

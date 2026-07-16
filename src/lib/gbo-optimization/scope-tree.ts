@@ -61,6 +61,17 @@ function parseCurrencyAmount(value: string): number {
   return Number.isNaN(num) ? 0 : num;
 }
 
+/**
+ * Profile-style names in mock data look like “Coastal Select — East”.
+ * UI shows only the name before the em dash.
+ */
+export function formatScopeLevel2DisplayLabel(value: string): string {
+  const separator = " — ";
+  const index = value.indexOf(separator);
+  if (index === -1) return value;
+  return value.slice(0, index).trim();
+}
+
 function formatCurrencyAmount(value: number): string {
   if (value === 0) return "";
   return new Intl.NumberFormat("en-US", {
@@ -129,7 +140,9 @@ export function buildNestedScopeRows(
       result.push({
         id: child.id,
         kind: "level2-child",
-        label: getScopeTaxonomyValue(child, level2Key),
+        label: formatScopeLevel2DisplayLabel(
+          getScopeTaxonomyValue(child, level2Key),
+        ),
         groupId: parentId,
         childIds: [],
         depth: 1,

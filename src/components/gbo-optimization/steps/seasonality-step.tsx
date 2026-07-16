@@ -155,7 +155,7 @@ export function SeasonalityStep() {
           type="button"
           onClick={handleEntireBusiness}
           className={cn(
-            "inline-flex h-8 items-center rounded-md border bg-white px-3 text-sm font-medium transition-colors",
+            "inline-flex h-8 items-center rounded-md border bg-white px-3 font-sans text-sm font-medium transition-colors",
             isEntireBusiness
               ? "border-brand-600 bg-brand-25 text-slate-900"
               : "border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900",

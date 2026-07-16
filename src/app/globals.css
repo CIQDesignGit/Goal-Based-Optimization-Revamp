@@ -289,6 +289,14 @@
   html {
     @apply font-sans;
   }
+  /* Form controls do not inherit font-family from html in all browsers —
+     force Inter (design-specs / instructions) instead of UA defaults. */
+  button,
+  input,
+  select,
+  textarea {
+    @apply font-sans;
+  }
 }
 
 @keyframes toggle-label-shimmer {

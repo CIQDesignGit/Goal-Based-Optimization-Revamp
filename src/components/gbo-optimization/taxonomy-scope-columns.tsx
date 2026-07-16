@@ -183,8 +183,9 @@ export function NestedTaxonomyScopeHeader({
       }
       className={cn(
         "border-r border-slate-200 px-3 py-3 text-left font-medium",
+        // z-40: stay above other sticky thead cells so they scroll under this column
         sticky &&
-          "sticky top-0 z-30 bg-slate-50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]",
+          "sticky top-0 z-40 bg-slate-50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]",
         className,
       )}
     >
@@ -229,8 +230,9 @@ export function NestedTaxonomyScopeCell({
       }
       className={cn(
         "overflow-hidden border-r border-b border-slate-100 px-3 py-3 text-left",
+        // z-30: above scrolling body cells so content passes under this column
         sticky &&
-          "sticky z-20 bg-white shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] group-hover:bg-slate-50",
+          "sticky z-30 bg-white shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] group-hover:bg-slate-50",
         isParent ? "font-semibold text-slate-900" : "font-medium text-slate-700",
         className,
       )}

@@ -179,8 +179,8 @@ const BULK_METRIC_SELECT_TRIGGER_CLASS =
   "flex h-8 w-full min-w-0 max-w-full items-center justify-between gap-1 overflow-hidden rounded-md border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 shadow-none hover:border-slate-300 focus-visible:border-brand-300 focus-visible:ring-2 focus-visible:ring-brand-500/20";
 const STICKY_SCOPE_HEAD = "sticky top-0 z-50 bg-slate-50";
 const STICKY_SCOPE_CELL = "sticky z-40 bg-white group-hover:bg-slate-50";
-const STICKY_SCOPE_EDGE = "shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]";
-/** Goal freeze columns — below scope, above scrolling months. */
+/** Goal freeze columns — below scope, above scrolling months.
+ * Edge shadow lives only on the Goal group (not Scope) — both are fixed. */
 const STICKY_GOAL_HEAD = "sticky z-30 bg-slate-50";
 const STICKY_GOAL_CELL = "sticky z-20 bg-white group-hover:bg-slate-50";
 const STICKY_GOAL_EDGE =
@@ -687,7 +687,6 @@ function TaxonomyScopeHeader({
         "relative border-r border-slate-200 px-3 py-2.5 text-left font-medium",
         HEAD_ROW_BORDER,
         STICKY_SCOPE_HEAD,
-        STICKY_SCOPE_EDGE,
       )}
     >
       <div className="truncate pr-2">
@@ -1808,9 +1807,36 @@ export function GoalsBudgetsStep() {
                 ? getChildFyTotal(row.childIds)
                 : (fyTotals[row.id] ?? 0);
 
-              const last30Display =
-                GOALS_SCOPE_ROWS.find((item) => item.id === row.id)
-                  ?.last30Days ?? "";
+              // Level 1 parent ids are synthetic (`l1:…`) — not in GOALS_SCOPE_ROWS.
+              // Use the leaf row for children; average children for parents.
+              const last30Display = (() => {
+                if (isLevel2Child || isEntireBusiness) {
+                  return (
+                    GOALS_SCOPE_ROWS.find((item) => item.id === row.id)
+                      ?.last30Days ?? ""
+                  );
+                }
+
+                if (!isLevel1Parent) return "";
+
+                const childValues = row.childIds
+                  .map(
+                    (childId) =>
+                      GOALS_SCOPE_ROWS.find((item) => item.id === childId)
+                        ?.last30Days,
+                  )
+                  .map((value) =>
+                    value ? Number.parseFloat(value) : Number.NaN,
+                  )
+                  .filter((value) => !Number.isNaN(value));
+
+                if (childValues.length === 0) return "";
+
+                const average =
+                  childValues.reduce((sum, value) => sum + value, 0) /
+                  childValues.length;
+                return average.toFixed(2);
+              })();
 
               const onBlockedInteraction = () => {
                 if (isBlockedChild) {
@@ -1830,7 +1856,6 @@ export function GoalsBudgetsStep() {
                       "overflow-hidden border-r border-slate-100 px-3 py-2.5 text-left",
                       ROW_BORDER,
                       STICKY_SCOPE_CELL,
-                      STICKY_SCOPE_EDGE,
                       isEntireBusiness || isLevel1Parent
                         ? "font-semibold text-slate-900"
                         : "font-medium text-slate-700",
@@ -1961,11 +1986,6 @@ export function GoalsBudgetsStep() {
                             ? "bg-white group-hover:bg-white"
                             : "bg-slate-100 group-hover:bg-slate-100",
                         )}
-                        onClick={
-                          isBlockedChild || isBlockedParent
-                            ? onBlockedInteraction
-                            : undefined
-                        }
                       >
                         {editable && canEditGoal ? (
                           <div className="flex min-w-0 flex-col gap-1">
@@ -2019,13 +2039,14 @@ export function GoalsBudgetsStep() {
                           LAST_30_CELL,
                           STICKY_GOAL_CELL,
                           STICKY_GOAL_EDGE,
-                          canEditGoal && canEditBudget
+                          canEditGoal
                             ? "bg-white group-hover:bg-slate-50"
                             : "bg-slate-100 group-hover:bg-slate-100",
                         )}
                       >
                         <span className="block px-2 py-1.5 tabular-nums text-slate-700">
-                          {canEditGoal && canEditBudget ? last30Display : ""}
+                          {/* Reference metric — show whenever this row can take a goal (even before one is picked). */}
+                          {canEditGoal ? last30Display : ""}
                         </span>
                       </td>
                     </>
@@ -2047,7 +2068,6 @@ export function GoalsBudgetsStep() {
                               hasUnfilledCurrentMonthBudget,
                               hasUnfilledNextMonthBudget,
                             )}
-                            onClick={onBlockedInteraction}
                           >
                             <span
                               className={cn(
@@ -2074,7 +2094,6 @@ export function GoalsBudgetsStep() {
                               hasUnfilledCurrentMonthBudget,
                               hasUnfilledNextMonthBudget,
                             )}
-                            onClick={onBlockedInteraction}
                           />
                         );
                       }

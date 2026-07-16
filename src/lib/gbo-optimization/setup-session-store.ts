@@ -1150,7 +1150,7 @@ export function recordGoalsBudgetChange(
 }
 
 /** Portfolio-level General step changes (goal, aggressiveness, optimizer, granularity). */
-const PORTFOLIO_CHANGE_SCOPE_ID = "__portfolio__";
+export const PORTFOLIO_CHANGE_SCOPE_ID = "__portfolio__";
 
 export function recordGeneralPortfolioChange(
   field: string,
@@ -1217,7 +1217,54 @@ export function recordGeneralOptimizerTypeChange(
 }
 
 export function recordGeneralGranularityChange(from: string, to: string): void {
-  recordGeneralPortfolioChange("granularity", "Budget granularity", from, to);
+  const GRANULARITY_FIELD = "granularity";
+  const { changeLedger } = useSetupSessionStore.getState();
+
+  // Keep the first “from” as the session original so intermediate clicks don’t stack.
+  const existing = changeLedger.filter(
+    (entry) =>
+      entry.scopeId === PORTFOLIO_CHANGE_SCOPE_ID &&
+      entry.field === GRANULARITY_FIELD,
+  );
+  const original = existing[0]?.from.trim() || from.trim();
+  const next = to.trim();
+
+  useSetupSessionStore.setState((state) => {
+    const withoutGranularity = state.changeLedger.filter(
+      (entry) =>
+        !(
+          entry.scopeId === PORTFOLIO_CHANGE_SCOPE_ID &&
+          entry.field === GRANULARITY_FIELD
+        ),
+    );
+
+    // Reverted to original — no granularity change to show on Summary.
+    if (next === original) {
+      return {
+        changeLedger: withoutGranularity,
+        summaryReviewed: false,
+      };
+    }
+
+    return {
+      summaryReviewed: false,
+      changeLedger: [
+        ...withoutGranularity,
+        {
+          id: nextChangeId(),
+          step: "general" as const,
+          scopeId: PORTFOLIO_CHANGE_SCOPE_ID,
+          scopeName: "Portfolio",
+          field: GRANULARITY_FIELD,
+          fieldLabel: "Budget granularity",
+          from: original,
+          to: next,
+          category: "general" as const,
+          timestamp: Date.now(),
+        },
+      ],
+    };
+  });
 }
 
 /**

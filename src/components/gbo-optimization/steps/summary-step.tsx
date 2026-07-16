@@ -38,6 +38,7 @@ import {
 import {
   groupChangesByStep,
   hasTaxonomyChanged,
+  PORTFOLIO_CHANGE_SCOPE_ID,
   SETUP_CHANGE_CATEGORY_LABELS,
   useSetupSessionStore,
   type ChangeLedgerEntry,
@@ -393,7 +394,8 @@ function ChangeRow({
   hideScope?: boolean;
 }) {
   const identity = useScopeIdentityForId(entry.scopeId);
-  // Seasonality stores the form Scope label on the ledger entry.
+  // General settings (granularity, goal type, …) are portfolio-wide — not a taxonomy leaf.
+  const isGeneralSetting = entry.scopeId === PORTFOLIO_CHANGE_SCOPE_ID;
   const tagLabel =
     entry.category === "seasonality" ? entry.scopeName : undefined;
 
@@ -404,27 +406,22 @@ function ChangeRow({
 
   return (
     <li className="grid gap-2 border-b border-slate-100 py-3 last:border-b-0 sm:grid-cols-[5.5rem_minmax(0,2.2fr)_auto_minmax(0,1.2fr)] sm:items-start sm:gap-3">
-      {/* Col 1 — scope level of the change (Entire Business / L1 / L2) */}
+      {/* Col 1 — scope level tag (skip for General settings — not a taxonomy scope) */}
       <div className="sm:pt-0.5">
-        <ScopeLevelTag identity={identity} label={tagLabel} />
+        {isGeneralSetting ? null : (
+          <ScopeLevelTag identity={identity} label={tagLabel} />
+        )}
       </div>
 
       <div className="min-w-0">
-        {!hideScope ? (
-          <>
-            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-              <p className="text-sm font-medium wrap-break-word text-slate-900">
-                {identity.primaryName}
-              </p>
-              <p className="text-xs wrap-break-word text-slate-500">
-                {entry.fieldLabel}
-              </p>
-            </div>
-            <ScopeHierarchyCue scopeId={entry.scopeId} />
-          </>
-        ) : (
+        {isGeneralSetting || hideScope ? (
+          // General settings / by-impact: field name is the primary line.
           <p className="text-sm font-medium wrap-break-word text-slate-900">
             {entry.fieldLabel}
+          </p>
+        ) : (
+          <p className="text-sm font-medium wrap-break-word text-slate-900">
+            {identity.primaryName}
           </p>
         )}
       </div>
@@ -544,12 +541,19 @@ function ChangesAccordionSection({
   const scopeIdentity = useScopeIdentityForId(
     scopeId ?? ENTIRE_BUSINESS_SCOPE_ID,
   );
-  const headingLabel = scopeId ? scopeIdentity.primaryName : label;
-  // When grouping seasonality by the form Scope, show that label on the tag.
+  const isGeneralSettingGroup = scopeId === PORTFOLIO_CHANGE_SCOPE_ID;
+  const headingLabel = isGeneralSettingGroup
+    ? "General"
+    : scopeId
+      ? scopeIdentity.primaryName
+      : label;
+  // Seasonality form Scope, or General settings group tag.
   const scopeTagLabel =
     scopeId && entries[0]?.category === "seasonality"
       ? entries[0].scopeName
-      : undefined;
+      : isGeneralSettingGroup
+        ? "General"
+        : undefined;
 
   const availableCategories = categories ?? uniqueCategories(entries);
 
@@ -626,7 +630,11 @@ function ChangesAccordionSection({
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               {scopeId ? (
                 <ScopeLevelTag
-                  identity={scopeIdentity}
+                  identity={
+                    isGeneralSettingGroup
+                      ? { ...scopeIdentity, editLevel: "entire-business" }
+                      : scopeIdentity
+                  }
                   label={scopeTagLabel}
                 />
               ) : null}
@@ -634,10 +642,14 @@ function ChangesAccordionSection({
                 {headingLabel}
               </h3>
             </div>
-            {scopeId ? (
+            {scopeId && !isGeneralSettingGroup ? (
               <ScopeHierarchyCue scopeId={scopeId} />
-            ) : (
+            ) : !scopeId ? (
               <TaxonomyLevelsHint />
+            ) : (
+              <p className="mt-0.5 text-xs leading-snug text-slate-400">
+                Setup settings
+              </p>
             )}
           </div>
         </div>
