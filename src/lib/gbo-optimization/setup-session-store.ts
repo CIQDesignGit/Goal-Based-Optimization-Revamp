@@ -23,8 +23,10 @@ import {
   getGoalTypeLabel,
   getLevel2Options,
   getLevelLabel,
+  getSeasonalityScopeOptions,
   GOALS_SCOPE_ROWS,
   resolveInitialMonthlyBudgets,
+  SEASONALITY_LEVEL2_SCOPE_ID,
   type AggressivenessLevel,
   type ConstraintLast30Days,
   type GoalType,
@@ -40,6 +42,7 @@ import {
   getScopeIdentity,
   isLevel1ParentId,
   listLevel1Groups,
+  makeLevel1ParentIdFromLabel,
   type ScopeEditMode,
 } from "@/lib/gbo-optimization/scope-tree";
 
@@ -1217,17 +1220,57 @@ export function recordGeneralGranularityChange(from: string, to: string): void {
   recordGeneralPortfolioChange("granularity", "Budget granularity", from, to);
 }
 
-export function recordSeasonalityEventAdded(eventLabel: string): void {
+/**
+ * Map the Seasonality form Scope dropdown → ledger scopeId / label
+ * so Summary tags match Entire Business / Level 1 / Level 2 from General.
+ */
+function resolveSeasonalityChangeScope(scope: string): {
+  scopeId: string;
+  scopeName: string;
+} {
+  const { budgetType, level1, level2 } =
+    useSetupSessionStore.getState().generalConfig;
+  const options = getSeasonalityScopeOptions(budgetType, level1, level2);
+  const option = options.find((item) => item.value === scope);
+  const scopeName =
+    option?.label ??
+    (scope === "entire-business"
+      ? "Entire Business"
+      : getLevelLabel(budgetType, scope));
+
+  if (scope === "entire-business") {
+    return { scopeId: ENTIRE_BUSINESS_SCOPE_ID, scopeName };
+  }
+
+  if (scope === level1) {
+    // Level 1–style tag (filled)
+    return {
+      scopeId: makeLevel1ParentIdFromLabel(scopeName),
+      scopeName,
+    };
+  }
+
+  // Level 2 (or any other) → outline tag
+  return { scopeId: SEASONALITY_LEVEL2_SCOPE_ID, scopeName };
+}
+
+export function recordSeasonalityEventAdded(
+  eventName: string,
+  dateRange: string,
+  scope: string,
+): void {
   const { recordChange } = useSetupSessionStore.getState();
+  const { scopeId, scopeName } = resolveSeasonalityChangeScope(scope);
 
   recordChange({
     step: "seasonality",
-    scopeId: ENTIRE_BUSINESS_SCOPE_ID,
-    scopeName: "Entire business",
+    scopeId,
+    scopeName,
     field: `seasonality.add.${Date.now()}`,
     fieldLabel: "Seasonality event",
-    from: "—",
-    to: eventLabel,
+    // For adds, Summary shows `to` as the title and `from` as secondary dates.
+    from: dateRange.trim() || "—",
+    to: eventName.trim() || "New event",
     category: "seasonality",
   });
 }
@@ -1235,13 +1278,15 @@ export function recordSeasonalityEventAdded(eventLabel: string): void {
 export function recordSeasonalityEventUpdated(
   fromLabel: string,
   toLabel: string,
+  scope: string,
 ): void {
   const { recordChange } = useSetupSessionStore.getState();
+  const { scopeId, scopeName } = resolveSeasonalityChangeScope(scope);
 
   recordChange({
     step: "seasonality",
-    scopeId: ENTIRE_BUSINESS_SCOPE_ID,
-    scopeName: "Entire business",
+    scopeId,
+    scopeName,
     field: `seasonality.update.${Date.now()}`,
     fieldLabel: "Seasonality event",
     from: fromLabel,
@@ -1250,13 +1295,17 @@ export function recordSeasonalityEventUpdated(
   });
 }
 
-export function recordSeasonalityEventRemoved(eventLabel: string): void {
+export function recordSeasonalityEventRemoved(
+  eventLabel: string,
+  scope: string,
+): void {
   const { recordChange } = useSetupSessionStore.getState();
+  const { scopeId, scopeName } = resolveSeasonalityChangeScope(scope);
 
   recordChange({
     step: "seasonality",
-    scopeId: ENTIRE_BUSINESS_SCOPE_ID,
-    scopeName: "Entire business",
+    scopeId,
+    scopeName,
     field: `seasonality.remove.${Date.now()}`,
     fieldLabel: "Seasonality event",
     from: eventLabel,

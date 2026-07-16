@@ -24,7 +24,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   BLANK_SEASONALITY_FORM,
-  SEASONALITY_SCOPE_OPTIONS,
+  getSeasonalityScopeLabel,
+  getSeasonalityScopeOptions,
   type SeasonalityDraftFormState,
   type SeasonalityEvent,
 } from "@/lib/gbo-optimization/setup-data";
@@ -224,9 +225,17 @@ function SavedSeasonalityEventRow({
   onEdit: (event: SeasonalityEvent) => void;
   onDelete: (event: SeasonalityEvent) => void;
 }) {
-  const scopeLabel =
-    SEASONALITY_SCOPE_OPTIONS.find((option) => option.value === event.scope)
-      ?.label ?? event.scope;
+  const budgetType = useSetupSessionStore(
+    (state) => state.generalConfig.budgetType,
+  );
+  const level1 = useSetupSessionStore((state) => state.generalConfig.level1);
+  const level2 = useSetupSessionStore((state) => state.generalConfig.level2);
+  const scopeLabel = getSeasonalityScopeLabel(
+    event.scope,
+    budgetType,
+    level1,
+    level2,
+  );
 
   const budgetLabel = formatSeasonalityBudgetDisplay(
     event.budgetMode,
@@ -720,6 +729,13 @@ function SeasonalityEventFormRow({
   onSave: () => void;
   onClose: () => void;
 }) {
+  const budgetType = useSetupSessionStore(
+    (state) => state.generalConfig.budgetType,
+  );
+  const level1 = useSetupSessionStore((state) => state.generalConfig.level1);
+  const level2 = useSetupSessionStore((state) => state.generalConfig.level2);
+  const scopeOptions = getSeasonalityScopeOptions(budgetType, level1, level2);
+
   const showMidMonthWarning =
     form.name.trim().length > 0 &&
     shouldWarnMidMonthSeasonalityTiming(form.startDate, form.endDate);
@@ -788,7 +804,7 @@ function SeasonalityEventFormRow({
           label="Scope"
           hideLabel
           value={form.scope}
-          options={SEASONALITY_SCOPE_OPTIONS}
+          options={scopeOptions}
           placeholder="Select Scope"
           onValueChange={(scope) => onChange({ scope })}
           triggerClassName={cn(
@@ -1097,11 +1113,6 @@ export function SeasonalityEventsSection({
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-slate-500">
-        Add a custom event below. Select scope and budget, then save to add it
-        to your plan.
-      </p>
-
       <div className="flex flex-col gap-3">
         <CustomEventsSection
           rows={customRows}

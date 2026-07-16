@@ -47,6 +47,7 @@
   --tracking-wider: 0.05em;
 
   /* Brand palette — Tailwind blue */
+  --color-brand-25: #f5f9ff;
   --color-brand-50: #eff6ff;
   --color-brand-100: #dbeafe;
   --color-brand-200: #bfdbfe;

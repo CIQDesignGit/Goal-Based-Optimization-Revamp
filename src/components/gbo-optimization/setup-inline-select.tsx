@@ -21,6 +21,13 @@ type SetupInlineSelectProps = {
   triggerClassName?: string;
   onClear?: () => void;
   hideLabel?: boolean;
+  /**
+   * Put the label inside the trigger (gray) next to a bold selected value —
+   * e.g. “Portfolio National Grocery ▾”. Implies hideLabel for the outer Label.
+   */
+  showInlineLabel?: boolean;
+  /** Brand-colored border/text — for mutually exclusive filter chips. */
+  isActive?: boolean;
   menuMinWidth?: number;
 };
 
@@ -39,6 +46,8 @@ export function SetupInlineSelect({
   triggerClassName,
   onClear,
   hideLabel = false,
+  showInlineLabel = false,
+  isActive = false,
   menuMinWidth = MENU_MIN_WIDTH_PX,
 }: SetupInlineSelectProps) {
   const [listOpen, setListOpen] = useState(false);
@@ -56,6 +65,7 @@ export function SetupInlineSelect({
 
   const selectedLabel =
     options.find((option) => option.value === value)?.label ?? null;
+  const hideOuterLabel = hideLabel || showInlineLabel;
 
   useLayoutEffect(() => {
     if (!listOpen || !triggerRef.current) {
@@ -102,14 +112,30 @@ export function SetupInlineSelect({
   }, [listOpen]);
 
   return (
-    <div ref={rootRef} className={cn("min-w-0 w-full", !hideLabel && "space-y-1.5")}>
-      {!hideLabel ? (
-        <Label id={labelId} htmlFor={triggerId} className="text-sm font-normal text-slate-500">
+    <div
+      ref={rootRef}
+      className={cn(
+        "min-w-0",
+        showInlineLabel ? "w-fit max-w-full" : "w-full",
+        !hideOuterLabel && "space-y-1.5",
+      )}
+    >
+      {!hideOuterLabel ? (
+        <Label
+          id={labelId}
+          htmlFor={triggerId}
+          className="text-sm font-normal text-slate-500"
+        >
           {label}
         </Label>
       ) : null}
 
-      <div className="relative min-w-0 w-full">
+      <div
+        className={cn(
+          "relative min-w-0",
+          showInlineLabel ? "w-fit max-w-full" : "w-full",
+        )}
+      >
         <button
           ref={triggerRef}
           id={triggerId}
@@ -118,21 +144,50 @@ export function SetupInlineSelect({
           aria-expanded={listOpen}
           aria-controls={listOpen ? listId : undefined}
           aria-haspopup="listbox"
-          aria-labelledby={hideLabel ? undefined : labelId}
-          aria-label={hideLabel ? label : undefined}
-          className={cn(INLINE_SELECT_TRIGGER_BASE, "min-w-0 max-w-full", triggerClassName)}
+          aria-labelledby={hideOuterLabel ? undefined : labelId}
+          aria-label={hideOuterLabel ? label : undefined}
+          className={cn(
+            INLINE_SELECT_TRIGGER_BASE,
+            showInlineLabel
+              ? "h-8 w-auto max-w-full py-0"
+              : "min-w-0 max-w-full",
+            showInlineLabel &&
+              (isActive
+                ? "border-brand-600 bg-brand-25"
+                : "border-slate-200 bg-white"),
+            triggerClassName,
+          )}
           onClick={() => setListOpen((current) => !current)}
         >
-          <span
-            className={cn(
-              "min-w-0 flex-1 truncate text-left text-sm",
-              // Inherit trigger color so edited (blue) styling can apply.
-              selectedLabel ? "text-inherit" : "text-slate-400",
-            )}
-          >
-            {selectedLabel ?? placeholder}
-          </span>
-          <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+          {showInlineLabel ? (
+            // Gray dimension label + bold selected value (Brand NutriChef pattern)
+            <span className="flex items-baseline gap-1.5 whitespace-nowrap text-left">
+              <span className="shrink-0 text-sm font-normal text-slate-500">
+                {label}
+              </span>
+              <span
+                className={cn(
+                  "text-sm whitespace-nowrap",
+                  selectedLabel
+                    ? "font-semibold text-slate-900"
+                    : "font-normal text-slate-400",
+                )}
+              >
+                {selectedLabel ?? placeholder}
+              </span>
+            </span>
+          ) : (
+            <span
+              className={cn(
+                "min-w-0 flex-1 truncate text-left text-sm",
+                // Inherit trigger color so edited (blue) styling can apply.
+                selectedLabel ? "text-inherit" : "text-slate-400",
+              )}
+            >
+              {selectedLabel ?? placeholder}
+            </span>
+          )}
+          <ChevronDown className="size-4 shrink-0 text-slate-400" />
         </button>
 
         {value && onClear ? (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, ChevronDown } from "lucide-react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 
@@ -15,7 +15,10 @@ import {
 } from "@/components/ui/chart";
 import { Label } from "@/components/ui/label";
 import {
-  LEVEL_1_OPTIONS,
+  ENTIRE_BUSINESS_SCOPE_ID,
+  getLevelLabel,
+  getScopeTaxonomyValue,
+  GOALS_SCOPE_ROWS,
   MOCK_SAVED_SEASONALITY_EVENTS,
   SEASONALITY_CHART_DATA,
   type SeasonalityEvent,
@@ -24,6 +27,7 @@ import {
   recordSeasonalityEventAdded,
   recordSeasonalityEventRemoved,
   recordSeasonalityEventUpdated,
+  useSetupSessionStore,
 } from "@/lib/gbo-optimization/setup-session-store";
 import { cn } from "@/lib/utils";
 
@@ -43,10 +47,7 @@ function formatCurrency(value: number) {
 }
 
 function formatSeasonalityEventLabel(event: SeasonalityEvent): string {
-  const range =
-    event.startDate && event.endDate
-      ? `${event.startDate} → ${event.endDate}`
-      : event.startDate || event.endDate || "";
+  const range = formatSeasonalityDateRange(event);
   const budget = event.budgetValue
     ? `${event.budgetMode} ${event.budgetValue}`
     : "";
@@ -54,31 +55,154 @@ function formatSeasonalityEventLabel(event: SeasonalityEvent): string {
   return parts.join(" · ");
 }
 
+function formatSeasonalityDateRange(event: SeasonalityEvent): string {
+  if (event.startDate && event.endDate) {
+    return `${event.startDate} → ${event.endDate}`;
+  }
+  return event.startDate || event.endDate || "";
+}
+
+/** Unique taxonomy values for a Level 1 / Level 2 key (chart filter dropdown). */
+function getTaxonomyFilterOptions(
+  levelKey: string,
+  /** When set, only include values that appear under this Level 1 value. */
+  level1Key?: string,
+  level1Value?: string | null,
+): { value: string; label: string }[] {
+  const values = new Set<string>();
+
+  for (const row of GOALS_SCOPE_ROWS) {
+    if (row.id === ENTIRE_BUSINESS_SCOPE_ID || !row.taxonomy) continue;
+
+    if (level1Key && level1Value) {
+      if (getScopeTaxonomyValue(row, level1Key) !== level1Value) continue;
+    }
+
+    const value = getScopeTaxonomyValue(row, levelKey).trim();
+    if (value) values.add(value);
+  }
+
+  return [...values]
+    .sort((a, b) => a.localeCompare(b))
+    .map((value) => ({ value, label: value }));
+}
+
 export function SeasonalityStep() {
   // Seed with mock saved events so the list is visible for UX review.
   const [events, setEvents] = useState<SeasonalityEvent[]>(
     () => [...MOCK_SAVED_SEASONALITY_EVENTS],
   );
-  const [viewMode, setViewMode] = useState<"entire-business" | "portfolio">(
-    "entire-business",
-  );
-  const [portfolio, setPortfolio] = useState<string | null>("portfolio");
+  const [level1Filter, setLevel1Filter] = useState<string | null>(null);
+  const [level2Filter, setLevel2Filter] = useState<string | null>(null);
   const [chartMode, setChartMode] = useState<"absolute" | "cumulative">(
     "absolute",
   );
 
+  const budgetType = useSetupSessionStore(
+    (state) => state.generalConfig.budgetType,
+  );
+  const level1Key = useSetupSessionStore((state) => state.generalConfig.level1);
+  const level2Key = useSetupSessionStore((state) => state.generalConfig.level2);
+  const level1Label = getLevelLabel(budgetType, level1Key);
+  const level2Label = getLevelLabel(budgetType, level2Key);
+
+  // Taxonomy changed in General — reset chart filters so labels/options stay valid.
+  useEffect(() => {
+    setLevel1Filter(null);
+    setLevel2Filter(null);
+  }, [budgetType, level1Key, level2Key]);
+
+  const isEntireBusiness = level1Filter === null && level2Filter === null;
+  const isLevel1Active = level1Filter !== null;
+  const isLevel2Active = level2Filter !== null;
+
+  const level1Options = useMemo(
+    () => getTaxonomyFilterOptions(level1Key),
+    [level1Key],
+  );
+  // Flat list — Level 2 is an alternate scope, not nested under Level 1.
+  const level2Options = useMemo(
+    () => getTaxonomyFilterOptions(level2Key),
+    [level2Key],
+  );
+
+  const handleEntireBusiness = () => {
+    setLevel1Filter(null);
+    setLevel2Filter(null);
+  };
+
+  // Only one chip active: picking Level 1 clears Level 2.
+  const handleLevel1Change = (value: string) => {
+    setLevel1Filter(value);
+    setLevel2Filter(null);
+  };
+
+  // Only one chip active: picking Level 2 clears Level 1.
+  const handleLevel2Change = (value: string) => {
+    setLevel2Filter(value);
+    setLevel1Filter(null);
+  };
+
   return (
-    <div className="flex flex-col gap-6 py-4">
+    <div className="flex flex-col gap-4 py-4">
       <h2 className="text-base font-medium text-slate-900">
         Cumulative budget plan for the year 2026
       </h2>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Entire Business — active when no Level 1 / Level 2 filter is set */}
+        <button
+          type="button"
+          onClick={handleEntireBusiness}
+          className={cn(
+            "inline-flex h-8 items-center rounded-md border bg-white px-3 text-sm font-medium transition-colors",
+            isEntireBusiness
+              ? "border-brand-600 bg-brand-25 text-slate-900"
+              : "border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900",
+          )}
+        >
+          Entire Business
+        </button>
+
+        {/* Level 1 filter — e.g. “Portfolio National Grocery ▾” */}
+        <div className="w-fit max-w-full">
+          <SetupInlineSelect
+            label={level1Label}
+            showInlineLabel
+            isActive={isLevel1Active}
+            value={level1Filter}
+            options={level1Options}
+            placeholder="Select"
+            onValueChange={handleLevel1Change}
+            triggerClassName="h-8 py-0"
+            menuMinWidth={200}
+          />
+        </div>
+
+        {/* Level 2 filter — e.g. “Profiles JBC Frozen — US ▾” */}
+        <div className="w-fit max-w-full">
+          <SetupInlineSelect
+            label={level2Label}
+            showInlineLabel
+            isActive={isLevel2Active}
+            value={level2Filter}
+            options={level2Options}
+            placeholder="Select"
+            onValueChange={handleLevel2Change}
+            triggerClassName="h-8 py-0"
+            menuMinWidth={200}
+          />
+        </div>
+      </div>
 
       <SeasonalityEventsSection
         events={events}
         onAddEvent={(event) => {
           setEvents((current) => [...current, event]);
           recordSeasonalityEventAdded(
-            formatSeasonalityEventLabel(event) || event.name || "New event",
+            event.name.trim() || "New event",
+            formatSeasonalityDateRange(event),
+            event.scope,
           );
         }}
         onUpdateEvent={(updatedEvent) => {
@@ -92,6 +216,7 @@ export function SeasonalityStep() {
             recordSeasonalityEventUpdated(
               formatSeasonalityEventLabel(previous),
               formatSeasonalityEventLabel(updatedEvent),
+              updatedEvent.scope,
             );
           }
         }}
@@ -103,65 +228,11 @@ export function SeasonalityStep() {
           if (previous) {
             recordSeasonalityEventRemoved(
               formatSeasonalityEventLabel(previous),
+              previous.scope,
             );
           }
         }}
       />
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex h-10 rounded-md border border-slate-200 bg-white p-0.5">
-            <button
-              type="button"
-              onClick={() => setViewMode("entire-business")}
-              className={cn(
-                "flex h-full items-center rounded px-3 text-sm font-medium transition-colors",
-                viewMode === "entire-business"
-                  ? "border border-brand-600 text-brand-600"
-                  : "text-slate-600 hover:text-slate-900",
-              )}
-            >
-              Entire Business
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("portfolio")}
-              className={cn(
-                "flex h-full items-center gap-1 rounded px-3 text-sm font-medium transition-colors",
-                viewMode === "portfolio"
-                  ? "border border-brand-600 text-brand-600"
-                  : "text-slate-600 hover:text-slate-900",
-              )}
-            >
-              Portfolio
-              <ChevronDown className="size-4" />
-            </button>
-          </div>
-
-          {viewMode === "portfolio" && (
-            <div className="w-44">
-              <SetupInlineSelect
-                label="Portfolio"
-                hideLabel
-                value={portfolio}
-                options={LEVEL_1_OPTIONS}
-                placeholder="Select portfolio"
-                onValueChange={setPortfolio}
-              />
-            </div>
-          )}
-        </div>
-
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-9 gap-2 border-slate-200 bg-white text-slate-700 shadow-none"
-        >
-          <CalendarDays className="size-4 text-slate-500" />
-          Jan 01, 2026 - Dec 31, 2026
-          <ChevronDown className="size-4 text-slate-400" />
-        </Button>
-      </div>
 
       <Card className="border-slate-200 shadow-none">
         <CardContent className="flex flex-col gap-4">
@@ -196,18 +267,32 @@ export function SeasonalityStep() {
               </div>
             </fieldset>
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 gap-2 border-slate-200 bg-white text-slate-700 shadow-none"
-            >
-              <CalendarDays className="size-4 text-slate-500" />
-              Roll up by: Days
-              <ChevronDown className="size-4 text-slate-400" />
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-2 border-slate-200 bg-white text-slate-700 shadow-none"
+              >
+                <CalendarDays className="size-4 text-slate-500" />
+                Roll up by: Days
+                <ChevronDown className="size-4 text-slate-400" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-2 border-slate-200 bg-white text-slate-700 shadow-none"
+              >
+                <CalendarDays className="size-4 text-slate-500" />
+                Jan 01, 2026 - Dec 31, 2026
+                <ChevronDown className="size-4 text-slate-400" />
+              </Button>
+            </div>
           </div>
 
-          <ChartContainer config={CHART_CONFIG} className="aspect-[2.4/1] h-[320px] w-full">
+          <ChartContainer
+            config={CHART_CONFIG}
+            className="aspect-[2.4/1] h-[320px] w-full"
+          >
             <LineChart
               data={SEASONALITY_CHART_DATA}
               margin={{ top: 8, right: 12, left: 0, bottom: 0 }}

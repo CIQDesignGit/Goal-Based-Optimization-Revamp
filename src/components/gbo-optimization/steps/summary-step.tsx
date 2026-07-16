@@ -117,22 +117,27 @@ function uniqueCategories(
 }
 
 /**
- * Tag for the taxonomy dimension that was edited (e.g. Portfolio, Profiles).
- * Level 1 is filled/stronger; Level 2 is outline only (border, no fill).
+ * Tag for the scope level of a change:
+ * Entire Business / Level 1 dimension / Level 2 dimension.
+ * Level 1 (+ entire business) = filled; Level 2 = outline only.
  */
 function ScopeLevelTag({
   identity,
+  label: labelOverride,
   className,
 }: {
   identity: ScopeIdentity;
+  /** When set (e.g. seasonality Scope dropdown), wins over identity defaults. */
+  label?: string;
   className?: string;
 }) {
   const label =
-    identity.editLevel === "entire-business"
-      ? "Portfolio"
+    labelOverride ??
+    (identity.editLevel === "entire-business"
+      ? "Entire Business"
       : identity.editLevel === "level1"
         ? identity.level1Label
-        : identity.level2Label;
+        : identity.level2Label);
 
   const isLevel1 =
     identity.editLevel === "level1" ||
@@ -388,12 +393,20 @@ function ChangeRow({
   hideScope?: boolean;
 }) {
   const identity = useScopeIdentityForId(entry.scopeId);
+  // Seasonality stores the form Scope label on the ledger entry.
+  const tagLabel =
+    entry.category === "seasonality" ? entry.scopeName : undefined;
+
+  const isSeasonalityAdd = entry.field.startsWith("seasonality.add.");
+  const seasonalityAdd = isSeasonalityAdd
+    ? resolveSeasonalityAddDisplay(entry)
+    : null;
 
   return (
     <li className="grid gap-2 border-b border-slate-100 py-3 last:border-b-0 sm:grid-cols-[5.5rem_minmax(0,2.2fr)_auto_minmax(0,1.2fr)] sm:items-start sm:gap-3">
-      {/* Col 1 — taxonomy dimension that was edited (Portfolio / Profiles / …) */}
+      {/* Col 1 — scope level of the change (Entire Business / L1 / L2) */}
       <div className="sm:pt-0.5">
-        <ScopeLevelTag identity={identity} />
+        <ScopeLevelTag identity={identity} label={tagLabel} />
       </div>
 
       <div className="min-w-0">
@@ -429,16 +442,82 @@ function ChangeRow({
       </div>
 
       <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm tabular-nums sm:justify-end sm:pt-0.5">
-        <span className="text-slate-500 line-through decoration-slate-300">
-          {formatChangeValue(entry.from)}
-        </span>
-        <ArrowRight className="size-3.5 shrink-0 text-slate-400" aria-hidden />
-        <span className="font-medium text-slate-900">
-          {formatChangeValue(entry.to)}
-        </span>
+        {seasonalityAdd ? (
+          // Additions: title + dates + Added tag (no “—” → arrow)
+          <div className="flex min-w-0 flex-col items-end gap-1 text-right">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <span className="font-medium wrap-break-word text-slate-900">
+                {seasonalityAdd.name}
+              </span>
+              <Badge
+                variant="secondary"
+                className="border border-emerald-200 bg-emerald-50 font-normal text-emerald-700"
+              >
+                Added
+              </Badge>
+            </div>
+            {seasonalityAdd.dates ? (
+              <span className="text-xs leading-snug text-slate-500">
+                {seasonalityAdd.dates}
+              </span>
+            ) : null}
+          </div>
+        ) : (
+          <>
+            <span className="text-slate-500 line-through decoration-slate-300">
+              {formatChangeValue(entry.from)}
+            </span>
+            <ArrowRight
+              className="size-3.5 shrink-0 text-slate-400"
+              aria-hidden
+            />
+            <span className="font-medium text-slate-900">
+              {formatChangeValue(entry.to)}
+            </span>
+          </>
+        )}
       </div>
     </li>
   );
+}
+
+/**
+ * Seasonality “add” rows: title on top, dates underneath.
+ * Supports new ledger shape (to=name, from=dates) and older “name · dates · …” labels.
+ */
+function resolveSeasonalityAddDisplay(entry: ChangeLedgerEntry): {
+  name: string;
+  dates: string | null;
+} {
+  const from = entry.from.trim();
+  const to = entry.to.trim();
+
+  // New shape: to is the event name; from is the date range (or "—").
+  if (!to.includes(" · ")) {
+    return {
+      name: to || "New event",
+      dates: !from || from === "—" ? null : from,
+    };
+  }
+
+  // Legacy: "Name · Jul 08, 2026 → Jul 08, 2026 · percent 0"
+  const parts = to
+    .split(" · ")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const datePart = parts.find((part) => part.includes("→")) ?? null;
+  const name =
+    parts.find(
+      (part) =>
+        part !== datePart && !/^(percent|absolute)\b/i.test(part),
+    ) ??
+    parts[0] ??
+    to;
+
+  return {
+    name: name || "New event",
+    dates: datePart,
+  };
 }
 
 function ChangesAccordionSection({
@@ -466,6 +545,11 @@ function ChangesAccordionSection({
     scopeId ?? ENTIRE_BUSINESS_SCOPE_ID,
   );
   const headingLabel = scopeId ? scopeIdentity.primaryName : label;
+  // When grouping seasonality by the form Scope, show that label on the tag.
+  const scopeTagLabel =
+    scopeId && entries[0]?.category === "seasonality"
+      ? entries[0].scopeName
+      : undefined;
 
   const availableCategories = categories ?? uniqueCategories(entries);
 
@@ -540,7 +624,12 @@ function ChangesAccordionSection({
           />
           <div className="min-w-0 space-y-1 py-0.5">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              {scopeId ? <ScopeLevelTag identity={scopeIdentity} /> : null}
+              {scopeId ? (
+                <ScopeLevelTag
+                  identity={scopeIdentity}
+                  label={scopeTagLabel}
+                />
+              ) : null}
               <h3 className="text-sm font-semibold wrap-break-word text-slate-900">
                 {headingLabel}
               </h3>

@@ -6,6 +6,7 @@
 import {
   BUDGET_MONTHS,
   ENTIRE_BUSINESS_SCOPE_ID,
+  SEASONALITY_LEVEL2_SCOPE_ID,
   getScopeTaxonomyValue,
   isBudgetCurrentMonth,
   isBudgetFutureMonth,
@@ -310,6 +311,18 @@ export function getScopeIdentity(
     };
   }
 
+  // Seasonality Level 2 scope — outline badge style, no taxonomy leaf.
+  if (scopeId === SEASONALITY_LEVEL2_SCOPE_ID) {
+    return {
+      editLevel: "level2",
+      primaryName: level2Label,
+      level1Label,
+      level2Label,
+      level1Value: "",
+      level2Value: level2Label,
+    };
+  }
+
   if (isLevel1ParentId(scopeId)) {
     const level1Value = getLevel1LabelFromParentId(scopeId);
     return {
@@ -353,7 +366,7 @@ export function getScopeEditLevelBadgeLabel(
   level1Label: string,
   level2Label: string,
 ): string {
-  if (editLevel === "entire-business") return "Portfolio";
+  if (editLevel === "entire-business") return "Entire Business";
   if (editLevel === "level1") return `Level 1 · ${level1Label}`;
   return `Level 2 · ${level2Label}`;
 }

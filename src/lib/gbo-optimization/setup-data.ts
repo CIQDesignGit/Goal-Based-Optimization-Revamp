@@ -280,11 +280,11 @@ export const SEASONALITY_CHART_DATA: SeasonalityChartPoint[] = [
   { date: "30 Nov", value: 1450 },
 ];
 
-export const SEASONALITY_SCOPE_OPTIONS = [
-  { value: "entire-business", label: "Entire Business" },
-  { value: "portfolio", label: "Portfolio" },
-  { value: "category", label: "Category" },
-] as const;
+/**
+ * Synthetic ledger scope for seasonality Level 2–style Summary tags.
+ * Not a real taxonomy row — Summary uses it only for edit-level styling.
+ */
+export const SEASONALITY_LEVEL2_SCOPE_ID = "seasonality-level2";
 
 export type SeasonalityBudgetMode = "percent" | "absolute";
 
@@ -426,7 +426,7 @@ export const MOCK_SAVED_SEASONALITY_EVENTS: SeasonalityEvent[] = [
     name: "Back to School",
     startDate: "Aug 10, 2026",
     endDate: "Aug 24, 2026",
-    scope: "category",
+    scope: "profiles",
     budgetMode: "percent",
     budgetValue: "10",
     sourceKind: "custom",
@@ -456,7 +456,7 @@ export const MOCK_SAVED_SEASONALITY_EVENTS: SeasonalityEvent[] = [
     name: "Halloween Peak",
     startDate: "Oct 25, 2026",
     endDate: "Oct 31, 2026",
-    scope: "category",
+    scope: "profiles",
     budgetMode: "percent",
     budgetValue: "11",
     sourceKind: "custom",
@@ -517,7 +517,7 @@ export const MOCK_SAVED_SEASONALITY_EVENTS: SeasonalityEvent[] = [
     name: "Super Bowl Promo",
     startDate: "Feb 06, 2026",
     endDate: "Feb 09, 2026",
-    scope: "category",
+    scope: "profiles",
     budgetMode: "percent",
     budgetValue: "16",
     sourceKind: "custom",
@@ -557,7 +557,7 @@ export const MOCK_SAVED_SEASONALITY_EVENTS: SeasonalityEvent[] = [
     name: "Easter Weekend",
     startDate: "Apr 03, 2026",
     endDate: "Apr 05, 2026",
-    scope: "category",
+    scope: "profiles",
     budgetMode: "percent",
     budgetValue: "9",
     sourceKind: "custom",
@@ -597,7 +597,7 @@ export const MOCK_SAVED_SEASONALITY_EVENTS: SeasonalityEvent[] = [
     name: "Father's Day",
     startDate: "Jun 19, 2026",
     endDate: "Jun 21, 2026",
-    scope: "category",
+    scope: "profiles",
     budgetMode: "percent",
     budgetValue: "8",
     sourceKind: "custom",
@@ -795,6 +795,46 @@ export function getLevelLabel(
   return (
     getLevelOptions(budgetType).find((option) => option.value === value)
       ?.label ?? value
+  );
+}
+
+/**
+ * Seasonality Scope dropdown — Entire Business + the Level 1 / Level 2
+ * dimensions chosen under Retailer or Internal Categorization in General.
+ */
+export function getSeasonalityScopeOptions(
+  budgetType: BudgetDefinitionTypeForLevels,
+  level1: string,
+  level2: string,
+): { value: string; label: string }[] {
+  return [
+    { value: "entire-business", label: "Entire Business" },
+    { value: level1, label: getLevelLabel(budgetType, level1) },
+    { value: level2, label: getLevelLabel(budgetType, level2) },
+  ];
+}
+
+/** Resolve a saved event’s scope value to a display label (any taxonomy). */
+export function getSeasonalityScopeLabel(
+  scope: string,
+  budgetType: BudgetDefinitionTypeForLevels,
+  level1: string,
+  level2: string,
+): string {
+  if (scope === "entire-business") return "Entire Business";
+
+  const fromCurrent = getSeasonalityScopeOptions(
+    budgetType,
+    level1,
+    level2,
+  ).find((option) => option.value === scope);
+  if (fromCurrent) return fromCurrent.label;
+
+  // Fall back if taxonomy changed since the event was saved
+  return (
+    RETAILER_LEVEL_OPTIONS.find((option) => option.value === scope)?.label ??
+    INTERNAL_LEVEL_OPTIONS.find((option) => option.value === scope)?.label ??
+    scope
   );
 }
 
