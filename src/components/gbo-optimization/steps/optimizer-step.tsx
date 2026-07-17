@@ -90,9 +90,9 @@ const BID_OPT_COL_WIDTH = 240;
 const DAY_PARTING_COL_WIDTH = 280;
 const TARGETING_COL_WIDTH = 88;
 
-/** Table min-width: Mode always; Budget + Bid when expanded. */
-function getOptimizerTableMinWidth(bidBudgetExpanded: boolean): number {
-  const bidBudgetWidth = bidBudgetExpanded
+/** Table min-width: Mode always; Budget + Bid when visible. */
+function getOptimizerTableMinWidth(showBidBudgetColumns: boolean): number {
+  const bidBudgetWidth = showBidBudgetColumns
     ? BUDGET_OPT_COL_WIDTH + BID_OPT_COL_WIDTH
     : 0;
 
@@ -232,7 +232,10 @@ function OptimizerCell({
             <OptimizerModeChip
               mode={currentBid}
               selectable
-              showBoost={currentBid === "ally"}
+              showBoost={
+                currentBid === "ally" &&
+                Boolean(allowedModes?.includes("rule-based"))
+              }
               onChange={onBidModeChange}
               allowedModes={allowedModes}
             />
@@ -337,9 +340,11 @@ function OptimizerCell({
 export function OptimizerStep() {
   const { optimizerType } = useSetupContext();
   const [showModePolicyNotice, setShowModePolicyNotice] = useState(true);
-  // Ally AI: start with Budget/Bid collapsed into Mode; Expand reveals them.
   const isAllyAi = optimizerType === "ally-ai";
   const [bidBudgetExpanded, setBidBudgetExpanded] = useState(!isAllyAi);
+  // Ally AI always exposes its Bid and Budget controls. Other modes can
+  // collapse the two detail columns into the read-only Mode column.
+  const showBidBudgetColumns = isAllyAi || bidBudgetExpanded;
   const portfolioColumnDefaults =
     getDefaultRowModesForOptimizer(optimizerType);
   const defaultColumnMode = portfolioColumnDefaults.budget;
@@ -349,7 +354,7 @@ export function OptimizerStep() {
       ? GOAL_METRIC_SELECT_OPTIONS.filter((option) => option.value !== "sov")
       : GOAL_METRIC_SELECT_OPTIONS;
 
-  const tableMinWidth = getOptimizerTableMinWidth(bidBudgetExpanded);
+  const tableMinWidth = getOptimizerTableMinWidth(showBidBudgetColumns);
 
   const showSetupToast = useSetupSessionStore((state) => state.showSetupToast);
   const rowModes = useSetupSessionStore((state) => state.optimizerRowModes);
@@ -516,16 +521,18 @@ export function OptimizerStep() {
             <Plus className="size-4" />
             Add Filters
           </Button>
-          <label className="flex items-center gap-2 text-sm text-slate-600">
-            <Switch
-              checked={bidBudgetExpanded}
-              onCheckedChange={(checked) =>
-                setBidBudgetExpanded(checked === true)
-              }
-              aria-controls="optimizer-bid-budget-columns"
-            />
-            Show bid & budget
-          </label>
+          {!isAllyAi ? (
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <Switch
+                checked={bidBudgetExpanded}
+                onCheckedChange={(checked) =>
+                  setBidBudgetExpanded(checked === true)
+                }
+                aria-controls="optimizer-bid-budget-columns"
+              />
+              Show bid & budget
+            </label>
+          ) : null}
         </div>
         <Button
           type="button"
@@ -548,7 +555,7 @@ export function OptimizerStep() {
             <col style={{ width: OPTIMIZER_SCOPE_COL_WIDTH }} />
             <col style={{ width: GOALS_COL_WIDTH }} />
             <col style={{ width: MODE_COL_WIDTH }} />
-            {bidBudgetExpanded ? (
+            {showBidBudgetColumns ? (
               <>
                 <col style={{ width: BUDGET_OPT_COL_WIDTH }} />
                 <col style={{ width: BID_OPT_COL_WIDTH }} />
@@ -574,7 +581,7 @@ export function OptimizerStep() {
                   tooltip="Combined bid and budget mode for this scope."
                 />
               </th>
-              {bidBudgetExpanded ? (
+              {showBidBudgetColumns ? (
                 <>
                   <th
                     id="optimizer-bid-budget-columns"
@@ -684,7 +691,7 @@ export function OptimizerStep() {
                       />
                     ) : null}
                   </td>
-                  {bidBudgetExpanded ? (
+                  {showBidBudgetColumns ? (
                     <>
                       <td
                         className={cn(

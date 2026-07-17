@@ -750,7 +750,10 @@ function ChangesAccordionSection({
 
           {visibleEntries.length > CHANGES_PER_PAGE ? (
             <div className="border-t border-slate-100 bg-slate-50/50 px-4 py-2">
-              <Pagination aria-label={`Pagination for ${headingLabel} changes`}>
+              <Pagination
+                aria-label={`Pagination for ${headingLabel} changes`}
+                className="justify-end"
+              >
                 <PaginationContent>
                   <PaginationItem>
                     <PaginationPrevious
