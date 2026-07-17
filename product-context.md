@@ -90,7 +90,7 @@ When an **item** is switched to rule-based, the portfolio wizard / stepper does 
 | **FR-001** | The General page **MUST** present goal selection (goal type and an aggressiveness level of aggressive, moderate, or conservative) as the first step before budget, constraints, and seasonality. |
 | **FR-002** | The General page **MUST** present the optimizer choice (Ally AI vs rule-based) as a selection that applies uniformly across all brands in the portfolio. People should also be able to select Ally / rule-based at the brand level. |
 | **FR-003** | At the overall (portfolio) level, the flow **MUST** recommend Ally AI (noting it also handles spend and constraints) and, when a user selects rule-based, **MUST** prompt whether they want to switch to Ally AI for everything. |
-| **FR-004** | When a user selects SOV as the goal, the system **MUST** prevent Ally AI from being selected and **MUST** show a message at the point of selecting SOV explaining that SOV is not supported with Ally AI. |
+| **FR-004** | SOV is not supported by Ally AI. If a user switches to Ally AI while portfolio- or item-level SOV goals exist, the system **MUST** allow the switch, clear every incompatible SOV goal, visually mark the affected goals as changed, and explain that compatible goals must be selected before budget editing can continue. |
 | **FR-005** | The flow sequence **MUST** follow the selected optimizer per item (see [Flow sequences](#flow-sequences-optimizer-driven) above). Changing an item to rule-based **MUST NOT** rebuild the portfolio stepper; it **MUST** skip budget and seasonality for that item only, and include Constraints for that item only when the floor/ceiling toggle is on. |
 | **FR-006** | When a user changes the goal, the system **MUST** display an impact message stating that the change will recalibrate existing strategies (rule-based) and indicate where it applies. |
 
@@ -155,7 +155,7 @@ When an **item** is switched to rule-based, the portfolio wizard / stepper does 
 ## Behaviour rules (quick reference)
 
 - **Ally AI** is recommended at portfolio level; prompt to switch when user picks rule-based.
-- **SOV** blocks Ally AI selection — show inline explanation.
+- **SOV + Ally AI** → allow the switch to Ally AI, clear every portfolio- and item-level SOV goal, highlight the affected goals, and require compatible replacements before budget editing.
 - **Item-level Ally → rule-based** → do **not** rebuild the wizard; for **that item only**, skip budget entry and seasonality; path is Goals → Optimizer → Summary; Constraints only if floor/ceiling toggle is on. Make this clear in the UI at the point of change.
 - **Constraints + seasonality** → Ally AI items only (floor/ceiling excepted for rule-based); portfolio toggles on Goals & Budgets still control optional steps in the shell.
 - **Optimizer** → always in the flow (no toggle); after Constraints when present, always immediately before Summary.
@@ -163,3 +163,79 @@ When an **item** is switched to rule-based, the portfolio wizard / stepper does 
 - **Goal target value** is optional only for Ally AI.
 - **Never silently fail** — warn on incompatible settings, missing budgets, mid-month timing, and destructive resets.
 - **Always end with Summary** — list changes, show impacted areas, require explicit approval before commit.
+
+---
+
+## Optimizer transition policy
+
+The optimizer selected on General controls which settings and row-level
+optimization modes are valid throughout the wizard:
+
+- **Ally AI:** budgets, seasonality, and spend constraints can apply. Manual
+  campaign constraints are hidden. Bid and Budget Optimization allow only
+  Ally AI or None.
+- **Rule-based:** budget entry, seasonality, and Ally spend constraints are
+  inactive. Budget granularity is None. Floor and ceiling constraints remain
+  available. Bid and Budget Optimization allow only Rule Based or None.
+- **Custom:** mixed Ally AI, Rule Based, and None choices remain available per
+  row. Existing compatible values remain unchanged.
+
+### Transition behaviour
+
+#### Custom → Ally AI
+
+- Clear every portfolio- and item-level SOV goal.
+- Change existing rule-based Bid and Budget Optimization values to None.
+- Deactivate rule-based strategies.
+- Hide manual campaign constraints.
+- Keep compatible budgets, seasonality, and spend constraints.
+
+#### Rule Based → Ally AI
+
+- Clear every SOV goal.
+- Change rule-based Bid and Budget Optimization values to None.
+- Deactivate rule-based strategies.
+- Restore previously preserved Ally AI budgets, seasonality, spend
+  constraints, and budget granularity when available.
+- Leave settings blank when no previous Ally AI draft exists.
+
+#### Ally AI → Rule Based
+
+- Make budgets temporarily inactive and set Budget Granularity to None.
+- Remove Seasonality from the active wizard.
+- Make Ally spend constraints temporarily inactive.
+- Change Ally Bid and Budget Optimization values to None.
+
+#### Custom → Rule Based
+
+- Make budgets, seasonality, and spend constraints temporarily inactive.
+- Change Ally row-level optimization modes to None.
+- Keep compatible rule-based row modes and strategies.
+
+#### Ally AI → Custom
+
+- Keep current values unchanged.
+- Add Rule Based back to the Bid and Budget Optimization menus.
+- Restore a previously preserved Custom draft when available.
+
+#### Rule Based → Custom
+
+- Keep current rule-based values unchanged.
+- Add Ally AI back to the Bid and Budget Optimization menus.
+- Restore preserved Custom budgets, seasonality, spend constraints, and Ally
+  row modes when available.
+
+### Draft preservation and user communication
+
+- Before changing optimizer, show a confirmation that lists the affected
+  goals, budgets, seasonality events, constraints, row modes, and strategies.
+- Incompatible values **MUST NOT** be silently deleted while the user explores
+  optimizer modes. Preserve one draft per optimizer mode for the setup session.
+- Describe hidden values as **temporarily inactive**, not lost or deleted.
+- An incompatible row-level optimizer value becomes **None**. The system
+  **MUST NOT** silently select a different optimizer for the user.
+- Affected pages must explain what changed and that switching back before
+  launch restores the preserved draft.
+- Automatic clears, deactivations, and restorations must appear in Summary
+  alongside manual changes.
+- Permanently discard inactive drafts only after Save & Launch.

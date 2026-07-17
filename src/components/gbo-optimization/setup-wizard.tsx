@@ -84,6 +84,9 @@ function SetupWizardContent() {
     null,
   );
   const showSetupToast = useSetupSessionStore((state) => state.showSetupToast);
+  const discardOptimizerDrafts = useSetupSessionStore(
+    (state) => state.discardOptimizerDrafts,
+  );
   const toastMessage = useSetupSessionStore((state) => state.toastMessage);
   const StepComponent = STEP_COMPONENTS[currentStep];
 
@@ -159,6 +162,8 @@ function SetupWizardContent() {
       }
       setIsLaunching(false);
       setLaunchStepIndex(0);
+      // Inactive mode drafts are only discarded after the setup is committed.
+      discardOptimizerDrafts();
       showSetupToast("Setup saved and launched successfully.", {
         variant: "success",
       });

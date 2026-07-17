@@ -6,7 +6,8 @@
     "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:optimizer": "node --experimental-strip-types --test src/lib/gbo-optimization/optimizer-policy.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

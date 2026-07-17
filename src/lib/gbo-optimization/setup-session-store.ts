@@ -25,6 +25,8 @@ import {
   getLevelLabel,
   getSeasonalityScopeOptions,
   GOALS_SCOPE_ROWS,
+  MOCK_SAVED_SEASONALITY_EVENTS,
+  OPTIMIZER_SCOPE_ROWS,
   resolveInitialMonthlyBudgets,
   SEASONALITY_LEVEL2_SCOPE_ID,
   type AggressivenessLevel,
@@ -32,8 +34,16 @@ import {
   type GoalType,
   type GoalMetricValue,
   type OptimizerType,
+  type SeasonalityEvent,
   type ScopeRow,
 } from "@/lib/gbo-optimization/setup-data";
+import {
+  getCompatibleGoalForOptimizer,
+  getDefaultRowModesForOptimizer,
+  sanitizeRowModesForOptimizer,
+  type OptimizerColumnMode,
+  type RowOptimizerModes,
+} from "@/lib/gbo-optimization/optimizer-policy";
 import {
   buildNestedScopeRows,
   createInitialScopeEditModeByGroup,
@@ -87,6 +97,21 @@ export type ConstraintRowState = {
   overridden: Partial<Record<ConstraintValueField, boolean>>;
   /** Auto-rebalanced fields — keeps blue styling across navigation (FR-013). */
   adjusted: Partial<Record<ConstraintValueField, boolean>>;
+};
+
+export type OptimizerModeDraft = {
+  generalConfig: GeneralConfig;
+  goalsRowState: Record<string, GoalsRowState>;
+  constraintsRowState: Record<string, ConstraintRowState>;
+  optimizerRowModes: Record<string, RowOptimizerModes>;
+  seasonalityEvents: SeasonalityEvent[];
+};
+
+export type OptimizerTransitionOptions = {
+  constraintsEnabled: boolean;
+  restoringConstraints?: boolean;
+  restoringSeasonality?: boolean;
+  seasonalityEnabled: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -469,6 +494,80 @@ function nextChangeId(): string {
   return `change-${changeIdCounter}`;
 }
 
+function createInitialOptimizerRowModes(
+  optimizerType: OptimizerType = "ally-ai",
+): Record<string, RowOptimizerModes> {
+  const defaults = getDefaultRowModesForOptimizer(optimizerType);
+
+  return Object.fromEntries(
+    OPTIMIZER_SCOPE_ROWS.filter((row) => row.allyMode).map((row) => [
+      row.id,
+      { ...defaults },
+    ]),
+  );
+}
+
+function cloneGoalsRowState(
+  rows: Record<string, GoalsRowState>,
+): Record<string, GoalsRowState> {
+  return Object.fromEntries(
+    Object.entries(rows).map(([rowId, row]) => [
+      rowId,
+      {
+        ...row,
+        monthlyBudgets: [...row.monthlyBudgets],
+        historicMonthlyBudgets: [...row.historicMonthlyBudgets],
+        editedMonthlyBudgets: [...row.editedMonthlyBudgets],
+      },
+    ]),
+  );
+}
+
+function cloneConstraintsRowState(
+  rows: Record<string, ConstraintRowState>,
+): Record<string, ConstraintRowState> {
+  return Object.fromEntries(
+    Object.entries(rows).map(([rowId, row]) => [
+      rowId,
+      {
+        ...row,
+        values: { ...row.values },
+        historicPercents: { ...row.historicPercents },
+        historicValues: { ...row.historicValues },
+        overridden: { ...row.overridden },
+        adjusted: { ...row.adjusted },
+      },
+    ]),
+  );
+}
+
+function cloneOptimizerRowModes(
+  rows: Record<string, RowOptimizerModes>,
+): Record<string, RowOptimizerModes> {
+  return Object.fromEntries(
+    Object.entries(rows).map(([rowId, modes]) => [rowId, { ...modes }]),
+  );
+}
+
+function createOptimizerModeDraft(
+  state: Pick<
+    SetupSessionState,
+    | "generalConfig"
+    | "goalsRowState"
+    | "constraintsRowState"
+    | "optimizerRowModes"
+    | "seasonalityEvents"
+  >,
+): OptimizerModeDraft {
+  return {
+    generalConfig: { ...state.generalConfig },
+    goalsRowState: cloneGoalsRowState(state.goalsRowState),
+    constraintsRowState: cloneConstraintsRowState(state.constraintsRowState),
+    optimizerRowModes: cloneOptimizerRowModes(state.optimizerRowModes),
+    seasonalityEvents: state.seasonalityEvents.map((event) => ({ ...event })),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
@@ -481,6 +580,10 @@ type SetupSessionState = {
   /** Per Level 1 group: edit on parent vs children (default parent). */
   scopeEditModeByGroup: Record<string, ScopeEditMode>;
   constraintsRowState: Record<string, ConstraintRowState>;
+  optimizerRowModes: Record<string, RowOptimizerModes>;
+  optimizerBaselineRowModes: Record<string, RowOptimizerModes>;
+  optimizerModeDrafts: Partial<Record<OptimizerType, OptimizerModeDraft>>;
+  seasonalityEvents: SeasonalityEvent[];
   monthWindowStart: number;
   monthWindowEnd: number;
   goalsHistoricHintDismissed: boolean;
@@ -522,6 +625,26 @@ type SetupSessionState = {
         ) => Record<string, ConstraintRowState>),
   ) => void;
 
+  setOptimizerRowMode: (
+    rowId: string,
+    column: "budget" | "bid",
+    mode: OptimizerColumnMode | null,
+  ) => void;
+
+  setSeasonalityEvents: (
+    updater:
+      | SeasonalityEvent[]
+      | ((current: SeasonalityEvent[]) => SeasonalityEvent[]),
+  ) => void;
+
+  transitionOptimizerData: (
+    from: OptimizerType,
+    to: OptimizerType,
+    options: OptimizerTransitionOptions,
+  ) => void;
+
+  discardOptimizerDrafts: () => void;
+
   setMonthWindowRange: (start: number, end: number) => void;
 
   setGoalsHistoricHintDismissed: (value: boolean) => void;
@@ -559,6 +682,10 @@ function createInitialSessionState(): Pick<
   | "goalsRowState"
   | "scopeEditModeByGroup"
   | "constraintsRowState"
+  | "optimizerRowModes"
+  | "optimizerBaselineRowModes"
+  | "optimizerModeDrafts"
+  | "seasonalityEvents"
   | "monthWindowStart"
   | "monthWindowEnd"
   | "goalsHistoricHintDismissed"
@@ -592,6 +719,12 @@ function createInitialSessionState(): Pick<
     ),
     scopeEditModeByGroup: createInitialScopeEditModeByGroup(nested),
     constraintsRowState: createInitialConstraintsRowState(),
+    optimizerRowModes: createInitialOptimizerRowModes(),
+    optimizerBaselineRowModes: createInitialOptimizerRowModes(),
+    optimizerModeDrafts: {},
+    seasonalityEvents: MOCK_SAVED_SEASONALITY_EVENTS.map((event) => ({
+      ...event,
+    })),
     monthWindowStart: defaultMonthWindowStart,
     monthWindowEnd: getDefaultBudgetWindowEnd(defaultMonthWindowStart),
     goalsHistoricHintDismissed: false,
@@ -813,6 +946,283 @@ export const useSetupSessionStore = create<SetupSessionState>((set, get) => ({
           ? updater(state.constraintsRowState)
           : updater,
     }));
+  },
+
+  setOptimizerRowMode: (rowId, column, mode) => {
+    set((state) => {
+      const current = state.optimizerRowModes[rowId] ?? {
+        budget: null,
+        bid: null,
+      };
+
+      return {
+        optimizerRowModes: {
+          ...state.optimizerRowModes,
+          [rowId]: {
+            ...current,
+            [column]: mode,
+          },
+        },
+      };
+    });
+  },
+
+  setSeasonalityEvents: (updater) => {
+    set((state) => ({
+      seasonalityEvents:
+        typeof updater === "function"
+          ? updater(state.seasonalityEvents)
+          : updater,
+    }));
+  },
+
+  transitionOptimizerData: (from, to, options) => {
+    if (from === to) return;
+
+    set((state) => {
+      const optimizerModeDrafts = {
+        ...state.optimizerModeDrafts,
+        [from]: createOptimizerModeDraft(state),
+      };
+      const restoredDraft = optimizerModeDrafts[to];
+      const baseGeneralConfig = restoredDraft
+        ? { ...restoredDraft.generalConfig }
+        : { ...state.generalConfig };
+      const baseGoalsRowState = restoredDraft
+        ? cloneGoalsRowState(restoredDraft.goalsRowState)
+        : cloneGoalsRowState(state.goalsRowState);
+      const baseConstraintsRowState = restoredDraft
+        ? cloneConstraintsRowState(restoredDraft.constraintsRowState)
+        : cloneConstraintsRowState(state.constraintsRowState);
+      const baseSeasonalityEvents = restoredDraft
+        ? restoredDraft.seasonalityEvents.map((event) => ({ ...event }))
+        : state.seasonalityEvents.map((event) => ({ ...event }));
+      const sourceModes = restoredDraft
+        ? cloneOptimizerRowModes(restoredDraft.optimizerRowModes)
+        : cloneOptimizerRowModes(state.optimizerRowModes);
+
+      const nextGeneralConfig: GeneralConfig = {
+        ...baseGeneralConfig,
+        granularity:
+          to === "rule-based"
+            ? "None"
+            : baseGeneralConfig.granularity === "None"
+              ? "Monthly"
+              : baseGeneralConfig.granularity,
+      };
+      const nextGoalsRowState = cloneGoalsRowState(baseGoalsRowState);
+
+      // Ally AI is allowed to be selected, but every incompatible SOV goal is
+      // cleared and surfaced in Summary for the user to review.
+      if (to === "ally-ai") {
+        const compatiblePortfolioGoal = getCompatibleGoalForOptimizer(
+          nextGeneralConfig.goalType,
+          to,
+        );
+        if (compatiblePortfolioGoal !== nextGeneralConfig.goalType) {
+          nextGeneralConfig.previousGoalType = "sov";
+          nextGeneralConfig.goalType = compatiblePortfolioGoal;
+          nextGeneralConfig.showGoalChangeImpact = true;
+        }
+
+        for (const row of Object.values(nextGoalsRowState)) {
+          row.goalMetric = getCompatibleGoalForOptimizer(row.goalMetric, to);
+        }
+      }
+
+      const nextOptimizerRowModes = Object.fromEntries(
+        Object.entries(sourceModes).map(([rowId, modes]) => [
+          rowId,
+          sanitizeRowModesForOptimizer(modes, to),
+        ]),
+      );
+      const transitionChanges: ChangeLedgerEntry[] = [];
+      const addTransitionChange = (
+        entry: Omit<ChangeLedgerEntry, "id" | "timestamp">,
+      ) => {
+        if (entry.from === entry.to) return;
+        transitionChanges.push({
+          ...entry,
+          id: nextChangeId(),
+          timestamp: Date.now(),
+        });
+      };
+
+      if (state.generalConfig.goalType === "sov" && to === "ally-ai") {
+        addTransitionChange({
+          step: "general",
+          scopeId: "__portfolio__",
+          scopeName: "Portfolio",
+          field: "goalType",
+          fieldLabel: "Goal type",
+          from: "SOV (Share of Voice)",
+          to: "None",
+          category: "general",
+        });
+      }
+
+      if (state.generalConfig.granularity !== nextGeneralConfig.granularity) {
+        addTransitionChange({
+          step: "general",
+          scopeId: "__portfolio__",
+          scopeName: "Portfolio",
+          field: "granularity",
+          fieldLabel: "Budget granularity",
+          from: state.generalConfig.granularity,
+          to: nextGeneralConfig.granularity,
+          category: "general",
+        });
+      }
+
+      for (const [rowId, currentRow] of Object.entries(state.goalsRowState)) {
+        const nextRow = nextGoalsRowState[rowId];
+        if (currentRow.goalMetric === "sov" && nextRow?.goalMetric !== "sov") {
+          addTransitionChange({
+            step: "goals-budgets",
+            scopeId: rowId,
+            scopeName: resolveScopeName(rowId),
+            field: "goalMetric",
+            fieldLabel: "Goal metric",
+            from: "SOV (Share of Voice)",
+            to: "None",
+            category: "goal",
+          });
+        }
+      }
+
+      for (const [rowId, currentModes] of Object.entries(
+        state.optimizerRowModes,
+      )) {
+        const nextModes = nextOptimizerRowModes[rowId];
+        if (!nextModes) continue;
+
+        for (const column of ["budget", "bid"] as const) {
+          const currentMode = currentModes[column] ?? "none";
+          const nextMode = nextModes[column] ?? "none";
+          if (currentMode === nextMode) continue;
+
+          addTransitionChange({
+            step: "optimizer",
+            scopeId: rowId,
+            scopeName: resolveScopeName(rowId),
+            field:
+              column === "budget"
+                ? "optimizer.budgetMode"
+                : "optimizer.bidMode",
+            fieldLabel:
+              column === "budget"
+                ? "Budget Optimization"
+                : "Bid Optimization",
+            from:
+              currentMode === "ally"
+                ? "Ally"
+                : currentMode === "rule-based"
+                  ? "Rule Based"
+                  : "None",
+            to:
+              nextMode === "ally"
+                ? "Ally"
+                : nextMode === "rule-based"
+                  ? "Rule Based"
+                  : "None",
+            category: "optimizer",
+          });
+        }
+      }
+
+      if (to === "rule-based") {
+        addTransitionChange({
+          step: "goals-budgets",
+          scopeId: "__portfolio__",
+          scopeName: "Portfolio",
+          field: "budgetAvailability",
+          fieldLabel: "Budgets",
+          from: "Active",
+          to: "Temporarily inactive",
+          category: "budget",
+        });
+
+        if (options.seasonalityEnabled) {
+          addTransitionChange({
+            step: "seasonality",
+            scopeId: "__portfolio__",
+            scopeName: "Portfolio",
+            field: "seasonalityAvailability",
+            fieldLabel: "Seasonality",
+            from: "Active",
+            to: "Temporarily inactive",
+            category: "seasonality",
+          });
+        }
+
+        if (options.constraintsEnabled) {
+          addTransitionChange({
+            step: "constraints",
+            scopeId: "__portfolio__",
+            scopeName: "Portfolio",
+            field: "spendConstraintsAvailability",
+            fieldLabel: "Spend constraints",
+            from: "Active",
+            to: "Temporarily inactive",
+            category: "constraint",
+          });
+        }
+      }
+
+      if (from === "rule-based" && to !== "rule-based") {
+        addTransitionChange({
+          step: "goals-budgets",
+          scopeId: "__portfolio__",
+          scopeName: "Portfolio",
+          field: "budgetAvailability",
+          fieldLabel: "Budgets",
+          from: "Temporarily inactive",
+          to: "Restored",
+          category: "budget",
+        });
+
+        if (options.restoringSeasonality) {
+          addTransitionChange({
+            step: "seasonality",
+            scopeId: "__portfolio__",
+            scopeName: "Portfolio",
+            field: "seasonalityAvailability",
+            fieldLabel: "Seasonality",
+            from: "Temporarily inactive",
+            to: "Restored",
+            category: "seasonality",
+          });
+        }
+
+        if (options.restoringConstraints) {
+          addTransitionChange({
+            step: "constraints",
+            scopeId: "__portfolio__",
+            scopeName: "Portfolio",
+            field: "spendConstraintsAvailability",
+            fieldLabel: "Spend constraints",
+            from: "Temporarily inactive",
+            to: "Restored",
+            category: "constraint",
+          });
+        }
+      }
+
+      return {
+        generalConfig: nextGeneralConfig,
+        goalsRowState: nextGoalsRowState,
+        constraintsRowState: baseConstraintsRowState,
+        optimizerRowModes: nextOptimizerRowModes,
+        optimizerModeDrafts,
+        seasonalityEvents: baseSeasonalityEvents,
+        summaryReviewed: false,
+        changeLedger: [...state.changeLedger, ...transitionChanges],
+      };
+    });
+  },
+
+  discardOptimizerDrafts: () => {
+    set({ optimizerModeDrafts: {} });
   },
 
   setMonthWindowRange: (start, end) => {

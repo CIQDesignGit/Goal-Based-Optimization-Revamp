@@ -17,10 +17,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
+import type { OptimizerColumnMode } from "@/lib/gbo-optimization/optimizer-policy";
 import { cn } from "@/lib/utils";
-
-/** Per-column optimization mode for Budget / Bid. */
-export type OptimizerColumnMode = "ally" | "rule-based" | "none";
 
 /** Mode column value: same as Budget/Bid when they match; Custom when they differ. */
 export type AggregatedOptimizerMode = OptimizerColumnMode | "custom";
@@ -141,6 +139,7 @@ type OptimizerModeChipProps = {
   /** Bid column: show boost mark after the chip label (before chevron). */
   showBoost?: boolean;
   onChange?: (mode: OptimizerColumnMode) => void;
+  allowedModes?: OptimizerColumnMode[];
   className?: string;
 };
 
@@ -155,6 +154,7 @@ export function OptimizerModeChip({
   selectable = false,
   showBoost = false,
   onChange,
+  allowedModes = OPTIMIZER_COLUMN_MODE_OPTIONS.map((option) => option.value),
   className,
 }: OptimizerModeChipProps) {
   const [open, setOpen] = useState(false);
@@ -228,7 +228,9 @@ export function OptimizerModeChip({
           role="listbox"
           aria-label="Optimization mode"
         >
-          {OPTIMIZER_COLUMN_MODE_OPTIONS.map((item) => {
+          {OPTIMIZER_COLUMN_MODE_OPTIONS.filter((item) =>
+            allowedModes.includes(item.value),
+          ).map((item) => {
             const isSelected = item.value === mode;
             return (
               <li key={item.value} className="m-0">

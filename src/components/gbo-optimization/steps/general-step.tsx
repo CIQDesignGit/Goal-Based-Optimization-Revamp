@@ -1,12 +1,22 @@
 "use client";
 
-import { useEffect } from "react";
+import { useState } from "react";
 
 import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
 import { ImpactBanner } from "@/components/gbo-optimization/impact-banner";
 import { useSetupContext } from "@/components/gbo-optimization/setup-context";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   AGGRESSIVENESS_OPTIONS,
   BUDGET_GRANULARITIES,
@@ -92,12 +102,28 @@ const ALLY_AI_SOV_DISABLED_MESSAGE =
   "Ally AI is disabled for the SoV goal.";
 
 export function GeneralStep() {
-  const { optimizerType, setOptimizerType } = useSetupContext();
+  const {
+    includeConstraints,
+    includeSeasonality,
+    optimizerType,
+    setOptimizerType,
+  } = useSetupContext();
+  const [pendingOptimizerType, setPendingOptimizerType] =
+    useState<OptimizerType | null>(null);
   const generalConfig = useSetupSessionStore((state) => state.generalConfig);
   const taxonomyBaseline = useSetupSessionStore(
     (state) => state.taxonomyBaseline,
   );
   const goalsRowState = useSetupSessionStore((state) => state.goalsRowState);
+  const constraintsRowState = useSetupSessionStore(
+    (state) => state.constraintsRowState,
+  );
+  const optimizerRowModes = useSetupSessionStore(
+    (state) => state.optimizerRowModes,
+  );
+  const seasonalityEvents = useSetupSessionStore(
+    (state) => state.seasonalityEvents,
+  );
   const setGoalType = useSetupSessionStore((state) => state.setGoalType);
   const setAggressiveness = useSetupSessionStore(
     (state) => state.setAggressiveness,
@@ -132,13 +158,6 @@ export function GeneralStep() {
   const showTaxonomyChangeImpact =
     generalConfig.showTaxonomyChangeImpact && taxonomyChanged;
 
-  // SOV cannot use Ally AI — switch away if it was selected (FR-004).
-  useEffect(() => {
-    if (isSovSelected && optimizerType === "ally-ai") {
-      setOptimizerType("rule-based");
-    }
-  }, [isSovSelected, optimizerType, setOptimizerType]);
-
   const showGoalChangeImpact =
     generalConfig.showGoalChangeImpact && generalConfig.goalType;
   const showGoalGuidance = isSovSelected || showGoalChangeImpact;
@@ -155,17 +174,45 @@ export function GeneralStep() {
   };
 
   const handleOptimizerChange = (value: OptimizerType) => {
-    if (isSovSelected && value === "ally-ai") {
-      return;
-    }
-
     if (value === optimizerType) {
       return;
     }
 
-    recordGeneralOptimizerTypeChange(optimizerType, value);
-    setOptimizerType(value);
+    setPendingOptimizerType(value);
   };
+
+  const confirmOptimizerChange = () => {
+    if (!pendingOptimizerType) return;
+
+    recordGeneralOptimizerTypeChange(optimizerType, pendingOptimizerType);
+    setOptimizerType(pendingOptimizerType);
+    setPendingOptimizerType(null);
+  };
+
+  const sovGoalCount =
+    (generalConfig.goalType === "sov" ? 1 : 0) +
+    Object.values(goalsRowState).filter((row) => row.goalMetric === "sov")
+      .length;
+  const budgetRowCount = Object.values(goalsRowState).filter((row) =>
+    row.monthlyBudgets.some((budget) => budget.trim()),
+  ).length;
+  const ruleBasedModeCount = Object.values(optimizerRowModes).reduce(
+    (count, modes) =>
+      count +
+      (modes.budget === "rule-based" ? 1 : 0) +
+      (modes.bid === "rule-based" ? 1 : 0),
+    0,
+  );
+  const allyModeCount = Object.values(optimizerRowModes).reduce(
+    (count, modes) =>
+      count +
+      (modes.budget === "ally" ? 1 : 0) +
+      (modes.bid === "ally" ? 1 : 0),
+    0,
+  );
+  const editedConstraintRowCount = Object.values(constraintsRowState).filter(
+    (row) => Object.keys(row.overridden).length > 0,
+  ).length;
 
   const handleBudgetTypeChange = (budgetType: BudgetDefinitionType) => {
     if (budgetType === generalConfig.budgetType) {
@@ -199,12 +246,15 @@ export function GeneralStep() {
               aria-label="Budget granularity"
             >
               {BUDGET_GRANULARITIES.map((option) => {
-                const isSelected = generalConfig.granularity === option;
+                const isRuleBased = optimizerType === "rule-based";
+                const isSelected =
+                  !isRuleBased && generalConfig.granularity === option;
 
                 return (
                   <button
                     key={option}
                     type="button"
+                    disabled={isRuleBased}
                     role="radio"
                     aria-checked={isSelected}
                     onClick={() => {
@@ -217,6 +267,7 @@ export function GeneralStep() {
                     }}
                     className={cn(
                       "flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors",
+                      isRuleBased && "cursor-not-allowed opacity-50",
                       isSelected
                         ? "border-brand-600 bg-brand-50"
                         : "border-slate-200 bg-white hover:bg-slate-50",
@@ -237,6 +288,12 @@ export function GeneralStep() {
                 );
               })}
             </div>
+            {optimizerType === "rule-based" ? (
+              <p className="text-sm text-amber-700">
+                Budget granularity is None while Rule Based is selected because
+                this flow does not include budget entry.
+              </p>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -430,49 +487,41 @@ export function GeneralStep() {
             {OPTIMIZER_OPTIONS.map((option) => {
               const isSelected = optimizerType === option.value;
               const isAllyAiOption = option.value === "ally-ai";
-              const isDisabled = isAllyAiOption && isSovSelected;
-              const showAsSelected = isSelected && !isDisabled;
+              const clearsSov = isAllyAiOption && isSovSelected;
 
               return (
                 <button
                   key={option.value}
                   type="button"
-                  disabled={isDisabled}
                   onClick={() => handleOptimizerChange(option.value)}
                   className={cn(
                     "flex gap-3 rounded-lg border p-4 text-left transition-colors",
-                    isDisabled &&
-                      "cursor-not-allowed border-slate-200 bg-slate-50 opacity-60",
-                    showAsSelected
+                    isSelected
                       ? "border-brand-600 bg-brand-50"
-                      : !isDisabled &&
-                          "border-slate-200 bg-white hover:bg-slate-50",
+                      : "border-slate-200 bg-white hover:bg-slate-50",
                   )}
-                  title={
-                    isDisabled ? ALLY_AI_SOV_DISABLED_MESSAGE : undefined
-                  }
-                  aria-disabled={isDisabled}
+                  title={clearsSov ? "SOV goals will be cleared" : undefined}
                 >
-                  <RadioIndicator selected={showAsSelected} />
+                  <RadioIndicator selected={isSelected} />
                   <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p
                         className={cn(
                           "text-sm font-semibold",
-                          isDisabled ? "text-slate-500" : "text-slate-900",
+                          "text-slate-900",
                         )}
                       >
                         {option.label}
                       </p>
-                      {option.recommended && !isDisabled && (
+                      {option.recommended && (
                         <Badge className="border border-brand-200/60 bg-gradient-to-r from-brand-100 to-cyan-100 text-brand-700 hover:from-brand-100 hover:to-cyan-100">
                           Recommended
                         </Badge>
                       )}
                     </div>
                     <p className="text-sm leading-relaxed text-slate-500">
-                      {isDisabled
-                        ? ALLY_AI_SOV_DISABLED_MESSAGE
+                      {clearsSov
+                        ? "Switching to Ally AI will clear incompatible SOV goals before budgets can be edited."
                         : option.description}
                     </p>
                   </div>
@@ -534,6 +583,78 @@ export function GeneralStep() {
           ) : null}
         </CardContent>
       </Card>
+
+      {pendingOptimizerType ? (
+        <AlertDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setPendingOptimizerType(null);
+          }}
+        >
+        <AlertDialogContent className="sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Switch to{" "}
+              {
+                OPTIMIZER_OPTIONS.find(
+                  (option) => option.value === pendingOptimizerType,
+                )?.label
+              }
+              ?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Review what changes across the setup. Incompatible values are
+              kept as drafts and restored if you switch back before launch.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <ul className="space-y-2 rounded-md bg-slate-50 p-3 text-sm text-slate-700">
+            {pendingOptimizerType === "ally-ai" ? (
+              <>
+                <li>{sovGoalCount} SOV goal(s) will be cleared.</li>
+                <li>
+                  {ruleBasedModeCount} rule-based mode(s) and their strategies
+                  will become None.
+                </li>
+                <li>Manual campaign constraints will be hidden.</li>
+              </>
+            ) : null}
+            {pendingOptimizerType === "rule-based" ? (
+              <>
+                <li>
+                  Budgets on {budgetRowCount} row(s) will become temporarily
+                  inactive.
+                </li>
+                <li>
+                  {includeSeasonality
+                    ? `${seasonalityEvents.length} seasonality event(s) will become temporarily inactive.`
+                    : "Seasonality is already inactive."}
+                </li>
+                <li>
+                  {includeConstraints
+                    ? `Spend constraints on ${editedConstraintRowCount} edited row(s) will become temporarily inactive.`
+                    : "Spend constraints are already inactive."}
+                </li>
+                <li>{allyModeCount} Ally mode(s) will become None.</li>
+              </>
+            ) : null}
+            {pendingOptimizerType === "custom" ? (
+              <li>
+                Existing values stay unchanged. Ally AI, Rule Based, and None
+                will all be available per row.
+              </li>
+            ) : null}
+          </ul>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep current optimizer</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmOptimizerChange}>
+              Switch and keep drafts
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+        </AlertDialog>
+      ) : null}
     </div>
   );
 }

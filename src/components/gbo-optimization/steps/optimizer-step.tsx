@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Plus, Search, Settings } from "lucide-react";
 
 import {
@@ -9,12 +9,12 @@ import {
   HourlyBidderPanel,
   OPTIMIZER_ACTION_ICON_CLASS,
 } from "@/components/gbo-optimization/hourly-bidder-panel";
+import { ImpactBanner } from "@/components/gbo-optimization/impact-banner";
 import { InfoLabel } from "@/components/gbo-optimization/info-label";
 import {
   getAggregateOptimizerMode,
   OptimizerModeChip,
   type AggregatedOptimizerMode,
-  type OptimizerColumnMode,
 } from "@/components/gbo-optimization/optimizer-mode-chip";
 import { RuleBasedStrategyPanel } from "@/components/gbo-optimization/rule-based-strategy-panel";
 import { RuleBasedStrategyStack } from "@/components/gbo-optimization/rule-based-strategy-stack";
@@ -37,8 +37,13 @@ import {
   RULE_BASED_ITEM_SKIP_CUE,
   type GoalType,
   type OptimizerScopeRow,
-  type OptimizerType,
 } from "@/lib/gbo-optimization/setup-data";
+import {
+  getAllowedOptimizerColumnModes,
+  getDefaultRowModesForOptimizer,
+  type OptimizerColumnMode,
+  type RowOptimizerModes,
+} from "@/lib/gbo-optimization/optimizer-policy";
 import {
   recordGoalsGoalMetricChange,
   recordOptimizerDayPartingChange,
@@ -108,38 +113,6 @@ const OPTIMIZER_CELL_ACTIONS_ROW =
 /** Row bottom border must be on <td>/<th> — tr borders are ignored with border-separate. */
 const OPTIMIZER_ROW_BORDER = "border-b border-slate-100";
 
-type RowOptimizerModes = {
-  budget: OptimizerColumnMode | null;
-  bid: OptimizerColumnMode | null;
-};
-
-/** Map General-page optimizer to per-row Budget / Bid defaults. */
-function columnModesForOptimizerType(
-  optimizerType: OptimizerType,
-): RowOptimizerModes {
-  if (optimizerType === "rule-based") {
-    return { budget: "rule-based", bid: "rule-based" };
-  }
-  if (optimizerType === "custom") {
-    // Empty until the user picks a mode per brand.
-    return { budget: null, bid: null };
-  }
-  return { budget: "ally", bid: "ally" };
-}
-
-function createRowModesForOptimizer(
-  optimizerType: OptimizerType,
-): Record<string, RowOptimizerModes> {
-  const columnPair = columnModesForOptimizerType(optimizerType);
-  const initial: Record<string, RowOptimizerModes> = {};
-  for (const row of OPTIMIZER_SCOPE_ROWS) {
-    if (row.allyMode) {
-      initial[row.id] = { ...columnPair };
-    }
-  }
-  return initial;
-}
-
 /** Ally-mode brands start with a day-parting strategy already set (prototype). */
 function createInitialDayPartingLabels(): Record<string, string> {
   const initial: Record<string, string> = {};
@@ -184,6 +157,7 @@ function OptimizerCell({
   onResetBidStrategies,
   onOpenRuleBasedStrategies,
   defaultColumnMode = "ally",
+  allowedModes,
 }: {
   row: OptimizerScopeRow;
   column: "mode" | "budget" | "bid" | "dayParting" | "targeting";
@@ -202,6 +176,7 @@ function OptimizerCell({
   onOpenRuleBasedStrategies?: () => void;
   /** Portfolio default used when clearing draft strategies. */
   defaultColumnMode?: OptimizerColumnMode | null;
+  allowedModes?: OptimizerColumnMode[];
 }) {
   // Targeting: always show add (+) — including rows without Ally mode.
   if (column === "targeting") {
@@ -259,6 +234,7 @@ function OptimizerCell({
               selectable
               showBoost={currentBid === "ally"}
               onChange={onBidModeChange}
+              allowedModes={allowedModes}
             />
           </div>
           <div className="flex shrink-0 items-center gap-1">
@@ -315,6 +291,7 @@ function OptimizerCell({
             mode={currentBudget}
             selectable
             onChange={onBudgetModeChange}
+            allowedModes={allowedModes}
           />
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -359,36 +336,29 @@ function OptimizerCell({
 
 export function OptimizerStep() {
   const { optimizerType } = useSetupContext();
+  const [showModePolicyNotice, setShowModePolicyNotice] = useState(true);
   // Ally AI: start with Budget/Bid collapsed into Mode; Expand reveals them.
   const isAllyAi = optimizerType === "ally-ai";
   const [bidBudgetExpanded, setBidBudgetExpanded] = useState(!isAllyAi);
-  const portfolioColumnDefaults = columnModesForOptimizerType(optimizerType);
+  const portfolioColumnDefaults =
+    getDefaultRowModesForOptimizer(optimizerType);
   const defaultColumnMode = portfolioColumnDefaults.budget;
-
-  // Per-row Budget / Bid modes — seeded from General optimizer choice.
-  const [rowModes, setRowModes] = useState(() =>
-    createRowModesForOptimizer(optimizerType),
-  );
-  // Snapshot of starting modes — used for blue “edited cell” styling.
-  const [baselineRowModes, setBaselineRowModes] = useState(() =>
-    createRowModesForOptimizer(optimizerType),
-  );
-  // Mirror so click handlers can read the previous value without nested setState.
-  const rowModesRef = useRef(rowModes);
-  rowModesRef.current = rowModes;
-
-  useEffect(() => {
-    // Switching optimizer on General resets expand/collapse + row modes.
-    setBidBudgetExpanded(optimizerType !== "ally-ai");
-    const nextModes = createRowModesForOptimizer(optimizerType);
-    setRowModes(nextModes);
-    setBaselineRowModes(nextModes);
-    rowModesRef.current = nextModes;
-  }, [optimizerType]);
+  const allowedModes = getAllowedOptimizerColumnModes(optimizerType);
+  const goalMetricSelectOptions =
+    optimizerType === "ally-ai"
+      ? GOAL_METRIC_SELECT_OPTIONS.filter((option) => option.value !== "sov")
+      : GOAL_METRIC_SELECT_OPTIONS;
 
   const tableMinWidth = getOptimizerTableMinWidth(bidBudgetExpanded);
 
   const showSetupToast = useSetupSessionStore((state) => state.showSetupToast);
+  const rowModes = useSetupSessionStore((state) => state.optimizerRowModes);
+  const baselineRowModes = useSetupSessionStore(
+    (state) => state.optimizerBaselineRowModes,
+  );
+  const setOptimizerRowMode = useSetupSessionStore(
+    (state) => state.setOptimizerRowMode,
+  );
   // Same target values / goal metrics users set on Goals & Budgets.
   const goalsRowState = useSetupSessionStore((state) => state.goalsRowState);
   const setGoalsRowState = useSetupSessionStore(
@@ -452,23 +422,11 @@ export function OptimizerStep() {
     column: "budget" | "bid",
     nextMode: OptimizerColumnMode,
   ) => {
-    const previous = rowModesRef.current[rowId] ?? {
+    const previous = rowModes[rowId] ?? {
       ...portfolioColumnDefaults,
     };
     const previousColumnMode = previous[column];
-    const nextRow: RowOptimizerModes = {
-      ...previous,
-      [column]: nextMode,
-    };
-
-    rowModesRef.current = {
-      ...rowModesRef.current,
-      [rowId]: nextRow,
-    };
-    setRowModes((current) => ({
-      ...current,
-      [rowId]: nextRow,
-    }));
+    setOptimizerRowMode(rowId, column, nextMode);
 
     if (previousColumnMode !== nextMode) {
       recordOptimizerModeChange(
@@ -494,12 +452,7 @@ export function OptimizerStep() {
     mode: OptimizerColumnMode | null,
   ) => {
     if (mode === null) {
-      const previous = rowModesRef.current[rowId] ?? {
-        ...portfolioColumnDefaults,
-      };
-      const nextRow: RowOptimizerModes = { ...previous, budget: null };
-      rowModesRef.current = { ...rowModesRef.current, [rowId]: nextRow };
-      setRowModes((current) => ({ ...current, [rowId]: nextRow }));
+      setOptimizerRowMode(rowId, "budget", null);
       return;
     }
     applyColumnMode(rowId, "budget", mode);
@@ -507,12 +460,7 @@ export function OptimizerStep() {
 
   const setBidMode = (rowId: string, mode: OptimizerColumnMode | null) => {
     if (mode === null) {
-      const previous = rowModesRef.current[rowId] ?? {
-        ...portfolioColumnDefaults,
-      };
-      const nextRow: RowOptimizerModes = { ...previous, bid: null };
-      rowModesRef.current = { ...rowModesRef.current, [rowId]: nextRow };
-      setRowModes((current) => ({ ...current, [rowId]: nextRow }));
+      setOptimizerRowMode(rowId, "bid", null);
       return;
     }
     applyColumnMode(rowId, "bid", mode);
@@ -539,6 +487,17 @@ export function OptimizerStep() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 py-4">
+      {optimizerType !== "custom" && showModePolicyNotice ? (
+        <ImpactBanner
+          title={`${optimizerType === "ally-ai" ? "Ally AI" : "Rule Based"} mode options`}
+          onDismiss={() => setShowModePolicyNotice(false)}
+        >
+          {optimizerType === "ally-ai"
+            ? "Rule Based is unavailable in the Bid and Budget Optimization columns. Previous rule-based selections and strategies show as None; switch back before launch to restore the draft."
+            : "Ally AI is unavailable in the Bid and Budget Optimization columns. Previous Ally selections show as None; switch back before launch to restore the draft."}
+        </ImpactBanner>
+      ) : null}
+
       {/* Chrome outside table scroll — never moves sideways with wide tables. */}
       <div className="flex shrink-0 w-full min-w-0 items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
@@ -693,7 +652,7 @@ export function OptimizerStep() {
                           hideLabel
                           label={`Metrics to optimize for ${sourceRow.name}`}
                           value={goalsState?.goalMetric ?? null}
-                          options={GOAL_METRIC_SELECT_OPTIONS}
+                          options={goalMetricSelectOptions}
                           placeholder="Select goal"
                           menuMinWidth={GOAL_METRIC_MENU_MIN_WIDTH_PX}
                           onValueChange={(value) =>
@@ -742,6 +701,7 @@ export function OptimizerStep() {
                             column="budget"
                             budgetMode={modes.budget}
                             defaultColumnMode={defaultColumnMode}
+                            allowedModes={allowedModes}
                             onBudgetModeChange={(mode) =>
                               setBudgetMode(nestedRow.id, mode)
                             }
@@ -775,6 +735,7 @@ export function OptimizerStep() {
                             column="bid"
                             bidMode={modes.bid}
                             defaultColumnMode={defaultColumnMode}
+                            allowedModes={allowedModes}
                             onBidModeChange={(mode) =>
                               setBidMode(nestedRow.id, mode)
                             }

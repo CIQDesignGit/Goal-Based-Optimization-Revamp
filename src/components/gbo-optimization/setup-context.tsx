@@ -4,7 +4,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -13,8 +12,6 @@ import {
 
 import {
   getSetupSteps,
-  GOALS_GOAL_EDITABLE_ROWS,
-  isSovGoal,
   type OptimizerType,
   type SetupStepConfig,
 } from "@/lib/gbo-optimization/setup-data";
@@ -53,16 +50,8 @@ export function SetupProvider({ children }: { children: ReactNode }) {
     seasonality: false,
     constraints: false,
   });
-  const goalType = useSetupSessionStore((state) => state.generalConfig.goalType);
-  const goalsRowState = useSetupSessionStore((state) => state.goalsRowState);
-
-  const hasSovGoal = useMemo(
-    () =>
-      isSovGoal(goalType) ||
-      GOALS_GOAL_EDITABLE_ROWS.some(
-        (row) => goalsRowState[row.id]?.goalMetric === "sov",
-      ),
-    [goalType, goalsRowState],
+  const transitionOptimizerData = useSetupSessionStore(
+    (state) => state.transitionOptimizerData,
   );
 
   const steps = useMemo(
@@ -76,41 +65,44 @@ export function SetupProvider({ children }: { children: ReactNode }) {
 
   const setOptimizerType = useCallback(
     (value: OptimizerType) => {
-      if (value === "ally-ai" && hasSovGoal) {
-        return;
+      if (optimizerType === value) return;
+
+      transitionOptimizerData(optimizerType, value, {
+        seasonalityEnabled: includeSeasonality,
+        constraintsEnabled: includeConstraints,
+        restoringSeasonality:
+          optimizerType === "rule-based"
+            ? allyFlowTogglesRef.current.seasonality
+            : false,
+        restoringConstraints:
+          optimizerType === "rule-based"
+            ? allyFlowTogglesRef.current.constraints
+            : false,
+      });
+
+      if (isAllyStyleFlow(optimizerType) && value === "rule-based") {
+        allyFlowTogglesRef.current = {
+          seasonality: includeSeasonality,
+          constraints: includeConstraints,
+        };
+        setIncludeSeasonalityState(false);
+      } else if (
+        optimizerType === "rule-based" &&
+        isAllyStyleFlow(value)
+      ) {
+        setIncludeSeasonalityState(allyFlowTogglesRef.current.seasonality);
+        setIncludeConstraintsState(allyFlowTogglesRef.current.constraints);
       }
 
-      setOptimizerTypeState((currentOptimizer) => {
-        if (currentOptimizer === value) {
-          return currentOptimizer;
-        }
-
-        if (isAllyStyleFlow(currentOptimizer) && value === "rule-based") {
-          allyFlowTogglesRef.current = {
-            seasonality: includeSeasonality,
-            constraints: includeConstraints,
-          };
-          setIncludeSeasonalityState(false);
-        } else if (
-          currentOptimizer === "rule-based" &&
-          isAllyStyleFlow(value)
-        ) {
-          setIncludeSeasonalityState(allyFlowTogglesRef.current.seasonality);
-          setIncludeConstraintsState(allyFlowTogglesRef.current.constraints);
-        }
-
-        return value;
-      });
+      setOptimizerTypeState(value);
     },
-    [hasSovGoal, includeSeasonality, includeConstraints],
+    [
+      optimizerType,
+      includeSeasonality,
+      includeConstraints,
+      transitionOptimizerData,
+    ],
   );
-
-  // SOV goals cannot use Ally AI at the portfolio level (FR-004).
-  useEffect(() => {
-    if (hasSovGoal && optimizerType === "ally-ai") {
-      setOptimizerType("rule-based");
-    }
-  }, [hasSovGoal, optimizerType, setOptimizerType]);
 
   const setConstraintsStepValid = useCallback((value: boolean) => {
     setConstraintsStepValidState(value);

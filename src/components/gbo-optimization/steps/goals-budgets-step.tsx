@@ -168,10 +168,6 @@ const GOAL_METRIC_SELECT_OPTIONS = GOAL_TYPE_OPTIONS.map((option) => ({
   label: option.label,
 }));
 const BULK_CLEAR_GOAL_VALUE = "__clear-goal__";
-const BULK_GOAL_METRIC_SELECT_OPTIONS = [
-  { value: BULK_CLEAR_GOAL_VALUE, label: "Select goal" },
-  ...GOAL_METRIC_SELECT_OPTIONS,
-];
 const GOAL_METRIC_MENU_MIN_WIDTH_PX = 220;
 const METRIC_SELECT_TRIGGER_CLASS =
   "h-auto w-auto gap-1 border-0 bg-transparent p-0 text-sm font-medium text-slate-700 shadow-none ring-0 focus-visible:border-transparent focus-visible:ring-0 hover:bg-transparent";
@@ -722,6 +718,24 @@ export function GoalsBudgetsStep() {
     setIncludeConstraints,
   } = useSetupContext();
   const isRuleBased = optimizerType === "rule-based";
+  const [showOptimizerTransitionNotice, setShowOptimizerTransitionNotice] =
+    useState(true);
+  const hasAutoClearedSov = useSetupSessionStore((state) =>
+    state.changeLedger.some(
+      (entry) =>
+        entry.field === "goalMetric" &&
+        entry.from.startsWith("SOV") &&
+        entry.to === "None",
+    ),
+  );
+  const goalMetricOptions =
+    optimizerType === "ally-ai"
+      ? GOAL_METRIC_SELECT_OPTIONS.filter((option) => option.value !== "sov")
+      : GOAL_METRIC_SELECT_OPTIONS;
+  const bulkGoalMetricOptions = [
+    { value: BULK_CLEAR_GOAL_VALUE, label: "Select goal" },
+    ...goalMetricOptions,
+  ];
   const optionalStepsHintDismissed = useSetupSessionStore(
     (state) => state.goalsOptionalStepsHintDismissed,
   );
@@ -1354,6 +1368,19 @@ export function GoalsBudgetsStep() {
     <div className="flex min-h-0 flex-1 flex-col gap-3 py-4">
       {/* Chrome outside table scroll — never moves sideways with wide tables. */}
       <div className="flex shrink-0 flex-col gap-3">
+        {optimizerType === "ally-ai" &&
+        hasAutoClearedSov &&
+        showOptimizerTransitionNotice ? (
+          <ImpactBanner
+            title="SOV goals need a compatible replacement"
+            onDismiss={() => setShowOptimizerTransitionNotice(false)}
+          >
+            SOV goals were cleared when you switched to Ally AI. Select a new
+            goal before entering or updating budgets. Your earlier setup is
+            preserved if you switch back before launch.
+          </ImpactBanner>
+        ) : null}
+
         {isRuleBased && !ruleBasedNoticeDismissed && (
           <ImpactBanner
             title="Rule-based — goals only"
@@ -1615,7 +1642,7 @@ export function GoalsBudgetsStep() {
                     hideLabel
                     label="Apply goal to all rows"
                     value={bulkGoalMetric}
-                    options={BULK_GOAL_METRIC_SELECT_OPTIONS}
+                    options={bulkGoalMetricOptions}
                     placeholder="Apply to all"
                     menuMinWidth={GOAL_METRIC_MENU_MIN_WIDTH_PX}
                     onValueChange={applyGoalToAllRows}
@@ -1944,7 +1971,7 @@ export function GoalsBudgetsStep() {
                             hideLabel
                             label={`Metrics to optimize for ${row.label}`}
                             value={editable.goalMetric}
-                            options={GOAL_METRIC_SELECT_OPTIONS}
+                            options={goalMetricOptions}
                             placeholder="Select goal"
                             menuMinWidth={GOAL_METRIC_MENU_MIN_WIDTH_PX}
                             onValueChange={(value) =>

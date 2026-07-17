@@ -5,6 +5,7 @@ import { CalendarDays, ChevronDown } from "lucide-react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 
 import { SeasonalityEventsSection } from "@/components/gbo-optimization/seasonality-events-section";
+import { ImpactBanner } from "@/components/gbo-optimization/impact-banner";
 import { SetupInlineSelect } from "@/components/gbo-optimization/setup-inline-select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,7 +20,6 @@ import {
   getLevelLabel,
   getScopeTaxonomyValue,
   GOALS_SCOPE_ROWS,
-  MOCK_SAVED_SEASONALITY_EVENTS,
   SEASONALITY_CHART_DATA,
   type SeasonalityEvent,
 } from "@/lib/gbo-optimization/setup-data";
@@ -88,14 +88,22 @@ function getTaxonomyFilterOptions(
 }
 
 export function SeasonalityStep() {
-  // Seed with mock saved events so the list is visible for UX review.
-  const [events, setEvents] = useState<SeasonalityEvent[]>(
-    () => [...MOCK_SAVED_SEASONALITY_EVENTS],
+  // Shared state survives when Rule Based temporarily removes this step.
+  const events = useSetupSessionStore((state) => state.seasonalityEvents);
+  const setEvents = useSetupSessionStore(
+    (state) => state.setSeasonalityEvents,
   );
   const [level1Filter, setLevel1Filter] = useState<string | null>(null);
   const [level2Filter, setLevel2Filter] = useState<string | null>(null);
   const [chartMode, setChartMode] = useState<"absolute" | "cumulative">(
     "absolute",
+  );
+  const [showRestoredNotice, setShowRestoredNotice] = useState(true);
+  const seasonalityWasRestored = useSetupSessionStore((state) =>
+    state.changeLedger.some(
+      (entry) =>
+        entry.field === "seasonalityAvailability" && entry.to === "Restored",
+    ),
   );
 
   const budgetType = useSetupSessionStore(
@@ -145,6 +153,16 @@ export function SeasonalityStep() {
 
   return (
     <div className="flex flex-col gap-4 py-4">
+      {seasonalityWasRestored && showRestoredNotice ? (
+        <ImpactBanner
+          title="Seasonality draft restored"
+          onDismiss={() => setShowRestoredNotice(false)}
+        >
+          Your seasonality events were temporarily inactive in Rule Based and
+          are available again.
+        </ImpactBanner>
+      ) : null}
+
       <h2 className="text-base font-medium text-slate-900">
         Cumulative budget plan for the year 2026
       </h2>

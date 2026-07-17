@@ -29,6 +29,7 @@ import {
   ChangedCellTooltip,
   type CellVisualState,
 } from "@/components/gbo-optimization/changed-cell-tooltip";
+import { ImpactBanner } from "@/components/gbo-optimization/impact-banner";
 import { InfoLabel } from "@/components/gbo-optimization/info-label";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -792,7 +793,20 @@ function EditableConstraintCell({
 export function ConstraintsStep() {
   const { optimizerType, setConstraintsStepValid } = useSetupContext();
   const isRuleBased = optimizerType === "rule-based";
-  const [showCampaignConstraints, setShowCampaignConstraints] = useState(false);
+  const [showCampaignConstraintsState, setShowCampaignConstraints] =
+    useState(false);
+  const [showRestoredNotice, setShowRestoredNotice] = useState(true);
+  const constraintsWereRestored = useSetupSessionStore((state) =>
+    state.changeLedger.some(
+      (entry) =>
+        entry.field === "spendConstraintsAvailability" &&
+        entry.to === "Restored",
+    ),
+  );
+  // Ally AI manages campaigns automatically, so manual campaign constraints
+  // are available only in Custom or as floor/ceiling in Rule Based.
+  const showCampaignConstraints =
+    optimizerType === "ally-ai" ? false : showCampaignConstraintsState;
   const rowState = useSetupSessionStore((state) => state.constraintsRowState);
   const setRowState = useSetupSessionStore(
     (state) => state.setConstraintsRowState,
@@ -1236,6 +1250,18 @@ export function ConstraintsStep() {
     <div className="flex min-h-0 flex-1 flex-col gap-4 py-4">
       {/* Chrome outside table scroll — never moves sideways with wide tables. */}
       <div className="flex shrink-0 flex-col gap-4">
+        {constraintsWereRestored &&
+        optimizerType !== "rule-based" &&
+        showRestoredNotice ? (
+          <ImpactBanner
+            title="Spend constraints restored"
+            onDismiss={() => setShowRestoredNotice(false)}
+          >
+            Your spend constraints were temporarily inactive in Rule Based and
+            are available again.
+          </ImpactBanner>
+        ) : null}
+
         {isRuleBased && (
           <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             Rule-based mode — only floor and ceiling constraints apply. Other
@@ -1288,23 +1314,29 @@ export function ConstraintsStep() {
             </Button>
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-slate-600">
-            <Switch
-              checked={showCampaignConstraints}
-              onCheckedChange={(checked) => {
-                if (checked === true) {
-                  markMidMonthConstraintActivity();
-                }
-                setShowCampaignConstraints(checked === true);
-              }}
-            />
-            <span>
-              {isRuleBased
-                ? "Set floor and ceiling limits"
-                : "Set campaign constraints"}
-            </span>
-            <CircleHelp className="size-4 text-slate-400" />
-          </label>
+          {optimizerType !== "ally-ai" ? (
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <Switch
+                checked={showCampaignConstraints}
+                onCheckedChange={(checked) => {
+                  if (checked === true) {
+                    markMidMonthConstraintActivity();
+                  }
+                  setShowCampaignConstraints(checked === true);
+                }}
+              />
+              <span>
+                {isRuleBased
+                  ? "Set floor and ceiling limits"
+                  : "Set campaign constraints"}
+              </span>
+              <CircleHelp className="size-4 text-slate-400" />
+            </label>
+          ) : (
+            <p className="text-sm text-slate-500">
+              Ally AI manages campaign constraints automatically.
+            </p>
+          )}
         </div>
       </div>
 
