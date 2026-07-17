@@ -361,7 +361,9 @@ export function getScopeIdentity(
   }
 
   const level1Value = getScopeTaxonomyValue(leaf, level1Key).trim();
-  const level2Value = getScopeTaxonomyValue(leaf, level2Key).trim();
+  const level2Value = formatScopeLevel2DisplayLabel(
+    getScopeTaxonomyValue(leaf, level2Key).trim(),
+  );
 
   return {
     editLevel: "level2",

@@ -1715,9 +1715,12 @@ export function recordSeasonalityEventAdded(
   eventName: string,
   dateRange: string,
   scope: string,
+  budgetMode: SeasonalityEvent["budgetMode"],
+  budgetValue: string,
 ): void {
   const { recordChange } = useSetupSessionStore.getState();
   const { scopeId, scopeName } = resolveSeasonalityChangeScope(scope);
+  const budgetDetail = `${budgetMode} ${budgetValue.trim() || "0"}`;
 
   recordChange({
     step: "seasonality",
@@ -1725,8 +1728,8 @@ export function recordSeasonalityEventAdded(
     scopeName,
     field: `seasonality.add.${Date.now()}`,
     fieldLabel: "Seasonality event",
-    // For adds, Summary shows `to` as the title and `from` as secondary dates.
-    from: dateRange.trim() || "—",
+    // For adds, Summary shows `to` as the title and parses dates + budget from `from`.
+    from: [dateRange.trim(), budgetDetail].filter(Boolean).join(" · "),
     to: eventName.trim() || "New event",
     category: "seasonality",
   });

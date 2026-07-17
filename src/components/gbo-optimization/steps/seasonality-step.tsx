@@ -221,6 +221,8 @@ export function SeasonalityStep() {
             event.name.trim() || "New event",
             formatSeasonalityDateRange(event),
             event.scope,
+            event.budgetMode,
+            event.budgetValue,
           );
         }}
         onUpdateEvent={(updatedEvent) => {

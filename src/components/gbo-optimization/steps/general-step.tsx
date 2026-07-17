@@ -290,8 +290,8 @@ export function GeneralStep() {
             </div>
             {optimizerType === "rule-based" ? (
               <p className="text-sm text-amber-700">
-                Budget granularity is None while Rule Based is selected because
-                this flow does not include budget entry.
+                Budget granularity is available only when the optimizer is Ally
+                AI or None.
               </p>
             ) : null}
           </CardContent>

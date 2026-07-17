@@ -16,7 +16,6 @@ import {
   type MouseEvent,
 } from "react";
 
-import { useSetupContext } from "@/components/gbo-optimization/setup-context";
 import { useTaxonomyScopeLevels } from "@/components/gbo-optimization/taxonomy-scope-columns";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,8 +34,6 @@ import {
   getBudgetDefinitionLabel,
   getGoalTypeLabel,
   getLevelLabel,
-  getOptimizerLabel,
-  getScopeTaxonomyValue,
   GOALS_SCOPE_ROWS,
 } from "@/lib/gbo-optimization/setup-data";
 import {
@@ -63,6 +60,15 @@ const CATEGORY_BADGE_CLASS: Record<SetupChangeCategory, string> = {
   general: "bg-slate-100 text-slate-700 hover:bg-slate-100",
   optimizer: "bg-blue-50 text-blue-700 hover:bg-blue-50",
 };
+
+const CHANGE_TYPE_FILTER_ORDER: SetupChangeCategory[] = [
+  "goal",
+  "budget",
+  "constraint",
+  "seasonality",
+  "optimizer",
+  "general",
+];
 
 /** How line-item changes are arranged in the Summary review widget. */
 type LineItemChangesView = "by-steps" | "by-impact";
@@ -127,53 +133,7 @@ function uniqueCategories(
   return categories;
 }
 
-/**
- * Tag for the scope level of a change:
- * Entire Business / Level 1 dimension / Level 2 dimension.
- * Level 1 (+ entire business) = filled; Level 2 = outline only.
- */
-function ScopeLevelTag({
-  identity,
-  label: labelOverride,
-  className,
-}: {
-  identity: ScopeIdentity;
-  /** When set (e.g. seasonality Scope dropdown), wins over identity defaults. */
-  label?: string;
-  className?: string;
-}) {
-  const label =
-    labelOverride ??
-    (identity.editLevel === "entire-business"
-      ? "Entire Business"
-      : identity.editLevel === "level1"
-        ? identity.level1Label
-        : identity.level2Label);
-
-  const isLevel1 =
-    identity.editLevel === "level1" ||
-    identity.editLevel === "entire-business";
-
-  return (
-    <span
-      className={cn(
-        "inline-flex max-w-full truncate rounded-sm px-1.5 py-0.5 text-[10px] font-semibold tracking-wide",
-        isLevel1
-          ? "bg-slate-200 text-slate-800"
-          : "border border-slate-300 bg-transparent text-slate-600",
-        className,
-      )}
-      title={label}
-    >
-      {label}
-    </span>
-  );
-}
-
-/**
- * Secondary hierarchy cue under a line item — labeled L1 / L2 path only.
- * The edit-level tag sits in its own column (see ScopeLevelTag).
- */
+/** Secondary hierarchy cue under a line item — labeled L1 / L2 path only. */
 function ScopeHierarchyCue({
   scopeId,
   className,
@@ -406,8 +366,7 @@ function ChangeRow({
   const identity = useScopeIdentityForId(entry.scopeId);
   // General settings (granularity, goal type, …) are portfolio-wide — not a taxonomy leaf.
   const isGeneralSetting = entry.scopeId === PORTFOLIO_CHANGE_SCOPE_ID;
-  const tagLabel =
-    entry.category === "seasonality" ? entry.scopeName : undefined;
+  const isLevel2 = !isGeneralSetting && identity.editLevel === "level2";
 
   const isSeasonalityAdd = entry.field.startsWith("seasonality.add.");
   const seasonalityAdd = isSeasonalityAdd
@@ -415,57 +374,79 @@ function ChangeRow({
     : null;
 
   return (
-    <li className="grid gap-2 border-b border-slate-100 py-3 last:border-b-0 sm:grid-cols-[5.5rem_minmax(0,2.2fr)_auto_minmax(0,1.2fr)] sm:items-start sm:gap-3">
-      {/* Col 1 — scope level tag (skip for General settings — not a taxonomy scope) */}
-      <div className="sm:pt-0.5">
-        {isGeneralSetting ? null : (
-          <ScopeLevelTag identity={identity} label={tagLabel} />
-        )}
-      </div>
-
+    <li
+      className={cn(
+        "grid gap-2 border-b border-slate-100 py-3 last:border-b-0 sm:items-start sm:gap-3",
+        isLevel2
+          ? "pl-8 pr-2 sm:grid-cols-[minmax(0,1fr)_minmax(19rem,2fr)]"
+          : "px-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(19rem,2fr)]",
+      )}
+    >
       <div className="min-w-0">
         {isGeneralSetting || hideScope ? (
           // General settings / by-impact: field name is the primary line.
-          <p className="text-sm font-medium wrap-break-word text-slate-900">
+          <p
+            className={cn(
+              "text-sm wrap-break-word text-slate-900",
+              isLevel2 ? "font-normal" : "font-semibold",
+            )}
+          >
             {entry.fieldLabel}
           </p>
         ) : (
-          <p className="text-sm font-medium wrap-break-word text-slate-900">
+          <p
+            className={cn(
+              "text-sm wrap-break-word text-slate-900",
+              isLevel2 ? "font-normal" : "font-semibold",
+            )}
+          >
             {identity.primaryName}
           </p>
         )}
       </div>
 
-      <div className="sm:justify-self-start sm:pt-0.5">
-        <Badge
-          variant="secondary"
-          className={cn(
-            "font-normal",
-            CATEGORY_BADGE_CLASS[entry.category],
-          )}
-        >
-          {SETUP_CHANGE_CATEGORY_LABELS[entry.category]}
-        </Badge>
-      </div>
+      {!isLevel2 ? (
+        <div className="flex flex-wrap items-center gap-1.5 sm:justify-self-start sm:pt-0.5">
+          <Badge
+            variant="secondary"
+            className={cn(
+              "font-normal",
+              CATEGORY_BADGE_CLASS[entry.category],
+            )}
+          >
+            {SETUP_CHANGE_CATEGORY_LABELS[entry.category]}
+          </Badge>
+          {seasonalityAdd ? (
+            <Badge
+              variant="secondary"
+              className="border border-emerald-200 bg-emerald-50 font-normal text-emerald-700"
+            >
+              Added
+            </Badge>
+          ) : null}
+        </div>
+      ) : null}
 
-      <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm tabular-nums sm:justify-end sm:pt-0.5">
+      <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm tabular-nums sm:justify-end sm:justify-self-stretch sm:pt-0.5">
         {seasonalityAdd ? (
-          // Additions: title + dates + Added tag (no “—” → arrow)
-          <div className="flex min-w-0 flex-col items-end gap-1 text-right">
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <span className="font-medium wrap-break-word text-slate-900">
-                {seasonalityAdd.name}
-              </span>
-              <Badge
-                variant="secondary"
-                className="border border-emerald-200 bg-emerald-50 font-normal text-emerald-700"
-              >
-                Added
-              </Badge>
-            </div>
-            {seasonalityAdd.dates ? (
-              <span className="text-xs leading-snug text-slate-500">
-                {seasonalityAdd.dates}
+          // Additions: title with date and budget details (no “—” → arrow).
+          <div className="flex w-full min-w-0 flex-col items-end gap-1 text-right">
+            <span className="font-medium wrap-break-word text-slate-900">
+              {seasonalityAdd.name}
+            </span>
+            {seasonalityAdd.dates || seasonalityAdd.budget ? (
+              <span className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap text-xs leading-snug text-slate-500">
+                {seasonalityAdd.dates ? (
+                  <span>{seasonalityAdd.dates}</span>
+                ) : null}
+                {seasonalityAdd.dates && seasonalityAdd.budget ? (
+                  <span className="text-slate-300" aria-hidden>
+                    •
+                  </span>
+                ) : null}
+                {seasonalityAdd.budget ? (
+                  <span>{seasonalityAdd.budget}</span>
+                ) : null}
               </span>
             ) : null}
           </div>
@@ -488,6 +469,196 @@ function ChangeRow({
   );
 }
 
+type HierarchyChangeGroup = {
+  id: string;
+  label: string;
+  level1Entries: ChangeLedgerEntry[];
+  level2Entries: ChangeLedgerEntry[];
+};
+
+/**
+ * Arrange step changes as collapsible Level 1 rows with indented Level 2 rows.
+ * Typography and spacing communicate hierarchy without repeating level badges.
+ */
+function HierarchicalChangeRows({
+  entries,
+}: {
+  entries: ChangeLedgerEntry[];
+}) {
+  const { level1Key, level2Key, level1Label, level2Label } =
+    useTaxonomyScopeLevels();
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  const { standaloneEntries, groups } = useMemo(() => {
+    const standalone: ChangeLedgerEntry[] = [];
+    const grouped = new Map<string, HierarchyChangeGroup>();
+
+    for (const entry of entries) {
+      if (
+        entry.scopeId === PORTFOLIO_CHANGE_SCOPE_ID ||
+        entry.scopeId === ENTIRE_BUSINESS_SCOPE_ID
+      ) {
+        standalone.push(entry);
+        continue;
+      }
+
+      const identity = getScopeIdentity(
+        entry.scopeId,
+        level1Key,
+        level2Key,
+        level1Label,
+        level2Label,
+        GOALS_SCOPE_ROWS,
+      );
+      const groupLabel =
+        identity.level1Value || entry.scopeName || identity.primaryName;
+      const groupId = `hierarchy:${groupLabel}`;
+      const group = grouped.get(groupId) ?? {
+        id: groupId,
+        label: groupLabel,
+        level1Entries: [],
+        level2Entries: [],
+      };
+
+      if (identity.editLevel === "level1") {
+        group.level1Entries.push(entry);
+      } else {
+        group.level2Entries.push(entry);
+      }
+
+      grouped.set(groupId, group);
+    }
+
+    return {
+      standaloneEntries: standalone,
+      groups: Array.from(grouped.values()),
+    };
+  }, [entries, level1Key, level1Label, level2Key, level2Label]);
+
+  const toggleGroup = (groupId: string) => {
+    setCollapsedGroupIds((current) => {
+      const next = new Set(current);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  };
+
+  return (
+    <>
+      {standaloneEntries.map((entry) => (
+        <ChangeRow key={entry.id} entry={entry} />
+      ))}
+
+      {groups.map((group) => {
+        const isCollapsed = collapsedGroupIds.has(group.id);
+        const hasLevel2Entries = group.level2Entries.length > 0;
+
+        return (
+          <li key={group.id} className="border-b border-slate-100 last:border-b-0">
+            <button
+              type="button"
+              aria-expanded={hasLevel2Entries ? !isCollapsed : undefined}
+              onClick={() => {
+                if (hasLevel2Entries) toggleGroup(group.id);
+              }}
+              className={cn(
+                "grid w-full gap-2 px-2 py-3 text-left text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500/40 sm:grid-cols-[minmax(0,1fr)_minmax(19rem,2fr)] sm:items-start sm:gap-3",
+                hasLevel2Entries
+                  ? "transition-colors hover:bg-slate-50"
+                  : "cursor-default",
+              )}
+            >
+              <span className="flex min-w-0 items-center gap-2 font-semibold">
+                {hasLevel2Entries ? (
+                  <ChevronDown
+                    className={cn(
+                      "size-4 shrink-0 text-slate-500 transition-transform",
+                      isCollapsed && "-rotate-90",
+                    )}
+                    aria-hidden
+                  />
+                ) : (
+                  <span className="size-4 shrink-0" aria-hidden />
+                )}
+                <span className="min-w-0 flex-1 truncate">{group.label}</span>
+              </span>
+
+              <span className="flex min-w-0 flex-col items-end gap-1 pt-0.5 text-right font-normal tabular-nums">
+                {group.level1Entries.map((entry) => {
+                  const seasonalityAdd = entry.field.startsWith(
+                    "seasonality.add.",
+                  )
+                    ? resolveSeasonalityAddDisplay(entry)
+                    : null;
+
+                  return seasonalityAdd ? (
+                    <span
+                      key={entry.id}
+                      className="flex w-full min-w-0 flex-col items-end gap-1"
+                    >
+                      <span className="font-medium wrap-break-word text-slate-900">
+                        {seasonalityAdd.name}
+                      </span>
+                      {seasonalityAdd.dates || seasonalityAdd.budget ? (
+                        <span className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap text-xs leading-snug text-slate-500">
+                          {seasonalityAdd.dates ? (
+                            <span>{seasonalityAdd.dates}</span>
+                          ) : null}
+                          {seasonalityAdd.dates && seasonalityAdd.budget ? (
+                            <span className="text-slate-300" aria-hidden>
+                              •
+                            </span>
+                          ) : null}
+                          {seasonalityAdd.budget ? (
+                            <span>{seasonalityAdd.budget}</span>
+                          ) : null}
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : (
+                    <span
+                      key={entry.id}
+                      className="flex flex-wrap items-center justify-end gap-2"
+                    >
+                      <span className="text-xs text-slate-500">
+                        {entry.fieldLabel}
+                      </span>
+                      <span className="text-slate-500 line-through decoration-slate-300">
+                        {formatChangeValue(entry.from)}
+                      </span>
+                      <ArrowRight
+                        className="size-3.5 shrink-0 text-slate-400"
+                        aria-hidden
+                      />
+                      <span className="font-medium text-slate-900">
+                        {formatChangeValue(entry.to)}
+                      </span>
+                    </span>
+                  );
+                })}
+              </span>
+            </button>
+
+            {hasLevel2Entries && !isCollapsed ? (
+              <ul className="border-t border-slate-100 bg-slate-50/30">
+                {group.level2Entries.map((entry) => (
+                  <ChangeRow key={entry.id} entry={entry} />
+                ))}
+              </ul>
+            ) : null}
+          </li>
+        );
+      })}
+    </>
+  );
+}
+
 /**
  * Seasonality “add” rows: title on top, dates underneath.
  * Supports new ledger shape (to=name, from=dates) and older “name · dates · …” labels.
@@ -495,15 +666,23 @@ function ChangeRow({
 function resolveSeasonalityAddDisplay(entry: ChangeLedgerEntry): {
   name: string;
   dates: string | null;
+  budget: string | null;
 } {
   const from = entry.from.trim();
   const to = entry.to.trim();
+  const fromParts = from
+    .split(" · ")
+    .map((part) => part.trim())
+    .filter(Boolean);
 
-  // New shape: to is the event name; from is the date range (or "—").
+  // New shape: to is the event name; from contains dates and budget details.
   if (!to.includes(" · ")) {
     return {
       name: to || "New event",
-      dates: !from || from === "—" ? null : from,
+      dates: fromParts.find((part) => part.includes("→")) ?? null,
+      budget: formatSeasonalityBudgetDetail(
+        fromParts.find((part) => /^(percent|absolute)\b/i.test(part)) ?? null,
+      ),
     };
   }
 
@@ -524,7 +703,38 @@ function resolveSeasonalityAddDisplay(entry: ChangeLedgerEntry): {
   return {
     name: name || "New event",
     dates: datePart,
+    budget: formatSeasonalityBudgetDetail(
+      parts.find((part) => /^(percent|absolute)\b/i.test(part)) ?? null,
+    ),
   };
+}
+
+/** Turn stored seasonality budget data into compact review copy. */
+function formatSeasonalityBudgetDetail(value: string | null): string | null {
+  if (!value) return null;
+
+  const match = value.match(/^(percent|absolute)\s+(.+)$/i);
+  if (!match) return null;
+
+  const [, mode, rawValue] = match;
+  const numericValue = Number.parseFloat(rawValue.replaceAll(",", ""));
+
+  if (mode.toLowerCase() === "percent") {
+    const displayValue = Number.isFinite(numericValue)
+      ? numericValue.toString()
+      : rawValue;
+    return `Budget ${displayValue}%`;
+  }
+
+  const displayValue = Number.isFinite(numericValue)
+    ? new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 2,
+      }).format(numericValue)
+    : `$${rawValue}`;
+
+  return `Budget ${displayValue}`;
 }
 
 function ChangesAccordionSection({
@@ -558,13 +768,10 @@ function ChangesAccordionSection({
     : scopeId
       ? scopeIdentity.primaryName
       : label;
-  // Seasonality form Scope, or General settings group tag.
-  const scopeTagLabel =
-    scopeId && entries[0]?.category === "seasonality"
-      ? entries[0].scopeName
-      : isGeneralSettingGroup
-        ? "General"
-        : undefined;
+  const isLevel2Scope =
+    Boolean(scopeId) &&
+    !isGeneralSettingGroup &&
+    scopeIdentity.editLevel === "level2";
 
   const availableCategories = categories ?? uniqueCategories(entries);
 
@@ -642,28 +849,26 @@ function ChangesAccordionSection({
           "flex w-full cursor-pointer items-start justify-between gap-3 px-4 py-3",
           "transition-colors hover:bg-slate-50",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:ring-inset",
+          scopeId && (isLevel2Scope ? "pl-10" : "pl-2"),
           open && "border-b border-slate-100",
         )}
       >
         <div className="flex min-w-0 flex-1 items-stretch gap-2.5">
-          {/* Tall bar spans title + taxonomy hint under it */}
-          <span
-            className="w-1 shrink-0 self-stretch rounded-full bg-brand-500"
-            aria-hidden
-          />
+          {/* The accent bar identifies top-level sections, not nested Level 2 rows. */}
+          {!isLevel2Scope ? (
+            <span
+              className="w-1 shrink-0 self-stretch rounded-full bg-brand-500"
+              aria-hidden
+            />
+          ) : null}
           <div className="min-w-0 space-y-1 py-0.5">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              {scopeId ? (
-                <ScopeLevelTag
-                  identity={
-                    isGeneralSettingGroup
-                      ? { ...scopeIdentity, editLevel: "entire-business" }
-                      : scopeIdentity
-                  }
-                  label={scopeTagLabel}
-                />
-              ) : null}
-              <h3 className="text-sm font-semibold wrap-break-word text-slate-900">
+              <h3
+                className={cn(
+                  "text-sm wrap-break-word text-slate-900",
+                  isLevel2Scope ? "font-normal" : "font-semibold",
+                )}
+              >
                 {headingLabel}
               </h3>
             </div>
@@ -734,13 +939,17 @@ function ChangesAccordionSection({
         <div>
           <ul className="divide-y divide-slate-100 bg-white px-4">
             {visibleEntries.length > 0 ? (
-              paginatedEntries.map((entry) => (
-                <ChangeRow
-                  key={entry.id}
-                  entry={entry}
-                  hideScope={hideScopeInRows}
-                />
-              ))
+              scopeId ? (
+                paginatedEntries.map((entry) => (
+                  <ChangeRow
+                    key={entry.id}
+                    entry={entry}
+                    hideScope={hideScopeInRows}
+                  />
+                ))
+              ) : (
+                <HierarchicalChangeRows entries={paginatedEntries} />
+              )
             ) : (
               <li className="py-6 text-center text-sm text-slate-500">
                 No changes match the selected filters.
@@ -818,6 +1027,371 @@ function ChangesAccordionSection({
   );
 }
 
+function ImpactInlineChange({ entry }: { entry: ChangeLedgerEntry }) {
+  const seasonalityAdd = entry.field.startsWith("seasonality.add.")
+    ? resolveSeasonalityAddDisplay(entry)
+    : null;
+
+  if (seasonalityAdd) {
+    return (
+      <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 border-l border-slate-200 pl-3 first:border-l-0 first:pl-0">
+        <span className="text-xs font-medium text-slate-500">
+          {entry.fieldLabel}
+        </span>
+        <span className="text-sm font-medium wrap-break-word text-slate-900">
+          {seasonalityAdd.name}
+        </span>
+        {seasonalityAdd.dates || seasonalityAdd.budget ? (
+          <span className="text-xs text-slate-500">
+            {[seasonalityAdd.dates, seasonalityAdd.budget]
+              .filter(Boolean)
+              .join(" • ")}
+          </span>
+        ) : null}
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex min-w-0 flex-wrap items-center gap-2 border-l border-slate-200 pl-3 first:border-l-0 first:pl-0">
+      <span className="text-xs font-medium text-slate-500">
+        {entry.fieldLabel}
+      </span>
+      <span className="text-sm wrap-break-word text-slate-400 line-through decoration-slate-300">
+        {formatChangeValue(entry.from)}
+      </span>
+      <ArrowRight className="size-3.5 shrink-0 text-slate-400" aria-hidden />
+      <span className="text-sm font-medium wrap-break-word text-slate-900">
+        {formatChangeValue(entry.to)}
+      </span>
+    </span>
+  );
+}
+
+function ImpactChangeSummary({
+  entries,
+  expanded,
+  onToggle,
+  hasNestedItems = false,
+}: {
+  entries: ChangeLedgerEntry[];
+  expanded: boolean;
+  onToggle: () => void;
+  hasNestedItems?: boolean;
+}) {
+  if (entries.length === 0) {
+    return (
+      <div
+        role="cell"
+        className="px-3 py-3 text-sm text-slate-400"
+      >
+        {hasNestedItems ? "Changes are listed in nested line items" : "—"}
+      </div>
+    );
+  }
+
+  const groupedChanges = groupChangesByStep(entries);
+
+  return (
+    <div
+      role="cell"
+      className="flex min-w-0 items-center justify-between gap-3 px-3 py-3"
+    >
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        {groupedChanges.map((group) => (
+          <span
+            key={group.step}
+            className="inline-flex h-7 items-center gap-1.5 rounded-md bg-slate-100 px-2.5 text-xs font-medium text-slate-600"
+          >
+            {group.label}
+            <span className="font-semibold tabular-nums text-slate-900">
+              {group.entries.length}
+            </span>
+          </span>
+        ))}
+      </div>
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-label={expanded ? "Hide exact changes" : "Show exact changes"}
+        onClick={onToggle}
+        className="flex size-7 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+      >
+        <ChevronDown
+          className={cn(
+            "size-4 transition-transform",
+            expanded && "rotate-180",
+          )}
+          aria-hidden
+        />
+      </button>
+    </div>
+  );
+}
+
+function ImpactChangeDetails({ entries }: { entries: ChangeLedgerEntry[] }) {
+  return (
+    <div className="space-y-4 py-3">
+      {groupChangesByStep(entries).map((group) => (
+        <section key={group.step} className="space-y-2">
+          <h4 className="text-xs font-semibold text-slate-700">
+            {group.label}
+          </h4>
+          <div className="flex flex-col gap-2">
+            {group.entries.map((entry) => (
+              <div
+                key={entry.id}
+                className="rounded-md bg-white px-3 py-2 ring-1 ring-slate-200"
+              >
+                <ImpactInlineChange entry={entry} />
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+type ImpactScopeRow = {
+  id: string;
+  label: string;
+  entries: ChangeLedgerEntry[];
+};
+
+type ImpactLevel1Group = ImpactScopeRow & {
+  children: ImpactScopeRow[];
+};
+
+function ImpactMatrixRow({
+  row,
+  level,
+  collapsible = false,
+  collapsed = false,
+  onToggle,
+}: {
+  row: ImpactScopeRow;
+  level: "level1" | "level2";
+  collapsible?: boolean;
+  collapsed?: boolean;
+  onToggle?: () => void;
+}) {
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const labelContent = (
+    <>
+      {collapsible ? (
+        <ChevronDown
+          className={cn(
+            "size-4 shrink-0 text-slate-500 transition-transform",
+            collapsed && "-rotate-90",
+          )}
+          aria-hidden
+        />
+      ) : level === "level2" ? (
+        <span className="size-4 shrink-0" aria-hidden />
+      ) : null}
+      <span className="min-w-0 wrap-break-word">{row.label}</span>
+    </>
+  );
+
+  return (
+    <div role="rowgroup" className="border-b border-slate-100 last:border-b-0">
+      <div
+        role="row"
+        className={cn(
+          "grid grid-cols-[15rem_minmax(0,1fr)]",
+          level === "level1" ? "bg-slate-50/80" : "bg-white",
+        )}
+      >
+        <div
+          role="rowheader"
+          className={cn(
+            "flex items-start gap-2 px-3 py-3 text-sm text-slate-900",
+            level === "level1" ? "font-semibold" : "pl-8 font-normal",
+          )}
+        >
+          {collapsible ? (
+            <button
+              type="button"
+              aria-expanded={!collapsed}
+              onClick={onToggle}
+              className="flex min-w-0 items-start gap-2 text-left hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+            >
+              {labelContent}
+            </button>
+          ) : (
+            labelContent
+          )}
+        </div>
+
+        <ImpactChangeSummary
+          entries={row.entries}
+          expanded={detailsExpanded}
+          onToggle={() => setDetailsExpanded((current) => !current)}
+          hasNestedItems={collapsible}
+        />
+      </div>
+
+      {detailsExpanded && row.entries.length > 0 ? (
+        <div className="grid grid-cols-[15rem_minmax(0,1fr)] bg-slate-50/50">
+          <div aria-hidden />
+          <div className="border-t border-slate-100 px-3">
+            <ImpactChangeDetails entries={row.entries} />
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ImpactComparisonTable({
+  changeLedger,
+}: {
+  changeLedger: ChangeLedgerEntry[];
+}) {
+  const { level1Key, level2Key, level1Label, level2Label } =
+    useTaxonomyScopeLevels();
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  const { standaloneRows, level1Groups } = useMemo(() => {
+    const standalone: ImpactScopeRow[] = [];
+    const groups = new Map<string, ImpactLevel1Group>();
+
+    for (const scopeGroup of groupChangesByScope(changeLedger)) {
+      const identity = getScopeIdentity(
+        scopeGroup.scopeId,
+        level1Key,
+        level2Key,
+        level1Label,
+        level2Label,
+        GOALS_SCOPE_ROWS,
+      );
+      const row: ImpactScopeRow = {
+        id: scopeGroup.scopeId,
+        label:
+          scopeGroup.scopeId === PORTFOLIO_CHANGE_SCOPE_ID
+            ? "General"
+            : identity.primaryName,
+        entries: scopeGroup.entries,
+      };
+
+      if (
+        scopeGroup.scopeId === PORTFOLIO_CHANGE_SCOPE_ID ||
+        identity.editLevel === "entire-business"
+      ) {
+        standalone.push(row);
+        continue;
+      }
+
+      const level1Value =
+        identity.level1Value || scopeGroup.scopeName || identity.primaryName;
+      const groupId = `impact:${level1Value}`;
+      const group = groups.get(groupId) ?? {
+        id: groupId,
+        label: level1Value,
+        entries: [],
+        children: [],
+      };
+
+      if (identity.editLevel === "level1") {
+        group.entries.push(...scopeGroup.entries);
+      } else {
+        group.children.push(row);
+      }
+
+      groups.set(groupId, group);
+    }
+
+    return {
+      standaloneRows: standalone,
+      level1Groups: Array.from(groups.values())
+        .map((group) => ({
+          ...group,
+          children: [...group.children].sort((left, right) =>
+            left.label.localeCompare(right.label),
+          ),
+        }))
+        .sort((left, right) => left.label.localeCompare(right.label)),
+    };
+  }, [
+    changeLedger,
+    level1Key,
+    level1Label,
+    level2Key,
+    level2Label,
+  ]);
+
+  const toggleGroup = (groupId: string) => {
+    setCollapsedGroupIds((current) => {
+      const next = new Set(current);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  };
+
+  return (
+    <div
+      className="bg-white"
+      role="table"
+      aria-label="Changes by impacted line item"
+    >
+      <div
+        role="row"
+        className="grid grid-cols-[15rem_minmax(0,1fr)] border-b border-slate-200 bg-slate-100"
+      >
+        <div
+          role="columnheader"
+          className="px-3 py-2.5 text-xs font-semibold text-slate-600"
+        >
+          Line item
+        </div>
+        <div
+          role="columnheader"
+          className="px-3 py-2.5 text-xs font-semibold text-slate-600"
+        >
+          Changes
+        </div>
+      </div>
+
+      {standaloneRows.map((row) => (
+        <ImpactMatrixRow key={row.id} row={row} level="level1" />
+      ))}
+
+      {level1Groups.map((group) => {
+        const collapsed = collapsedGroupIds.has(group.id);
+        const hasChildren = group.children.length > 0;
+
+        return (
+          <div key={group.id} role="rowgroup">
+            <ImpactMatrixRow
+              row={group}
+              level="level1"
+              collapsible={hasChildren}
+              collapsed={collapsed}
+              onToggle={() => toggleGroup(group.id)}
+            />
+            {hasChildren && !collapsed
+              ? group.children.map((child) => (
+                  <ImpactMatrixRow
+                    key={child.id}
+                    row={child}
+                    level="level2"
+                  />
+                ))
+              : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Toggle + list of line-item changes (steps vs impact). Taxonomy stays outside. */
 function LineItemChangesWidget({
   changeLedger,
@@ -830,33 +1404,6 @@ function LineItemChangesWidget({
     () => groupChangesByStep(changeLedger),
     [changeLedger],
   );
-
-  const { level1Key, level2Key } = useTaxonomyScopeLevels();
-
-  // Sort By impact groups the same way as Goals tables: Level 1 then Level 2.
-  const groupedByScope = useMemo(() => {
-    const groups = groupChangesByScope(changeLedger);
-
-    return [...groups].sort((left, right) => {
-      const leftRow = GOALS_SCOPE_ROWS.find((row) => row.id === left.scopeId);
-      const rightRow = GOALS_SCOPE_ROWS.find((row) => row.id === right.scopeId);
-
-      if (!leftRow || !rightRow) {
-        return left.scopeName.localeCompare(right.scopeName);
-      }
-
-      if (left.scopeId === ENTIRE_BUSINESS_SCOPE_ID) return -1;
-      if (right.scopeId === ENTIRE_BUSINESS_SCOPE_ID) return 1;
-
-      const left1 = getScopeTaxonomyValue(leftRow, level1Key);
-      const right1 = getScopeTaxonomyValue(rightRow, level1Key);
-      if (left1 !== right1) return left1.localeCompare(right1);
-
-      const left2 = getScopeTaxonomyValue(leftRow, level2Key);
-      const right2 = getScopeTaxonomyValue(rightRow, level2Key);
-      return left2.localeCompare(right2);
-    });
-  }, [changeLedger, level1Key, level2Key]);
 
   return (
     <section
@@ -915,34 +1462,25 @@ function LineItemChangesWidget({
         </div>
       </div>
 
-      {/* One list under the title — dividers only, no nested bordered cards */}
-      <div className="divide-y divide-slate-200 bg-white">
-        {view === "by-steps"
-          ? groupedByStep.map((group) => (
+      {view === "by-steps" ? (
+        <div className="divide-y divide-slate-200 bg-white">
+          {groupedByStep.map((group) => (
               <ChangesAccordionSection
                 key={group.step}
                 label={group.label}
                 entries={group.entries}
                 categories={uniqueCategories(group.entries)}
               />
-            ))
-          : groupedByScope.map((group) => (
-              <ChangesAccordionSection
-                key={group.scopeId}
-                label={group.scopeName}
-                scopeId={group.scopeId}
-                entries={group.entries}
-                hideScopeInRows
-                categories={uniqueCategories(group.entries)}
-              />
             ))}
-      </div>
+        </div>
+      ) : (
+        <ImpactComparisonTable changeLedger={changeLedger} />
+      )}
     </section>
   );
 }
 
 export function SummaryStep() {
-  const { optimizerType } = useSetupContext();
   const generalConfig = useSetupSessionStore((state) => state.generalConfig);
   const taxonomyBaseline = useSetupSessionStore(
     (state) => state.taxonomyBaseline,
@@ -953,7 +1491,6 @@ export function SummaryStep() {
     (state) => state.setSummaryReviewed,
   );
 
-  const optimizerLabel = getOptimizerLabel(optimizerType);
   const goalLabel = generalConfig.goalType
     ? getGoalTypeLabel(generalConfig.goalType)
     : null;
@@ -971,8 +1508,6 @@ export function SummaryStep() {
   };
   const hasLedgerChanges = changeLedger.length > 0;
   const hasChanges = hasLedgerChanges || taxonomyChanged;
-
-  const changeCount = changeLedger.length + (taxonomyChanged ? 1 : 0);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 py-8">
@@ -999,14 +1534,6 @@ export function SummaryStep() {
                 {aggressivenessLabel}
               </Badge>
             )}
-            <Badge variant="secondary" className="font-normal">
-              Optimizer: {optimizerLabel}
-            </Badge>
-            <Badge variant="outline" className="font-normal text-slate-600">
-              {hasChanges
-                ? `${changeCount} change${changeCount === 1 ? "" : "s"}`
-                : "No changes yet"}
-            </Badge>
           </div>
 
           {!hasChanges ? (
