@@ -22,6 +22,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
   AGGRESSIVENESS_OPTIONS,
   ENTIRE_BUSINESS_SCOPE_ID,
   getBudgetDefinitionLabel,
@@ -58,6 +66,8 @@ const CATEGORY_BADGE_CLASS: Record<SetupChangeCategory, string> = {
 
 /** How line-item changes are arranged in the Summary review widget. */
 type LineItemChangesView = "by-steps" | "by-impact";
+
+const CHANGES_PER_PAGE = 10;
 
 const LINE_ITEM_VIEW_OPTIONS: {
   id: LineItemChangesView;
@@ -537,6 +547,7 @@ function ChangesAccordionSection({
   const [activeCategories, setActiveCategories] = useState<
     SetupChangeCategory[]
   >([]);
+  const [page, setPage] = useState(1);
 
   const scopeIdentity = useScopeIdentityForId(
     scopeId ?? ENTIRE_BUSINESS_SCOPE_ID,
@@ -566,6 +577,15 @@ function ChangesAccordionSection({
       activeCategories.includes(entry.category),
     );
   }, [entries, activeCategories]);
+  const pageCount = Math.max(
+    1,
+    Math.ceil(visibleEntries.length / CHANGES_PER_PAGE),
+  );
+  const currentPage = Math.min(page, pageCount);
+  const paginatedEntries = visibleEntries.slice(
+    (currentPage - 1) * CHANGES_PER_PAGE,
+    currentPage * CHANGES_PER_PAGE,
+  );
 
   const toggleOpen = () => setOpen((current) => !current);
 
@@ -591,9 +611,14 @@ function ChangesAccordionSection({
 
       return [...current, category];
     });
+    setPage(1);
 
     // Expanding helps the user see what the filter did.
     setOpen(true);
+  };
+
+  const goToPage = (nextPage: number) => {
+    setPage(Math.max(1, Math.min(nextPage, pageCount)));
   };
 
   const changeCountLabel =
@@ -706,21 +731,85 @@ function ChangesAccordionSection({
       </div>
 
       {open && (
-        <ul className="divide-y divide-slate-100 bg-white px-4">
-          {visibleEntries.length > 0 ? (
-            visibleEntries.map((entry) => (
-              <ChangeRow
-                key={entry.id}
-                entry={entry}
-                hideScope={hideScopeInRows}
-              />
-            ))
-          ) : (
-            <li className="py-6 text-center text-sm text-slate-500">
-              No changes match the selected filters.
-            </li>
-          )}
-        </ul>
+        <div>
+          <ul className="divide-y divide-slate-100 bg-white px-4">
+            {visibleEntries.length > 0 ? (
+              paginatedEntries.map((entry) => (
+                <ChangeRow
+                  key={entry.id}
+                  entry={entry}
+                  hideScope={hideScopeInRows}
+                />
+              ))
+            ) : (
+              <li className="py-6 text-center text-sm text-slate-500">
+                No changes match the selected filters.
+              </li>
+            )}
+          </ul>
+
+          {visibleEntries.length > CHANGES_PER_PAGE ? (
+            <div className="border-t border-slate-100 bg-slate-50/50 px-4 py-2">
+              <Pagination aria-label={`Pagination for ${headingLabel} changes`}>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      aria-disabled={currentPage === 1}
+                      tabIndex={currentPage === 1 ? -1 : undefined}
+                      className={cn(
+                        currentPage === 1 &&
+                          "pointer-events-none opacity-40",
+                      )}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        goToPage(currentPage - 1);
+                      }}
+                    />
+                  </PaginationItem>
+
+                  {Array.from({ length: pageCount }, (_, index) => {
+                    const pageNumber = index + 1;
+
+                    return (
+                      <PaginationItem key={pageNumber}>
+                        <PaginationLink
+                          href="#"
+                          isActive={pageNumber === currentPage}
+                          aria-label={`Go to page ${pageNumber} for ${headingLabel}`}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            goToPage(pageNumber);
+                          }}
+                        >
+                          {pageNumber}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  })}
+
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      aria-disabled={currentPage === pageCount}
+                      tabIndex={
+                        currentPage === pageCount ? -1 : undefined
+                      }
+                      className={cn(
+                        currentPage === pageCount &&
+                          "pointer-events-none opacity-40",
+                      )}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        goToPage(currentPage + 1);
+                      }}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          ) : null}
+        </div>
       )}
     </div>
   );
