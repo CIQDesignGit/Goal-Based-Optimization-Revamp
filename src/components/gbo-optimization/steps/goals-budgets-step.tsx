@@ -2125,8 +2125,16 @@ export function GoalsBudgetsStep() {
                         );
                       }
 
-                      // No goal on this row → keep month cells empty (headers may still show).
-                      if (!canEditBudget) {
+                      const monthVisual = editable
+                        ? getBudgetMonthVisualState(editable, monthIndex)
+                        : "locked";
+                      const budgetValue =
+                        editable?.monthlyBudgets[monthIndex] ?? "";
+
+                      // Historical months are read-only reference data. Keep
+                      // those values visible at L2 even before a goal is picked.
+                      // Only editable current/future months require a goal.
+                      if (!canEditBudget && monthVisual !== "locked") {
                         return (
                           <td
                             key={`${row.id}-${monthIndex}`}
@@ -2143,11 +2151,6 @@ export function GoalsBudgetsStep() {
                         );
                       }
 
-                      const monthVisual = editable
-                        ? getBudgetMonthVisualState(editable, monthIndex)
-                        : "locked";
-                      const budgetValue =
-                        editable?.monthlyBudgets[monthIndex] ?? "";
                       const budgetDiff = editable
                         ? getBudgetCellDiff(row.id, editable, monthIndex)
                         : null;
