@@ -61,15 +61,6 @@ const CATEGORY_BADGE_CLASS: Record<SetupChangeCategory, string> = {
   optimizer: "bg-blue-50 text-blue-700 hover:bg-blue-50",
 };
 
-const CHANGE_TYPE_FILTER_ORDER: SetupChangeCategory[] = [
-  "goal",
-  "budget",
-  "constraint",
-  "seasonality",
-  "optimizer",
-  "general",
-];
-
 /** How line-item changes are arranged in the Summary review widget. */
 type LineItemChangesView = "by-steps" | "by-impact";
 
