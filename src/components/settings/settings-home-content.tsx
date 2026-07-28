@@ -19,8 +19,9 @@ const entryPoints = [
     icon: Sparkles,
   },
   {
-    title: "Explainability Dashboard",
-    description: "Explore model decisions, signals, and transparency insights.",
+    title: "Action Logs",
+    description:
+      "See who changed what and why — Ally AI, rules, and human setup in one place.",
     href: "/explainability-dashboard",
     icon: LineChart,
   },

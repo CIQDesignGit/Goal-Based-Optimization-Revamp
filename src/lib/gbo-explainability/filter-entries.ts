@@ -1,0 +1,152 @@
+import type { FilterState, LogEntry } from "./types";
+
+function startOfDay(isoDate: string): Date {
+  return new Date(`${isoDate}T00:00:00`);
+}
+
+function endOfDay(isoDate: string): Date {
+  return new Date(`${isoDate}T23:59:59.999`);
+}
+
+/** AND-combine tab + filters. Search applied separately. */
+export function filterEntries(
+  entries: LogEntry[],
+  tab: LogEntry["tab"],
+  filters: FilterState,
+): LogEntry[] {
+  const from = startOfDay(filters.dateFrom);
+  const to = endOfDay(filters.dateTo);
+
+  return entries.filter((entry) => {
+    if (entry.tab !== tab) return false;
+
+    const ts = new Date(entry.timestamp);
+    if (ts < from || ts > to) return false;
+
+    if (filters.actionStatus !== "all") {
+      if (filters.actionStatus === "failure") {
+        // Partial batches are failure-family for filtering
+        if (entry.status !== "failure" && entry.status !== "partial") {
+          return false;
+        }
+      } else if (entry.status !== filters.actionStatus) {
+        return false;
+      }
+    }
+
+    if (tab === "setup") {
+      if (filters.user && filters.user !== "all") {
+        const who =
+          entry.actor.kind === "human"
+            ? entry.actor.email ?? entry.actor.label
+            : entry.actor.kind === "system"
+              ? "system"
+              : entry.actor.label;
+        if (
+          who.toLowerCase() !== filters.user.toLowerCase() &&
+          entry.actor.label.toLowerCase() !== filters.user.toLowerCase()
+        ) {
+          return false;
+        }
+      }
+      if (
+        filters.changeStatus &&
+        filters.changeStatus !== "all" &&
+        entry.changeStatus !== filters.changeStatus
+      ) {
+        return false;
+      }
+      if (
+        filters.setupStep &&
+        filters.setupStep !== "all" &&
+        entry.setupStep !== filters.setupStep
+      ) {
+        return false;
+      }
+    }
+
+    if (tab === "automation") {
+      if (
+        filters.automationType &&
+        filters.automationType !== "all" &&
+        entry.automationType !== filters.automationType
+      ) {
+        return false;
+      }
+      if (
+        filters.actionType &&
+        filters.actionType !== "all" &&
+        entry.actionType !== filters.actionType
+      ) {
+        return false;
+      }
+      if (
+        filters.failureCategory &&
+        filters.failureCategory !== "all" &&
+        entry.failure?.category !== filters.failureCategory
+      ) {
+        return false;
+      }
+      if (filters.outOfBudgetOnly && entry.automationType !== "out-of-budget") {
+        return false;
+      }
+    }
+
+    return true;
+  });
+}
+
+/** Entity name (case-insensitive) or exact entity ID. */
+export function searchEntries(
+  entries: LogEntry[],
+  query: string,
+): LogEntry[] {
+  const q = query.trim();
+  if (!q) return entries;
+
+  const lower = q.toLowerCase();
+
+  return entries.filter((entry) => {
+    if (entry.entityId === q) return true;
+    if (entry.entityName.toLowerCase().includes(lower)) return true;
+    if (entry.children?.some((c) => c.entityId === q || c.entityName.toLowerCase().includes(lower))) {
+      return true;
+    }
+    return false;
+  });
+}
+
+export function sortNewestFirst(entries: LogEntry[]): LogEntry[] {
+  return [...entries].sort(
+    (a, b) =>
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+  );
+}
+
+/** Default last 7 days ending today (local). */
+export function defaultDateRange(): { dateFrom: string; dateTo: string } {
+  const to = new Date();
+  const from = new Date();
+  from.setDate(to.getDate() - 6);
+  return {
+    dateFrom: toIsoDate(from),
+    dateTo: toIsoDate(to),
+  };
+}
+
+export function toIsoDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function formatLocalTimestamp(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}

@@ -16,13 +16,6 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="relative flex h-screen overflow-hidden bg-background">
-      {!isSetupFlow && (
-        <div aria-hidden className="pointer-events-none absolute inset-0">
-          <div className="absolute -left-24 top-20 size-72 rounded-full bg-rose-200/40 blur-3xl" />
-          <div className="absolute right-0 top-1/3 size-96 rounded-full bg-blue-200/30 blur-3xl" />
-        </div>
-      )}
-
       {!isSetupFlow && <SidebarNav />}
 
       <div className="relative flex min-w-0 flex-1 flex-col">
