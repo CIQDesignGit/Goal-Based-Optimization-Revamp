@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, Loader2, RotateCcw } from "lucide-react";
 
+import { SetupChangesSummaryView } from "@/components/gbo-optimization/setup-changes-summary-view";
 import { DayPartingDiffView } from "@/components/gbo-explainability/day-parting-diff";
 import { Button } from "@/components/ui/button";
 import type {
@@ -11,6 +12,10 @@ import type {
   ValueDiff,
 } from "@/lib/gbo-explainability/types";
 import { canAttemptRetry } from "@/lib/gbo-explainability/retry-policy";
+import {
+  hasSetupSummary,
+  resolveSetupSnapshot,
+} from "@/lib/gbo-explainability/setup-snapshot";
 import { cn } from "@/lib/utils";
 
 function DiffRows({ diffs }: { diffs: ValueDiff[] }) {
@@ -80,24 +85,23 @@ function ChildAction({ child }: { child: LogActionDetail }) {
   );
 }
 
-type LogEntryExpandedProps = {
-  entry: LogEntry;
-  isRetrying: boolean;
-  onRetry: () => void;
-};
-
-export function LogEntryExpanded({
-  entry,
-  isRetrying,
-  onRetry,
-}: LogEntryExpandedProps) {
-  const retryDecision = canAttemptRetry(entry, { hasEditAccess: true });
-  const showRetry =
-    entry.status === "failure" || entry.status === "partial" || isRetrying;
-
+function ContextHeader({ entry }: { entry: LogEntry }) {
   return (
-    <div className="space-y-4 border-l-2 border-brand-200 bg-slate-50/80 px-4 py-4 sm:px-6">
-      {/* Why + impact grounding */}
+    <div className="space-y-4 border-b border-border pb-4">
+      <div>
+        <p className="text-base font-semibold text-foreground">
+          {entry.isSessionGroup
+            ? (entry.sessionSummary ?? entry.claim)
+            : entry.claim}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {entry.actor.label}
+          {entry.actor.email ? ` · ${entry.actor.email}` : ""}
+          {" · "}
+          {entry.scopeLevel} · {entry.entityName}
+        </p>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <p className="text-2xs font-medium tracking-wide text-muted-foreground uppercase">
@@ -125,36 +129,15 @@ export function LogEntryExpanded({
         </div>
       </div>
 
-      {/* Actor / scope meta */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        <span>
-          Actor:{" "}
+      {entry.batch ? (
+        <p className="text-xs text-muted-foreground">
+          Batch:{" "}
           <span className="text-foreground">
-            {entry.actor.label}
-            {entry.actor.email ? ` · ${entry.actor.email}` : ""}
+            {entry.batch.succeeded} of {entry.batch.total} succeeded
+            {entry.batch.failed > 0 ? ` · ${entry.batch.failed} failed` : ""}
           </span>
-        </span>
-        <span>
-          Scope:{" "}
-          <span className="text-foreground">
-            {entry.scopeLevel} · {entry.entityName}
-          </span>
-        </span>
-        {entry.batch ? (
-          <span>
-            Batch:{" "}
-            <span className="text-foreground">
-              {entry.batch.succeeded} of {entry.batch.total} succeeded
-              {entry.batch.failed > 0
-                ? ` · ${entry.batch.failed} failed`
-                : ""}
-            </span>
-          </span>
-        ) : null}
-        {entry.retryOutcomeLabel ? (
-          <span className="text-foreground">{entry.retryOutcomeLabel}</span>
-        ) : null}
-      </div>
+        </p>
+      ) : null}
 
       {entry.failure ? (
         <div className="rounded-md border border-error-100 bg-error-50 px-3 py-2 text-xs text-error-700">
@@ -164,37 +147,79 @@ export function LogEntryExpanded({
         </div>
       ) : null}
 
-      {entry.diffs && entry.diffs.length > 0 ? (
-        <div>
-          <p className="mb-2 text-2xs font-medium tracking-wide text-muted-foreground uppercase">
-            Before / after
-          </p>
-          <DiffRows diffs={entry.diffs} />
-        </div>
+      {entry.retryOutcomeLabel ? (
+        <p className="text-xs text-muted-foreground">{entry.retryOutcomeLabel}</p>
       ) : null}
+    </div>
+  );
+}
 
-      {entry.dayParting ? (
-        <div>
-          <p className="mb-2 text-2xs font-medium tracking-wide text-muted-foreground uppercase">
-            Day-parting schedule
-          </p>
-          <DayPartingDiffView diff={entry.dayParting} />
-        </div>
-      ) : null}
+type LogEntryExpandedProps = {
+  entry: LogEntry;
+  isRetrying: boolean;
+  onRetry: () => void;
+};
 
-      {entry.children && entry.children.length > 0 ? (
-        <div className="space-y-2">
-          <p className="text-2xs font-medium tracking-wide text-muted-foreground uppercase">
-            {entry.isSessionGroup ? "Session actions" : "Actions in this batch"}
-          </p>
-          {entry.children.map((child) => (
-            <ChildAction key={child.id} child={child} />
-          ))}
-        </div>
-      ) : null}
+export function LogEntryExpanded({
+  entry,
+  isRetrying,
+  onRetry,
+}: LogEntryExpandedProps) {
+  const setupSnapshot = resolveSetupSnapshot(entry);
+  const showSetupSummary = hasSetupSummary(entry);
+  const retryDecision = canAttemptRetry(entry, { hasEditAccess: true });
+  const showRetry =
+    entry.status === "failure" || entry.status === "partial" || isRetrying;
+
+  return (
+    <div className="space-y-6">
+      <ContextHeader entry={entry} />
+
+      {showSetupSummary && setupSnapshot ? (
+        <SetupChangesSummaryView
+          changeLedger={setupSnapshot.changeLedger}
+          taxonomyBaseline={setupSnapshot.taxonomyBaseline}
+          taxonomyCurrent={setupSnapshot.taxonomyCurrent}
+          goalLabel={setupSnapshot.goalLabel}
+          aggressivenessLabel={setupSnapshot.aggressivenessLabel}
+        />
+      ) : (
+        <>
+          {entry.diffs && entry.diffs.length > 0 ? (
+            <div>
+              <p className="mb-2 text-2xs font-medium tracking-wide text-muted-foreground uppercase">
+                Before / after
+              </p>
+              <DiffRows diffs={entry.diffs} />
+            </div>
+          ) : null}
+
+          {entry.dayParting ? (
+            <div>
+              <p className="mb-2 text-2xs font-medium tracking-wide text-muted-foreground uppercase">
+                Day-parting schedule
+              </p>
+              <DayPartingDiffView diff={entry.dayParting} />
+            </div>
+          ) : null}
+
+          {entry.children && entry.children.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-2xs font-medium tracking-wide text-muted-foreground uppercase">
+                {entry.isSessionGroup
+                  ? "Session actions"
+                  : "Actions in this batch"}
+              </p>
+              {entry.children.map((child) => (
+                <ChildAction key={child.id} child={child} />
+              ))}
+            </div>
+          ) : null}
+        </>
+      )}
 
       {showRetry ? (
-        <div className="flex flex-wrap items-center gap-2 pt-1">
+        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
           <Button
             variant="outline"
             size="sm"

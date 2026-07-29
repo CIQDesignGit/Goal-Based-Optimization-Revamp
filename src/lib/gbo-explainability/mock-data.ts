@@ -1,6 +1,5 @@
 import type {
   AccountOptimizerConfig,
-  DemoPageState,
   LogEntry,
 } from "./types";
 
@@ -65,6 +64,7 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     entityName: "JBC Fresh",
     entityId: "brand-jbc-fresh",
     scopeLevel: "Brand",
+    conflictCount: 1,
     diffs: [
       {
         field: "Daily budget",
@@ -96,6 +96,7 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     entityId: "portfolio-pilgrims",
     scopeLevel: "Portfolio",
     batch: { total: 419, succeeded: 412, failed: 7 },
+    conflictCount: 3,
     canRetry: true,
     children: [
       {
@@ -161,6 +162,7 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     entityName: "SP Manual - Wings",
     entityId: "camp-sp-manual-wings",
     scopeLevel: "Campaign",
+    conflictCount: 1,
     canRetry: false,
     retryBlockedReason:
       "Bid can't be less than the retailer minimum — fix the recommendation first.",
@@ -220,6 +222,7 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     entityName: "organic trail mix",
     entityId: "kw-organic-trail",
     scopeLevel: "Keyword",
+    conflictCount: 2,
     diffs: [
       {
         field: "Status",
@@ -285,6 +288,49 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     sessionSummary: "3 setup changes — Updated",
     changeStatus: "updated",
     setupStep: "Goals & Budgets",
+    conflictCount: 2,
+    setupSnapshot: {
+      goalLabel: "Brand iROAS",
+      aggressivenessLabel: "Moderate",
+      changeLedger: [
+        {
+          id: "setup-sess-001-a",
+          step: "goals-budgets",
+          scopeId: "jbc-fresh",
+          scopeName: "JBC Fresh",
+          field: "monthlyBudget",
+          fieldLabel: "Monthly budget",
+          from: "$21.0k",
+          to: "$21.81k",
+          category: "budget",
+          timestamp: 1,
+        },
+        {
+          id: "setup-sess-001-b",
+          step: "goals-budgets",
+          scopeId: "jbc-fresh",
+          scopeName: "JBC Fresh",
+          field: "goalValue",
+          fieldLabel: "BRAND_IROAS",
+          from: "24",
+          to: "25",
+          category: "goal",
+          timestamp: 2,
+        },
+        {
+          id: "setup-sess-001-c",
+          step: "constraints",
+          scopeId: "jbc-deli",
+          scopeName: "JBC Deli",
+          field: "campaignSb",
+          fieldLabel: "Spend share",
+          from: "",
+          to: "15%",
+          category: "constraint",
+          timestamp: 3,
+        },
+      ],
+    },
     children: [
       {
         id: "setup-sess-001-a",
@@ -297,7 +343,7 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
           {
             field: "Monthly budget",
             before: "$21.0k",
-            after: "$21.81k",
+            after: "$24.0k",
             changeStatus: "updated",
           },
         ],
@@ -457,15 +503,236 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     scopeLevel: "Portfolio",
     batch: { total: 12, succeeded: 12, failed: 0 },
   },
-];
 
-/** Toggle in UI to demo empty/unsupported states */
-export const DEMO_STATE_OPTIONS: {
-  value: DemoPageState;
-  label: string;
-}[] = [
-  { value: "live", label: "Live account (default)" },
-  { value: "unsupported-retailer", label: "Unsupported retailer" },
-  { value: "strategy-not-live", label: "Strategy not live" },
-  { value: "purged-entry", label: "Purged deep-link" },
+  // --- Setup: second session on a different day (5 changes) ---
+  {
+    id: "setup-sess-002",
+    tab: "setup",
+    timestamp: daysAgo(1, 15),
+    actor: {
+      kind: "human",
+      label: "Alex Rivera",
+      email: "alex.r@example.com",
+    },
+    status: "success",
+    actionType: "setup-change",
+    claim: "5 setup changes — Updated",
+    reason: "Save & Launch session",
+    impact: "Optimizer modes and constraints updated across brands",
+    summarySource: "human",
+    entityName: "pilgrims",
+    entityId: "portfolio-pilgrims",
+    scopeLevel: "Portfolio",
+    isSessionGroup: true,
+    sessionSummary: "5 setup changes — Updated",
+    changeStatus: "updated",
+    setupStep: "Optimizer",
+    conflictCount: 1,
+    setupSnapshot: {
+      goalLabel: "Brand iROAS",
+      aggressivenessLabel: "Aggressive",
+      taxonomyBaseline: {
+        budgetType: "retailer",
+        level1: "portfolio",
+        level2: "profiles",
+      },
+      taxonomyCurrent: {
+        budgetType: "internal",
+        level1: "brand",
+        level2: "campaign-type",
+      },
+      changeLedger: [
+        {
+          id: "setup-sess-002-a",
+          step: "optimizer",
+          scopeId: "jbc-fresh",
+          scopeName: "JBC Fresh",
+          field: "bidOptimization",
+          fieldLabel: "Bid optimization",
+          from: "None",
+          to: "Ally AI",
+          category: "optimizer",
+          timestamp: 1,
+        },
+        {
+          id: "setup-sess-002-b",
+          step: "optimizer",
+          scopeId: "jbc-fresh",
+          scopeName: "JBC Fresh",
+          field: "budgetOptimization",
+          fieldLabel: "Budget optimization",
+          from: "Rule Based",
+          to: "Ally AI",
+          category: "optimizer",
+          timestamp: 2,
+        },
+        {
+          id: "setup-sess-002-c",
+          step: "constraints",
+          scopeId: "jbc-fresh",
+          scopeName: "JBC Fresh",
+          field: "bidFloor",
+          fieldLabel: "Floor bid",
+          from: "",
+          to: "$0.35",
+          category: "constraint",
+          timestamp: 3,
+        },
+        {
+          id: "setup-sess-002-d",
+          step: "constraints",
+          scopeId: "jbc-fresh",
+          scopeName: "JBC Fresh",
+          field: "bidCeiling",
+          fieldLabel: "Ceiling bid",
+          from: "$2.00",
+          to: "$2.50",
+          category: "constraint",
+          timestamp: 4,
+        },
+        {
+          id: "setup-sess-002-e",
+          step: "goals-budgets",
+          scopeId: "pilgrims",
+          scopeName: "pilgrims",
+          field: "aggressiveness",
+          fieldLabel: "Aggressiveness",
+          from: "Moderate",
+          to: "Aggressive",
+          category: "goal",
+          timestamp: 5,
+        },
+      ],
+    },
+    children: [
+      {
+        id: "setup-sess-002-a",
+        label: "Bid optimization mode",
+        changeStatus: "updated",
+        entityName: "JBC Fresh",
+        entityId: "brand-jbc-fresh",
+        scopeLevel: "Brand",
+        diffs: [
+          {
+            field: "Bid optimization",
+            before: "None",
+            after: "Ally AI",
+            changeStatus: "updated",
+          },
+        ],
+      },
+      {
+        id: "setup-sess-002-b",
+        label: "Budget optimization mode",
+        changeStatus: "updated",
+        entityName: "JBC Fresh",
+        entityId: "brand-jbc-fresh",
+        scopeLevel: "Brand",
+        diffs: [
+          {
+            field: "Budget optimization",
+            before: "Rule Based",
+            after: "Ally AI",
+            changeStatus: "updated",
+          },
+        ],
+      },
+      {
+        id: "setup-sess-002-c",
+        label: "Floor constraint",
+        changeStatus: "created",
+        entityName: "Sponsored Products",
+        entityId: "ctype-sp",
+        scopeLevel: "Campaign type",
+        diffs: [
+          {
+            field: "Floor bid",
+            before: null,
+            after: "$0.35",
+            changeStatus: "created",
+          },
+        ],
+      },
+      {
+        id: "setup-sess-002-d",
+        label: "Ceiling constraint",
+        changeStatus: "updated",
+        entityName: "Sponsored Products",
+        entityId: "ctype-sp",
+        scopeLevel: "Campaign type",
+        diffs: [
+          {
+            field: "Ceiling bid",
+            before: "$2.00",
+            after: "$2.50",
+            changeStatus: "updated",
+          },
+        ],
+      },
+      {
+        id: "setup-sess-002-e",
+        label: "Goal aggressiveness",
+        changeStatus: "updated",
+        entityName: "pilgrims",
+        entityId: "portfolio-pilgrims",
+        scopeLevel: "Portfolio",
+        diffs: [
+          {
+            field: "Aggressiveness",
+            before: "Moderate",
+            after: "Aggressive",
+            changeStatus: "updated",
+          },
+        ],
+      },
+    ],
+  },
+
+  // --- Automation: custom optimizer actions ---
+  {
+    id: "auto-custom-001",
+    tab: "automation",
+    timestamp: daysAgo(0, 10),
+    actor: {
+      kind: "ally-ai",
+      label: "Ally AI",
+      triggerOrRule: "Custom portfolio rule",
+    },
+    status: "success",
+    actionType: "bid-change",
+    automationType: "custom",
+    claim: "Applied custom bid strategy on 8 campaigns",
+    reason: "Custom portfolio rule — mixed optimizer allocation",
+    impact: "Rebalanced bids across Ally AI and rule-based rows",
+    summarySource: "template",
+    entityName: "pilgrims portfolio",
+    entityId: "portfolio-pilgrims",
+    scopeLevel: "Portfolio",
+    conflictCount: 2,
+    batch: { total: 8, succeeded: 8, failed: 0 },
+  },
+
+  // --- Automation: Ally AI on same day as other entries (today) ---
+  {
+    id: "auto-ally-005",
+    tab: "automation",
+    timestamp: daysAgo(0, 8),
+    actor: {
+      kind: "ally-ai",
+      label: "Ally AI",
+      triggerOrRule: "Goal pacing",
+    },
+    status: "success",
+    actionType: "status-change",
+    automationType: "ally-ai",
+    claim: "Re-enabled 3 paused campaigns after budget top-up",
+    reason: "Goal pacing — budget restored",
+    impact: "Campaigns active again; spend resumes toward plan",
+    summarySource: "ai",
+    entityName: "pilgrims portfolio",
+    entityId: "portfolio-pilgrims",
+    scopeLevel: "Portfolio",
+    conflictCount: 1,
+    batch: { total: 3, succeeded: 3, failed: 0 },
+  },
 ];

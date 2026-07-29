@@ -1,35 +1,22 @@
-import type { AccountOptimizerConfig, ActionTab } from "./types";
+import type { AccountOptimizerConfig, AlertRole } from "./types";
+import { alertRoleLabel, ALERT_ROLE_ORDER } from "./aggregate-alerts";
 
-/** Which page tabs to show based on account optimizer config (FR-002). */
-export function getAvailableTabs(
+/** Which alert role types to show based on account optimizer config. */
+export function getAvailableAlertRoles(
   config: AccountOptimizerConfig,
-): ActionTab[] {
-  // Setup always present when GBO is live; Automation when any optimizer exists
-  const tabs: ActionTab[] = [];
-  if (config.hasAllyAi || config.hasRuleBased) {
-    tabs.push("automation");
-  }
-  tabs.push("setup");
-  return tabs;
+): AlertRole[] {
+  return ALERT_ROLE_ORDER.filter((role) => {
+    if (role === "ally-ai") return config.hasAllyAi;
+    if (role === "rule-based") return config.hasRuleBased;
+    return true;
+  });
 }
 
-export function getDefaultTab(config: AccountOptimizerConfig): ActionTab {
-  const tabs = getAvailableTabs(config);
-  return tabs.includes("automation") ? "automation" : "setup";
-}
-
-export function describeAutomationFilterOptions(
+export function describeActorRoleFilterOptions(
   config: AccountOptimizerConfig,
-): { value: string; label: string }[] {
-  const options: { value: string; label: string }[] = [];
-  if (config.hasAllyAi) {
-    options.push({ value: "ally-ai", label: "Ally AI" });
-  }
-  if (config.hasRuleBased) {
-    options.push({ value: "rule-based", label: "Rule Based" });
-  }
-  options.push({ value: "day-parting", label: "Day-parting" });
-  options.push({ value: "custom", label: "Custom" });
-  options.push({ value: "out-of-budget", label: "Out of budget" });
-  return options;
+): { value: AlertRole; label: string }[] {
+  return getAvailableAlertRoles(config).map((role) => ({
+    value: role,
+    label: alertRoleLabel(role),
+  }));
 }

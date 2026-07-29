@@ -1,25 +1,22 @@
 "use client";
 
-import { Download, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 
+import { ExportPopover } from "@/components/gbo-explainability/export-popover";
 import { FiltersPopover } from "@/components/gbo-explainability/filters-popover";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import type {
   AccountOptimizerConfig,
-  ActionStatus,
-  ActionTab,
   ActiveFilterChip,
-  DemoPageState,
   FilterState,
+  PageView,
 } from "@/lib/gbo-explainability/types";
-import { DEMO_STATE_OPTIONS } from "@/lib/gbo-explainability/mock-data";
 import { cn } from "@/lib/utils";
 
 type ActionLogsToolbarProps = {
-  tab: ActionTab;
-  availableTabs: ActionTab[];
-  onTabChange: (tab: ActionTab) => void;
+  view: PageView;
+  onViewChange: (view: PageView) => void;
   filters: FilterState;
   onFiltersChange: (patch: Partial<FilterState>) => void;
   chips: ActiveFilterChip[];
@@ -28,17 +25,16 @@ type ActionLogsToolbarProps = {
   search: string;
   onSearchChange: (value: string) => void;
   config: AccountOptimizerConfig;
+  filteredCount: number;
   onExport: () => void;
   onDownloadToday: () => void;
   todayAllyCount: number;
-  demoState: DemoPageState;
-  onDemoStateChange: (state: DemoPageState) => void;
+  alertCount: number;
 };
 
 export function ActionLogsToolbar({
-  tab,
-  availableTabs,
-  onTabChange,
+  view,
+  onViewChange,
   filters,
   onFiltersChange,
   chips,
@@ -47,114 +43,63 @@ export function ActionLogsToolbar({
   search,
   onSearchChange,
   config,
+  filteredCount,
   onExport,
   onDownloadToday,
   todayAllyCount,
-  demoState,
-  onDemoStateChange,
+  alertCount,
 }: ActionLogsToolbarProps) {
   return (
     <div className="space-y-3">
-      {/* Tabs */}
       <div
         role="tablist"
-        aria-label="Action log views"
+        aria-label="Explainability views"
         className="flex gap-1 border-b border-border"
       >
-        {availableTabs.includes("automation") ? (
-          <TabButton
-            active={tab === "automation"}
-            onClick={() => onTabChange("automation")}
-          >
-            Automations
-          </TabButton>
-        ) : null}
-        {availableTabs.includes("setup") ? (
-          <TabButton
-            active={tab === "setup"}
-            onClick={() => onTabChange("setup")}
-          >
-            Setup
-          </TabButton>
-        ) : null}
+        <TabButton
+          active={view === "alerts"}
+          onClick={() => onViewChange("alerts")}
+          badge={alertCount > 0 ? alertCount : undefined}
+        >
+          Alerts
+        </TabButton>
+        <TabButton
+          active={view === "action-log"}
+          onClick={() => onViewChange("action-log")}
+        >
+          Action Log
+        </TabButton>
       </div>
 
-      {/* Common filters + search + actions */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            From
-            <Input
-              type="date"
-              value={filters.dateFrom}
-              onChange={(e) => onFiltersChange({ dateFrom: e.target.value })}
-              className="h-8 w-auto"
-            />
-          </label>
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            To
-            <Input
-              type="date"
-              value={filters.dateTo}
-              onChange={(e) => onFiltersChange({ dateTo: e.target.value })}
-              className="h-8 w-auto"
-            />
-          </label>
-          <select
-            aria-label="Action status"
-            className="h-8 rounded-md border border-border bg-background px-2 text-sm"
-            value={filters.actionStatus}
-            onChange={(e) =>
-              onFiltersChange({
-                actionStatus: e.target.value as ActionStatus | "all",
-              })
-            }
-          >
-            <option value="all">Any status</option>
-            <option value="success">Success</option>
-            <option value="failure">Failure / partial</option>
-          </select>
-          <FiltersPopover
-            tab={tab}
-            filters={filters}
-            config={config}
-            onChange={onFiltersChange}
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search campaign, keyword, or ID"
-              className="h-8 pl-8"
-              aria-label="Search by entity"
+      {view === "action-log" ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative w-full min-w-[18rem] shrink-0 sm:w-[18rem]">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder="Search campaign, keyword, or ID"
+                className="h-8 pl-8 text-sm placeholder:whitespace-nowrap"
+                aria-label="Search by entity"
+              />
+            </div>
+            <FiltersPopover
+              filters={filters}
+              config={config}
+              onChange={onFiltersChange}
             />
           </div>
-          <Button variant="outline" size="sm" onClick={onExport}>
-            <Download className="size-3.5" />
-            Export
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={todayAllyCount === 0}
-            title={
-              todayAllyCount === 0
-                ? "No Ally AI actions today"
-                : "Download today's Ally AI changes"
-            }
-            onClick={onDownloadToday}
-          >
-            <Download className="size-3.5" />
-            Today&apos;s Ally AI
-          </Button>
-        </div>
-      </div>
 
-      {/* Active chips */}
+          <ExportPopover
+            filteredCount={filteredCount}
+            todayAllyCount={todayAllyCount}
+            onExportFiltered={onExport}
+            onExportTodayAlly={onDownloadToday}
+          />
+        </div>
+      ) : null}
+
       {chips.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2">
           {chips.map((chip) => (
@@ -178,26 +123,6 @@ export function ActionLogsToolbar({
           </button>
         </div>
       ) : null}
-
-      {/* Demo state switcher for empty/unsupported UX */}
-      <div className="flex flex-wrap items-center gap-2 border-t border-dashed border-border pt-3">
-        <span className="text-2xs font-medium tracking-wide text-muted-foreground uppercase">
-          Demo state
-        </span>
-        <select
-          className="h-7 rounded-md border border-border bg-background px-2 text-xs"
-          value={demoState}
-          onChange={(e) =>
-            onDemoStateChange(e.target.value as DemoPageState)
-          }
-        >
-          {DEMO_STATE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
     </div>
   );
 }
@@ -205,10 +130,12 @@ export function ActionLogsToolbar({
 function TabButton({
   active,
   onClick,
+  badge,
   children,
 }: {
   active: boolean;
   onClick: () => void;
+  badge?: number;
   children: React.ReactNode;
 }) {
   return (
@@ -218,13 +145,22 @@ function TabButton({
       aria-selected={active}
       onClick={onClick}
       className={cn(
-        "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+        "-mb-px inline-flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium transition-colors",
         active
           ? "border-brand-500 text-foreground"
           : "border-transparent text-muted-foreground hover:text-foreground",
       )}
     >
       {children}
+      {badge !== undefined ? (
+        <Badge
+          variant={active ? "default" : "secondary"}
+          className="min-w-5 px-1.5"
+          aria-label={`${badge} alert${badge === 1 ? "" : "s"}`}
+        >
+          {badge}
+        </Badge>
+      ) : null}
     </button>
   );
 }

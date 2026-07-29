@@ -1,7 +1,20 @@
 /**
  * Action Logs (GBO Explainability) — core types for P0.
- * One event stream; Automation vs Setup are view filters, not separate stores.
+ * One unified event stream; Alerts (daily role summaries) vs Action Log (detail).
  */
+
+import type {
+  ChangeLedgerEntry,
+  TaxonomySnapshot,
+} from "@/lib/gbo-optimization/setup-session-store";
+
+export type SetupSessionSnapshot = {
+  goalLabel?: string;
+  aggressivenessLabel?: string;
+  taxonomyBaseline?: TaxonomySnapshot;
+  taxonomyCurrent?: TaxonomySnapshot;
+  changeLedger: ChangeLedgerEntry[];
+};
 
 export type ActorKind = "ally-ai" | "rule-based" | "human" | "system";
 
@@ -9,7 +22,13 @@ export type ActionStatus = "success" | "failure" | "partial" | "retrying";
 
 export type ChangeStatus = "created" | "updated" | "deleted";
 
+/** Legacy field on entries — no longer drives top-level navigation. */
 export type ActionTab = "automation" | "setup";
+
+export type PageView = "alerts" | "action-log";
+
+/** Daily alert grouping by who took action — four actor types only. */
+export type AlertRole = "human" | "ally-ai" | "rule-based" | "system";
 
 export type AutomationType =
   | "ally-ai"
@@ -97,9 +116,29 @@ export type LogActionDetail = {
   entityName: string;
   entityId: string;
   scopeLevel: string;
+  /** Optional — shown in Action Log table */
+  campaignName?: string;
+  campaignType?: string;
   diffs: ValueDiff[];
   dayParting?: DayPartingDiff;
   failure?: FailureInfo;
+};
+
+/** One flattened row in the Action Log table. */
+export type ActionLogRow = {
+  id: string;
+  parentEntryId: string;
+  status: ActionStatus;
+  entityName: string;
+  entityType: string;
+  campaignName: string;
+  actor: Actor;
+  timestamp: string;
+  campaignType: string;
+  source: string;
+  actionLabel: string;
+  parentEntry: LogEntry;
+  detail?: LogActionDetail;
 };
 
 export type LogEntry = {
@@ -120,6 +159,8 @@ export type LogEntry = {
   entityName: string;
   entityId: string;
   scopeLevel: string;
+  campaignName?: string;
+  campaignType?: string;
   /** Setup session grouping */
   isSessionGroup?: boolean;
   sessionSummary?: string;
@@ -131,6 +172,8 @@ export type LogEntry = {
   batch?: BatchCounts;
   changeStatus?: ChangeStatus;
   setupStep?: string;
+  /** Frozen Save & Launch review payload — mirrors the GBO Summary step. */
+  setupSnapshot?: SetupSessionSnapshot;
   /** Retry bookkeeping */
   retryOfId?: string;
   retryAttempt?: number;
@@ -138,13 +181,39 @@ export type LogEntry = {
   retryBlockedReason?: string;
   retryCooldownUntil?: string;
   retryOutcomeLabel?: string;
+  /** Actions overridden by another actor (e.g. rule after Ally AI). */
+  conflictCount?: number;
+};
+
+export type AlertSummary = {
+  id: string;
+  date: string; // YYYY-MM-DD local
+  timestamp: string;
+  role: AlertRole;
+  /** Newest entry in the daily role group — for reference only. */
+  entryId: string;
+  /** All entries rolled into this daily role card. */
+  entryIds: string[];
+  actionCount: number;
+  failureCount: number;
+  conflictCount: number;
+  highDeviationCount: number;
+  /** Primary line — what changed */
+  claim: string;
+  /** Why / trigger context */
+  reason: string;
+  /** Expected impact; null → omit or show pending */
+  impact: string | null;
+  summarySource: SummarySource;
+  status: ActionStatus;
+  actor: Actor;
+  entityName: string;
 };
 
 export type ActiveFilterChip = {
   id: string;
   label: string;
-  /** common filters persist across tabs; tab-specific clear on switch */
-  scope: "common" | "tab";
+  scope: "common" | "detail";
   key: string;
   value: string;
 };
@@ -153,13 +222,11 @@ export type FilterState = {
   dateFrom: string; // YYYY-MM-DD
   dateTo: string;
   actionStatus: ActionStatus | "all";
-  /** Setup */
-  user?: string;
-  changeStatus?: ChangeStatus | "all";
-  setupStep?: string | "all";
-  /** Automation */
-  automationType?: AutomationType | "all";
-  actionType?: ActionType | "all";
-  failureCategory?: FailureReasonCategory | "all";
-  outOfBudgetOnly?: boolean;
+  actorRole: AlertRole | "all";
+  user: string;
+  changeStatus: ChangeStatus | "all";
+  setupStep: string;
+  actionType: ActionType | "all";
+  failureCategory: FailureReasonCategory | "all";
+  outOfBudgetOnly: boolean;
 };

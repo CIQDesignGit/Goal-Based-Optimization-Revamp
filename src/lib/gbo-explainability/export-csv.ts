@@ -75,7 +75,6 @@ export function filterTodaysAllyAi(entries: LogEntry[]): LogEntry[] {
   end.setHours(23, 59, 59, 999);
 
   return entries.filter((e) => {
-    if (e.tab !== "automation") return false;
     if (e.automationType !== "ally-ai" && e.actor.kind !== "ally-ai") {
       return false;
     }

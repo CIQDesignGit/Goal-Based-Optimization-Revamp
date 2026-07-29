@@ -1,62 +1,52 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
 import { ActionLogsEmptyState } from "@/components/gbo-explainability/action-logs-empty-state";
+import { ActionLogTable } from "@/components/gbo-explainability/action-log-table";
 import { ActionLogsToolbar } from "@/components/gbo-explainability/action-logs-toolbar";
-import { LogEntryRow } from "@/components/gbo-explainability/log-entry-row";
+import { AlertsView } from "@/components/gbo-explainability/alerts-view";
+import { usePageTitle } from "@/components/layout/page-title-context";
 import { Button } from "@/components/ui/button";
 import {
-  getAvailableTabs,
-  getDefaultTab,
-} from "@/lib/gbo-explainability/account-tabs";
+  aggregateAlerts,
+  alertRoleLabel,
+  formatAlertDate,
+} from "@/lib/gbo-explainability/aggregate-alerts";
 import {
   downloadCsv,
   entriesToCsv,
   filterTodaysAllyAi,
 } from "@/lib/gbo-explainability/export-csv";
 import {
-  defaultDateRange,
+  buildDefaultFilters,
   filterEntries,
+  hasDateFilter,
   searchEntries,
   sortNewestFirst,
+  toIsoDate,
 } from "@/lib/gbo-explainability/filter-entries";
 import {
   INITIAL_MOCK_ENTRIES,
   MOCK_ACCOUNT_CONFIG,
-  MOCK_ACCOUNT_META,
 } from "@/lib/gbo-explainability/mock-data";
+import {
+  filterActionLogRows,
+  flattenLogEntries,
+  sortActionLogRowsNewestFirst,
+} from "@/lib/gbo-explainability/flatten-log-entries";
 import { buildRetryResult } from "@/lib/gbo-explainability/retry-policy";
 import type {
-  ActionTab,
   ActiveFilterChip,
-  DemoPageState,
+  AlertSummary,
   FilterState,
   LogEntry,
+  PageView,
 } from "@/lib/gbo-explainability/types";
 
 const PAGE_SIZE = 50;
 
-function buildDefaultFilters(): FilterState {
-  const range = defaultDateRange();
-  return {
-    dateFrom: range.dateFrom,
-    dateTo: range.dateTo,
-    actionStatus: "all",
-    user: "all",
-    changeStatus: "all",
-    setupStep: "all",
-    automationType: "all",
-    actionType: "all",
-    failureCategory: "all",
-    outOfBudgetOnly: false,
-  };
-}
-
-function chipsFromFilters(
-  tab: ActionTab,
-  filters: FilterState,
-): ActiveFilterChip[] {
+function chipsFromFilters(filters: FilterState): ActiveFilterChip[] {
   const chips: ActiveFilterChip[] = [];
 
   if (filters.actionStatus !== "all") {
@@ -69,73 +59,92 @@ function chipsFromFilters(
     });
   }
 
-  if (tab === "setup") {
-    if (filters.user && filters.user !== "all") {
+  if (filters.actorRole !== "all") {
+    const isAlertDrill =
+      hasDateFilter(filters) && filters.dateFrom === filters.dateTo;
+    if (!isAlertDrill) {
       chips.push({
-        id: "user",
-        key: "user",
-        value: filters.user,
-        label: `User: ${filters.user}`,
-        scope: "tab",
-      });
-    }
-    if (filters.changeStatus && filters.changeStatus !== "all") {
-      chips.push({
-        id: "changeStatus",
-        key: "changeStatus",
-        value: filters.changeStatus,
-        label: `Change: ${filters.changeStatus}`,
-        scope: "tab",
-      });
-    }
-    if (filters.setupStep && filters.setupStep !== "all") {
-      chips.push({
-        id: "setupStep",
-        key: "setupStep",
-        value: filters.setupStep,
-        label: `Step: ${filters.setupStep}`,
-        scope: "tab",
+        id: "actorRole",
+        key: "actorRole",
+        value: filters.actorRole,
+        label: `Role: ${alertRoleLabel(filters.actorRole)}`,
+        scope: "detail",
       });
     }
   }
 
-  if (tab === "automation") {
-    if (filters.automationType && filters.automationType !== "all") {
-      chips.push({
-        id: "automationType",
-        key: "automationType",
-        value: filters.automationType,
-        label: `Automation: ${filters.automationType}`,
-        scope: "tab",
-      });
-    }
-    if (filters.actionType && filters.actionType !== "all") {
-      chips.push({
-        id: "actionType",
-        key: "actionType",
-        value: filters.actionType,
-        label: `Action: ${filters.actionType}`,
-        scope: "tab",
-      });
-    }
-    if (filters.failureCategory && filters.failureCategory !== "all") {
-      chips.push({
-        id: "failureCategory",
-        key: "failureCategory",
-        value: filters.failureCategory,
-        label: `Failure: ${filters.failureCategory}`,
-        scope: "tab",
-      });
-    }
-    if (filters.outOfBudgetOnly) {
-      chips.push({
-        id: "outOfBudget",
-        key: "outOfBudgetOnly",
-        value: "true",
-        label: "Out of budget",
-        scope: "tab",
-      });
-    }
+  if (filters.user !== "all") {
+    chips.push({
+      id: "user",
+      key: "user",
+      value: filters.user,
+      label: `Person: ${filters.user}`,
+      scope: "detail",
+    });
+  }
+
+  if (filters.changeStatus !== "all") {
+    chips.push({
+      id: "changeStatus",
+      key: "changeStatus",
+      value: filters.changeStatus,
+      label: `Change: ${filters.changeStatus}`,
+      scope: "detail",
+    });
+  }
+
+  if (filters.setupStep !== "all") {
+    chips.push({
+      id: "setupStep",
+      key: "setupStep",
+      value: filters.setupStep,
+      label: `Step: ${filters.setupStep}`,
+      scope: "detail",
+    });
+  }
+
+  if (filters.actionType !== "all") {
+    chips.push({
+      id: "actionType",
+      key: "actionType",
+      value: filters.actionType,
+      label: `Action: ${filters.actionType}`,
+      scope: "detail",
+    });
+  }
+
+  if (filters.failureCategory !== "all") {
+    chips.push({
+      id: "failureCategory",
+      key: "failureCategory",
+      value: filters.failureCategory,
+      label: `Failure: ${filters.failureCategory}`,
+      scope: "detail",
+    });
+  }
+
+  if (filters.outOfBudgetOnly) {
+    chips.push({
+      id: "outOfBudget",
+      key: "outOfBudgetOnly",
+      value: "true",
+      label: "Out of budget",
+      scope: "detail",
+    });
+  }
+
+  if (
+    hasDateFilter(filters) &&
+    filters.dateFrom === filters.dateTo &&
+    filters.actorRole !== "all"
+  ) {
+    chips.push({
+      id: "alertDrill",
+      key: "alertDrill",
+      value: `${filters.dateFrom}:${filters.actorRole}`,
+      label: `${alertRoleLabel(filters.actorRole)} · ${formatAlertDate(filters.dateFrom)}`,
+      scope: "detail",
+    });
   }
 
   return chips;
@@ -143,42 +152,53 @@ function chipsFromFilters(
 
 export function ActionLogsPage() {
   const config = MOCK_ACCOUNT_CONFIG;
-  const availableTabs = getAvailableTabs(config);
+  const { setBreadcrumbs } = usePageTitle();
 
   const [entries, setEntries] = useState<LogEntry[]>(INITIAL_MOCK_ENTRIES);
-  const [tab, setTab] = useState<ActionTab>(getDefaultTab(config));
+  const [view, setView] = useState<PageView>("alerts");
   const [filters, setFilters] = useState<FilterState>(buildDefaultFilters);
   const [search, setSearch] = useState("");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-  const [demoState, setDemoState] = useState<DemoPageState>("live");
   const [, startTransition] = useTransition();
 
-  const chips = useMemo(
-    () => chipsFromFilters(tab, filters),
-    [tab, filters],
+  useEffect(() => {
+    setBreadcrumbs([
+      { label: "Home", href: "/" },
+      { label: "GBO", href: "/" },
+      { label: "Explainability", href: "/explainability-dashboard" },
+      { label: view === "alerts" ? "Alerts" : "Action Log" },
+    ]);
+    return () => setBreadcrumbs([]);
+  }, [view, setBreadcrumbs]);
+
+  const chips = useMemo(() => chipsFromFilters(filters), [filters]);
+
+  const alerts = useMemo(() => aggregateAlerts(entries), [entries]);
+
+  const filteredEntries = useMemo(() => {
+    const entryFilters = { ...filters, actionStatus: "all" as const };
+    const byFilters = filterEntries(entries, entryFilters);
+    return searchEntries(byFilters, search);
+  }, [entries, filters, search]);
+
+  const flatRows = useMemo(() => {
+    const rows = flattenLogEntries(filteredEntries);
+    const byStatus = filterActionLogRows(rows, filters.actionStatus);
+    return sortActionLogRowsNewestFirst(byStatus);
+  }, [filteredEntries, filters.actionStatus]);
+
+  const totalPages = Math.max(1, Math.ceil(flatRows.length / PAGE_SIZE));
+  const pageRows = flatRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const filtered = useMemo(
+    () => sortNewestFirst(filteredEntries),
+    [filteredEntries],
   );
 
-  const filtered = useMemo(() => {
-    const byTab = filterEntries(entries, tab, filters);
-    const bySearch = searchEntries(byTab, search);
-    return sortNewestFirst(bySearch);
-  }, [entries, tab, filters, search]);
+  const todayAlly = useMemo(() => filterTodaysAllyAi(entries), [entries]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageEntries = filtered.slice(
-    (page - 1) * PAGE_SIZE,
-    page * PAGE_SIZE,
-  );
-
-  const todayAlly = useMemo(
-    () => filterTodaysAllyAi(entries),
-    [entries],
-  );
-
-  const hasActiveNarrowing =
-    chips.length > 0 || search.trim().length > 0;
+  const hasActiveNarrowing = chips.length > 0 || search.trim().length > 0;
 
   function patchFilters(patch: Partial<FilterState>) {
     startTransition(() => {
@@ -187,17 +207,31 @@ export function ActionLogsPage() {
     });
   }
 
-  function handleTabChange(next: ActionTab) {
-    setTab(next);
+  function handleViewChange(next: PageView) {
+    setView(next);
     setPage(1);
-    setExpandedId(null);
-    // Drop tab-specific filters; keep common (date + status)
+    if (next === "alerts") {
+      setSearch("");
+    }
+    if (next === "action-log") {
+      setSearch("");
+      setFilters(buildDefaultFilters());
+    }
+  }
+
+  function handleAlertClick(alert: AlertSummary) {
+    setView("action-log");
+    setPage(1);
+    setSearch("");
     setFilters((prev) => ({
       ...prev,
+      dateFrom: alert.date,
+      dateTo: alert.date,
+      actorRole: alert.role,
+      actionStatus: "all",
       user: "all",
       changeStatus: "all",
       setupStep: "all",
-      automationType: "all",
       actionType: "all",
       failureCategory: "all",
       outOfBudgetOnly: false,
@@ -207,6 +241,16 @@ export function ActionLogsPage() {
   function removeChip(chipId: string) {
     const chip = chips.find((c) => c.id === chipId);
     if (!chip) return;
+
+    if (chip.id === "alertDrill") {
+      patchFilters({
+        dateFrom: "",
+        dateTo: "",
+        actorRole: "all",
+      });
+      return;
+    }
+
     if (chip.key === "outOfBudgetOnly") {
       patchFilters({ outOfBudgetOnly: false });
       return;
@@ -226,12 +270,15 @@ export function ActionLogsPage() {
 
   function handleExport() {
     const csv = entriesToCsv(filtered);
-    downloadCsv(`action-logs-${tab}-${filters.dateFrom}.csv`, csv);
+    const suffix = hasDateFilter(filters)
+      ? filters.dateFrom
+      : toIsoDate(new Date());
+    downloadCsv(`action-log-${suffix}.csv`, csv);
   }
 
   function handleDownloadToday() {
     const csv = entriesToCsv(todayAlly);
-    downloadCsv(`ally-ai-today.csv`, csv);
+    downloadCsv("ally-ai-today.csv", csv);
   }
 
   function handleRetry(entryId: string) {
@@ -239,7 +286,6 @@ export function ActionLogsPage() {
     if (!entry) return;
 
     setRetryingId(entryId);
-    // Simulate async retailer push
     window.setTimeout(() => {
       const { updatedOriginal, newEntry } = buildRetryResult(
         entry,
@@ -251,50 +297,17 @@ export function ActionLogsPage() {
         ...prev.map((e) => (e.id === entryId ? updatedOriginal : e)),
       ]);
       setRetryingId(null);
-      setExpandedId(newEntry.id);
     }, 1200);
   }
 
-  // Full-page empty states for unsupported / not live / purged
-  if (demoState === "unsupported-retailer") {
-    return (
-      <div className="mx-auto w-full max-w-5xl">
-        <PageHeader />
-        <ActionLogsEmptyState kind="unsupported-retailer" />
-      </div>
-    );
-  }
-  if (demoState === "strategy-not-live") {
-    return (
-      <div className="mx-auto w-full max-w-5xl">
-        <PageHeader />
-        <ActionLogsEmptyState kind="strategy-not-live" />
-      </div>
-    );
-  }
-  if (demoState === "purged-entry") {
-    return (
-      <div className="mx-auto w-full max-w-5xl">
-        <PageHeader />
-        <ActionLogsEmptyState
-          kind="purged-entry"
-          onClearFilters={() => setDemoState("live")}
-        />
-      </div>
-    );
-  }
-
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      <PageHeader />
-
+    <div className="mx-auto flex w-full flex-col gap-6">
       <ActionLogsToolbar
-        tab={tab}
-        availableTabs={availableTabs}
-        onTabChange={handleTabChange}
+        view={view}
+        onViewChange={handleViewChange}
         filters={filters}
         onFiltersChange={patchFilters}
-        chips={chips}
+        chips={view === "action-log" ? chips : []}
         onRemoveChip={removeChip}
         onClearAll={clearAll}
         search={search}
@@ -303,37 +316,28 @@ export function ActionLogsPage() {
           setPage(1);
         }}
         config={config}
+        filteredCount={flatRows.length}
         onExport={handleExport}
         onDownloadToday={handleDownloadToday}
         todayAllyCount={todayAlly.length}
-        demoState={demoState}
-        onDemoStateChange={setDemoState}
+        alertCount={alerts.length}
       />
 
-      {pageEntries.length === 0 ? (
+      {view === "alerts" ? (
+        <AlertsView alerts={alerts} onAlertClick={handleAlertClick} />
+      ) : flatRows.length === 0 ? (
         <ActionLogsEmptyState
           kind={hasActiveNarrowing ? "no-results" : "no-activity"}
           onClearFilters={hasActiveNarrowing ? clearAll : undefined}
         />
       ) : (
         <>
-          <p className="text-xs text-muted-foreground">
-            Showing {pageEntries.length} of {filtered.length} · newest first
-          </p>
-          <ul className="overflow-hidden rounded-lg border border-border bg-background">
-            {pageEntries.map((entry) => (
-              <LogEntryRow
-                key={entry.id}
-                entry={entry}
-                expanded={expandedId === entry.id}
-                isRetrying={retryingId === entry.id}
-                onToggle={() =>
-                  setExpandedId((id) => (id === entry.id ? null : entry.id))
-                }
-                onRetry={() => handleRetry(entry.id)}
-              />
-            ))}
-          </ul>
+          <ActionLogTable
+            rows={pageRows}
+            totalCount={flatRows.length}
+            retryingId={retryingId}
+            onRetry={handleRetry}
+          />
 
           {totalPages > 1 ? (
             <div className="flex items-center justify-center gap-2">
@@ -360,21 +364,6 @@ export function ActionLogsPage() {
           ) : null}
         </>
       )}
-    </div>
-  );
-}
-
-function PageHeader() {
-  return (
-    <div>
-      <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-        Action Logs
-      </h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {MOCK_ACCOUNT_META.accountName} · {MOCK_ACCOUNT_META.retailer} (
-        {MOCK_ACCOUNT_META.region}) — who changed what, why, and the expected
-        impact
-      </p>
     </div>
   );
 }

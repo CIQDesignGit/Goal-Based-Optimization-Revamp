@@ -271,15 +271,16 @@ Per the PRD release plan, **P0 = FR-001, 002, 003, 004, 005, 006, 008, 010, 018*
 | **P2** | 7, 11, 9 | High Deviation / anomaly, entity timeline, email alerts |
 | **P3** | 19 | Conflict detection |
 
-**Release 1 is just the Action Logs page — nothing else.** We are not shipping "full explainability" yet; we are shipping **a place where explainability can start to live.** No alerts, no anomaly flags, no conflict detection. Just: one unified log, correctly attributed, explained, filterable, exportable, and retry-able.
+**Release 1 ships the Explainability page with two surfaces on one event stream:** a daily **Alerts** summary and a granular **Action Log**. No anomaly flags or conflict detection yet — but Alerts provide the daily digest that email alerts (P2) will eventually automate. The Action Log remains correctly attributed, explained, filterable, exportable, and retry-able.
 
-That framing matters for design: in P0 the page must stand on its own as useful, even without the later "wow" moments (anomaly flags, conflict pairs).
+That framing matters for design: Alerts orient users quickly; Action Log supports investigation without a separate recovery console.
 
 ### Non-goals (v1 / P0)
 
 - Bulk editing from the log (audit-and-recovery only, not a campaign editor)
 - Transactional undo of a chain of dependent changes (v1 reverts one entry at a time if/when revert lands)
 - Retailer-side changes, taxonomy changes, campaign-management changes (V2/V3)
+- Push/email delivery of alerts (P2) — P0 shows alerts in-product only
 
 ---
 
@@ -299,24 +300,25 @@ That framing matters for design: in P0 the page must stand on its own as useful,
 
 ## Core mental model
 
-Today, "Update History" is a narrow, setup-only audit trail. Action Logs P0 establishes a new model:
+Today, "Update History" is a narrow, setup-only audit trail. Explainability P0 establishes a new model:
 
-1. **One page, two lenses.** Not two features — one underlying event stream, viewed through **Automation** (what machines/rules did) vs **Setup** (what a human configured). The tab is a filter on actor-family, not a different dataset. Users must internalize "same log, different lens" — otherwise actor-at-action-time badges (FR-002) will confuse them when account config has since changed.
+1. **One page, two lenses — Alerts vs Action Log.** Not two datasets — one underlying event stream. **Alerts** rolls up actions into one daily summary per **role** (Human, Ally AI, Rule Based, Custom, System). **Action Log** shows every independent action record in a single unified list. There is no separate Setup vs Automation tab; human setup and agent automation live in the same list, distinguished by filters and actor badges.
 
-2. **A row is a claim, not just a fact.** Every entry answers three questions **inline, without a click:** *Who did this? Why? What's the expected impact?* This is the shift from "system log" (technical, for engineers) to "answer key" (explainability layer).
+2. **A row is a claim, not just a fact.** Every Action Log entry answers three questions **inline, without a click:** *Who did this? Why? What's the expected impact?* This is the shift from "system log" (technical, for engineers) to "answer key" (explainability layer).
 
-3. **Grouping matches how people work.** A session (multiple setup changes saved together in one Save & Launch) is **one expandable entry** — matching "I made a bunch of changes and hit save," not individual field diffs as separate rows.
+3. **Grouping matches how people work.** A session (multiple setup changes saved together in one Save & Launch) is **one expandable Action Log entry** — matching "I made a bunch of changes and hit save," not individual field diffs as separate rows. Each separate Save & Launch is a separate top-level entry.
 
-4. **Retry lives where the failure lives.** Setup failures retry in the Setup tab; Ally AI failures retry in the Automation tab. Mental model: "fix it where you saw it break," not a separate recovery console.
+4. **Drill-down from Alerts to Action Log.** Clicking a daily alert switches to Action Log with date + role filters pre-applied. Retry and export live in Action Log — filter by actor/status to find failures.
 
 ---
 
 ## Jobs to be done (P0 only)
 
-- *When I land on Action Logs from anywhere,* I want to immediately see recent activity, correctly attributed, without picking a starting filter — oriented in under ~3 seconds.
+- *When I land on Explainability from anywhere,* I want to see daily activity summaries by role without picking filters — oriented in under ~3 seconds (Alerts tab).
+- *When I want the full picture,* I switch to Action Log or click an alert to drill into that day and role.
 - *When I see an entry,* I want to know who/what did it and why, **without clicking**.
 - *When something looks unusual,* I want to expand one entry and get full before/after, scope, and timestamp (local time).
-- *When I'm hunting for something specific,* I want filters + search so thousands of rows become the few I care about.
+- *When I'm hunting for something specific,* I want unified filters + search so thousands of rows become the few I care about.
 - *When an action failed,* I want a visible, safe way to retry without leaving the log.
 - *When I want to share evidence,* I want to export exactly what I'm looking at (not the whole log) as CSV.
 - *When there's nothing to show,* I want to know **why** — no activity yet vs. no results for filters vs. not supported — so I don't mistake a limitation for a bug. **Empty states are a first-class JTBD.**
@@ -325,17 +327,18 @@ Today, "Update History" is a narrow, setup-only audit trail. Action Logs P0 esta
 
 ## Primary flow (end to end)
 
-**Entry → Orientation → Investigation → Action / Export**
+**Entry → Orientation (Alerts) → Drill-down / Action Log → Investigation → Action / Export**
 
 1. **Entry.** From Update History panel or Action Logs nav (in this prototype: GBO home → Explainability Dashboard card). Two product entry points, one destination — identical landing state either way. Only on accounts with GBO live; otherwise keep current flow / unsupported states.
-2. **Orientation.** Lands on **Automation** tab (default), **last 7 days**, tab set adapts to the account's optimizer config (no dead tabs for optimizer types the account doesn't have).
-3. **Scan.** Newest-first list. Each row: actor badge, action, why + expected impact inline, status. No click required for the gist.
-4. **Narrow (optional).** Tab-dependent filters + common filters (persist across tab switch where applicable) + entity search (AND with filters) → chips + clear-all.
-5. **Investigate (optional).** Expand a grouped entry → individual actions with before/after. Entity timeline drill-in is FR-011 (P2) — nice-to-have, not blocking P0.
-6. **Resolve (optional).** Failure → Retry (full batch or failed subset only) → **new** entry logged; original untouched (immutability).
-7. **Export (optional).** Export current filtered/searched view to CSV; plus **"Download today's Ally AI changes"** as a self-serve daily-digest stopgap before email (FR-009, P2).
+2. **Orientation.** Lands on **Alerts** tab (default), **last 7 days**. Alert role types adapt to account optimizer config (no dead cards for optimizer types the account doesn't have).
+3. **Scan alerts.** Newest-first daily summaries — one card per `(day, role)` with action count, failure count, and topic summary. Click a card to drill into Action Log for that day and role.
+4. **Action Log (optional).** Switch tab or drill from alert. Newest-first list of all actions — human setup sessions, Ally AI runs, rule-based automations, system jobs — in one list. Each row: actor badge, action, why + expected impact inline, status.
+5. **Narrow (optional).** Unified filters (role, person, action type, change status, setup step, failure reason, status) + entity search (AND with filters) → chips + clear-all.
+6. **Investigate (optional).** Expand a grouped entry → individual actions with before/after. Entity timeline drill-in is FR-011 (P2) — nice-to-have, not blocking P0.
+7. **Resolve (optional).** Failure → Retry (full batch or failed subset only) → **new** entry logged; original untouched (immutability).
+8. **Export (optional).** Export current filtered/searched Action Log view to CSV; **"Download today's Ally AI changes"** remains available on Action Log as a self-serve digest stopgap before email (FR-009, P2).
 
-Defaults must work with **zero personalization** by the user (last 7 days, Automation tab, no filters).
+Defaults must work with **zero personalization** by the user (last 7 days, Alerts tab, no filters).
 
 ---
 
@@ -343,38 +346,40 @@ Defaults must work with **zero personalization** by the user (last 7 days, Autom
 
 | Term | Definition |
 | ---- | ---------- |
-| **Action Logs** | The unified audit page for GBO changes — Setup + Automation lenses on one event stream. |
-| **Automation tab** | Default view: Ally AI and/or Rule Based actions, out-of-budget campaigns, automation failures. |
-| **Setup tab** | Human (or System) configuration changes: budget, goals, seasonality, constraints, day-parting, etc. |
-| **Actor badge** | Ally AI / Rule Based / named human (name + email) / System — captured **at action time**, immutable even if the user is later deactivated or account config changes. |
-| **Session** | All setup changes committed in a single Save & Launch. Rendered as one grouped entry that expands to individual actions. |
+| **Explainability** | The unified audit experience for GBO changes — Alerts (daily summaries) + Action Log (full detail) on one event stream. |
+| **Alerts tab** | Default view. One summary card per `(calendar day, role)` where role ∈ {Human, Ally AI, Rule Based, Custom, System}. Click to drill into Action Log. |
+| **Action Log tab** | Full list of every independent action — setup sessions, automation runs, system jobs — with unified filters. |
+| **Alert role** | Who took action that day: Human, Ally AI, Rule Based, Custom (`automationType === custom`), or System (e.g. out-of-budget scans). |
+| **Actor badge** | Ally AI / Rule Based / Human / System — captured **at action time**, immutable even if the user is later deactivated or account config changes. |
+| **Session** | All setup changes committed in a single Save & Launch. Rendered as one grouped Action Log entry that expands to individual actions. |
 | **Why + impact** | Inline reason (e.g. optimizer trigger) and expected impact (or "Impact pending") — the explainability layer on each row. |
 | **Day-parting deep diff** | Full before/after schedule for day-parting changes (not metadata-only Created/Updated/Deleted). |
-| **Retry** | Re-attempt failed setup or Ally AI actions; partial retries only re-apply failures; always creates a **new** log entry. |
+| **Retry** | Re-attempt failed actions from Action Log; partial retries only re-apply failures; always creates a **new** log entry. |
 
 ---
 
 ## Functional building blocks (P0)
 
-### 1. Unified data model + actor-family tabs (FR-001, FR-002)
+### 1. Unified data model + Alerts / Action Log tabs (FR-001, FR-002)
 
-- Single event stream; tabs are a **view filter**, not separate storage.
-- Tab set computed per account config:
-  - Ally AI **and** Rule Based → Setup + Automations (Rule Based / Ally AI)
-  - Ally AI only → Setup + Automations (Ally AI)
-  - Rule Based only → Setup + Automations (Rule Based)
-- Actor badge always visible; deactivated users retain name/email captured at action time with "(deactivated)"; service accounts labelled **System**.
+- Single event stream; top tabs are **Alerts** (aggregated) vs **Action Log** (detail), not separate storage.
+- Alert role types computed per account config:
+  - Human always shown when GBO is live
+  - Ally AI alert when account has Ally AI
+  - Rule Based alert when account has Rule Based
+  - Custom and System alerts always available
+- Actor badge always visible on Action Log rows; deactivated users retain name/email captured at action time with "(deactivated)"; service accounts labelled **System**.
 
 ### 2. Four action families + grouping (FR-003)
 
-| Family | Frequency | Tab |
-| ------ | --------- | --- |
-| Ally AI action status (Success / Failure) | Real-time ≤15 min | Automation |
-| Campaigns out of budget / % time in budget | Once a day | Automation |
-| Setup Created / Updated / Deleted (budget, granularity, optimizer type, goals, org/categorization, seasonality, spend/campaign constraints, rule-based strategies, targeting, bid constraints, **day-parting**) | On Save & Launch | Setup |
-| API / business-rule failures | Real-time ≤15 min | Tab of the action that failed |
+| Family | Frequency | Action Log |
+| ------ | --------- | ---------- |
+| Ally AI action status (Success / Failure) | Real-time ≤15 min | One row per run/batch |
+| Campaigns out of budget / % time in budget | Once a day | One row per campaign (System role) |
+| Setup Created / Updated / Deleted (budget, goals, seasonality, constraints, strategies, day-parting, etc.) | On Save & Launch | One grouped row per session |
+| API / business-rule failures | Real-time ≤15 min | One row per failed action/batch |
 
-- Failure reasons are **structured taxonomy** (business-rule / retailer-API / transient / logic), not free text — so filters can use them later.
+- **Alerts** aggregate all Action Log entries of a given role on a given calendar day into one summary card.
 - Session-grouping: multiple setup changes in one save → one expandable entry. Design must not show every field-level diff as a separate top-level row.
 
 ### 3. Why + Impact annotation (FR-004)
@@ -386,26 +391,26 @@ Defaults must work with **zero personalization** by the user (last 7 days, Autom
 ### 4. Filtering + search (FR-005, FR-006)
 
 - Filters combine with **AND**; active filters as removable chips; clear-all available.
-- **Common (both tabs):** date/time (default last 7 days; max = feature onboarding date), budget level, entity/scope, action status (Success / Failure).
-- **Setup only:** user (who), change status (Created / Updated / Deleted), step, anomaly (P2 — filter may exist later).
-- **Automation only:** type of automation, action type, failure reason type, out-of-budget.
-- Common filters persist across tab switch; tab-specific filters clear on switch (no silent nonsensical carryover).
-- **Search is entity-only** (name case-insensitive, ID exact) — not full-text over reasons. Don't design a search bar that implies more power than it has.
+- **Alerts tab:** date range only (default last 7 days).
+- **Action Log tab (unified):** date/time, action status, **role** (who took action), person (specific human email), action type, change status (Created / Updated / Deleted), setup step, failure reason type, out-of-budget checkbox.
+- Drill-down from alert pre-applies date + role filters as a chip (e.g. `Ally AI · Jul 29`).
+- Date range persists when switching Alerts ↔ Action Log; Action Log-specific filters remain when switching back from alert drill-down until cleared.
+- **Search is entity-only** (name case-insensitive, ID exact) — Action Log only; not full-text over reasons.
 
 ### 5. Day-parting deep diff (FR-008)
 
 - Log full before/after schedule, actor, and reason for human, Ally AI, and rule-based day-parting changes.
-- Setup config changes → Setup tab; Ally AI / Rule Based day-parting actions → Automation tab.
+- All day-parting entries appear in Action Log; filter by action type `day-parting-change`.
 - Treat as its own content type in entry detail (schedule before/after), not a simple scalar value diff.
 
 ### 6. Export (FR-010)
 
-- Export reflects **exactly** the current filtered/searched view; timestamps in local time.
-- Separate **"Download today's Ally AI changes"** CTA on the Ally AI action view — intentional stopgap before daily digest email (P2). Disabled when zero Ally AI actions today.
+- Export reflects **exactly** the current filtered/searched Action Log view; timestamps in local time.
+- **"Download today's Ally AI changes"** on Action Log — stopgap before daily digest email (P2). Disabled when zero Ally AI actions today. Today's Ally AI **alert card** is the in-product digest entry point.
 
 ### 7. Retry (FR-018)
 
-- Available on setup failures and Ally AI action failures (partial and complete).
+- Available on Action Log for setup failures and Ally AI / automation failures (partial and complete).
 - Partial failure: retry **only** failed actions; never re-apply successes.
 - Pre-validate deterministic business-rule failures; respect cooldown for rate limits; cap auto-retries (e.g. 5); edit-permission gating.
 - Retry always produces a **new** logged entry — visually obvious (not a mutated original).
@@ -420,26 +425,27 @@ Five distinct states — each with its own message and, where relevant, a CTA:
 4. **No activity yet** — empty log, not broken
 5. **Purged / past retention** (deep-link) — "This entry is no longer available (older than the retention window)."
 
-In P0 (no anomaly/conflict/email yet), these states carry more of the "the page is working" signal.
-
 ---
 
 ## Behaviour rules (quick reference)
 
-- Default land: **Automation** tab, **last 7 days**, newest-first, local-time timestamps.
-- Tabs adapt to account optimizer config — no dead tabs.
+- Default land: **Alerts** tab, **last 7 days**, newest-first, local-time timestamps.
+- Alert role types adapt to account optimizer config — no dead cards.
+- Click alert → Action Log with that day + role filtered; chip shows drill-down context.
 - Badge = actor **at action time**, not current account config.
 - Setup Save & Launch session → one grouped expandable entry (even for a single change).
 - Empty session (nothing committed) → no grouped entry.
 - Logs are **immutable**; retry creates a new entry.
 - Summary / why numbers must reconcile with detail rows; LLM down → templated fallback.
-- Export / download = filtered view only; today's Ally AI download disabled when empty.
-- GBO not live / not supported → keep current product flow; do not invent a broken Action Logs experience.
+- Export / download = Action Log filtered view only; today's Ally AI download disabled when empty.
+- System / out-of-budget daily scans → **System** alert role (prototype decision).
+- Custom automation actions → **Custom** alert role (`automationType === custom`).
+- GBO not live / not supported → keep current product flow; do not invent a broken Explainability experience.
 
 ---
 
 ## Prototype notes
 
 - Current entry: `src/components/settings/settings-home-content.tsx` → `/explainability-dashboard`.
-- Current page is a **placeholder**; P0 replaces it with the Action Logs experience (not the P1 Budget Pacing Dashboard).
+- Implementation: `src/components/gbo-explainability/` — `AlertsView`, `AlertRow`, `ActionLogsPage`, unified filters in `filters-popover.tsx`, aggregation in `aggregate-alerts.ts`.
 - Related setup audit trail during the wizard lives in `setup-session-store` (change ledger for Summary). Explainability is the **post-save, durable** history of those (and Ally AI) actions.
