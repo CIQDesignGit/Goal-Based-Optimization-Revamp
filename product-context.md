@@ -302,20 +302,20 @@ That framing matters for design: Alerts orient users quickly; Action Log support
 
 Today, "Update History" is a narrow, setup-only audit trail. Explainability P0 establishes a new model:
 
-1. **One page, two lenses — Alerts vs Action Log.** Not two datasets — one underlying event stream. **Alerts** rolls up actions into one daily summary per **role** (Human, Ally AI, Rule Based, Custom, System). **Action Log** shows every independent action record in a single unified list. There is no separate Setup vs Automation tab; human setup and agent automation live in the same list, distinguished by filters and actor badges.
+1. **One page, two lenses — Alerts vs Action Log.** Not two datasets — one underlying event stream. **Alerts** rolls up actions into one daily summary per **actor type** — exactly four types that can change goal-based optimization: **Ally AI**, **Manual**, **Day Parting**, and **Rule Based**. **Action Log** shows every independent action record in a single unified list. There is no separate Setup vs Automation tab; manual setup and automated changes live in the same list, distinguished by filters and actor badges.
 
 2. **A row is a claim, not just a fact.** Every Action Log entry answers three questions **inline, without a click:** *Who did this? Why? What's the expected impact?* This is the shift from "system log" (technical, for engineers) to "answer key" (explainability layer).
 
 3. **Grouping matches how people work.** A session (multiple setup changes saved together in one Save & Launch) is **one expandable Action Log entry** — matching "I made a bunch of changes and hit save," not individual field diffs as separate rows. Each separate Save & Launch is a separate top-level entry.
 
-4. **Drill-down from Alerts to Action Log.** Clicking a daily alert switches to Action Log with date + role filters pre-applied. Retry and export live in Action Log — filter by actor/status to find failures.
+4. **Drill-down from Alerts to Action Log.** Clicking a daily alert switches to Action Log with date + actor-type filters pre-applied. Retry and export live in Action Log — filter by actor/status to find failures.
 
 ---
 
 ## Jobs to be done (P0 only)
 
-- *When I land on Explainability from anywhere,* I want to see daily activity summaries by role without picking filters — oriented in under ~3 seconds (Alerts tab).
-- *When I want the full picture,* I switch to Action Log or click an alert to drill into that day and role.
+- *When I land on Explainability from anywhere,* I want to see daily activity summaries by actor type without picking filters — oriented in under ~3 seconds (Alerts tab).
+- *When I want the full picture,* I switch to Action Log or click an alert to drill into that day and actor type.
 - *When I see an entry,* I want to know who/what did it and why, **without clicking**.
 - *When something looks unusual,* I want to expand one entry and get full before/after, scope, and timestamp (local time).
 - *When I'm hunting for something specific,* I want unified filters + search so thousands of rows become the few I care about.
@@ -330,10 +330,10 @@ Today, "Update History" is a narrow, setup-only audit trail. Explainability P0 e
 **Entry → Orientation (Alerts) → Drill-down / Action Log → Investigation → Action / Export**
 
 1. **Entry.** From Update History panel or Action Logs nav (in this prototype: GBO home → Explainability Dashboard card). Two product entry points, one destination — identical landing state either way. Only on accounts with GBO live; otherwise keep current flow / unsupported states.
-2. **Orientation.** Lands on **Alerts** tab (default), **last 7 days**. Alert role types adapt to account optimizer config (no dead cards for optimizer types the account doesn't have).
-3. **Scan alerts.** Newest-first daily summaries — one card per `(day, role)` with action count, failure count, and topic summary. Click a card to drill into Action Log for that day and role.
-4. **Action Log (optional).** Switch tab or drill from alert. Newest-first list of all actions — human setup sessions, Ally AI runs, rule-based automations, system jobs — in one list. Each row: actor badge, action, why + expected impact inline, status.
-5. **Narrow (optional).** Unified filters (role, person, action type, change status, setup step, failure reason, status) + entity search (AND with filters) → chips + clear-all.
+2. **Orientation.** Lands on **Alerts** tab (default), **last 7 days**. Alert actor types (Ally AI, Manual, Day Parting, Rule Based) adapt to account optimizer config — no dead cards for optimizer types the account doesn't have.
+3. **Scan alerts.** Newest-first daily summaries — one card per `(day, actor type)` with action count, failure count, and topic summary. Click a card to drill into Action Log for that day and actor type.
+4. **Action Log (optional).** Switch tab or drill from alert. Newest-first list of all actions — manual setup sessions, Ally AI runs, day-parting changes, rule-based automations — in one list. Each row: actor badge, action, why + expected impact inline, status.
+5. **Narrow (optional).** Unified filters (actor type, person, action type, change status, setup step, failure reason, status) + entity search (AND with filters) → chips + clear-all.
 6. **Investigate (optional).** Expand a grouped entry → individual actions with before/after. Entity timeline drill-in is FR-011 (P2) — nice-to-have, not blocking P0.
 7. **Resolve (optional).** Failure → Retry (full batch or failed subset only) → **new** entry logged; original untouched (immutability).
 8. **Export (optional).** Export current filtered/searched Action Log view to CSV; **"Download today's Ally AI changes"** remains available on Action Log as a self-serve digest stopgap before email (FR-009, P2).
@@ -347,10 +347,10 @@ Defaults must work with **zero personalization** by the user (last 7 days, Alert
 | Term | Definition |
 | ---- | ---------- |
 | **Explainability** | The unified audit experience for GBO changes — Alerts (daily summaries) + Action Log (full detail) on one event stream. |
-| **Alerts tab** | Default view. One summary card per `(calendar day, role)` where role ∈ {Human, Ally AI, Rule Based, Custom, System}. Click to drill into Action Log. |
-| **Action Log tab** | Full list of every independent action — setup sessions, automation runs, system jobs — with unified filters. |
-| **Alert role** | Who took action that day: Human, Ally AI, Rule Based, Custom (`automationType === custom`), or System (e.g. out-of-budget scans). |
-| **Actor badge** | Ally AI / Rule Based / Human / System — captured **at action time**, immutable even if the user is later deactivated or account config changes. |
+| **Alerts tab** | Default view. One summary card per `(calendar day, actor type)` where actor type ∈ {Ally AI, Manual, Day Parting, Rule Based}. Click to drill into Action Log. |
+| **Action Log tab** | Full list of every independent action — setup sessions, automation runs, day-parting changes — with unified filters. |
+| **Alert actor type** | Who took action that day — one of four GBO change actors: **Ally AI**, **Manual** (a person saved setup or made a direct change), **Day Parting** (day-parting schedule changes from any source), or **Rule Based** (rule-triggered automation). There is no separate System actor. |
+| **Actor badge** | Ally AI / Manual / Day Parting / Rule Based — captured **at action time**, immutable even if the user is later deactivated or account config changes. |
 | **Session** | All setup changes committed in a single Save & Launch. Rendered as one grouped Action Log entry that expands to individual actions. |
 | **Why + impact** | Inline reason (e.g. optimizer trigger) and expected impact (or "Impact pending") — the explainability layer on each row. |
 | **Day-parting deep diff** | Full before/after schedule for day-parting changes (not metadata-only Created/Updated/Deleted). |
@@ -363,23 +363,25 @@ Defaults must work with **zero personalization** by the user (last 7 days, Alert
 ### 1. Unified data model + Alerts / Action Log tabs (FR-001, FR-002)
 
 - Single event stream; top tabs are **Alerts** (aggregated) vs **Action Log** (detail), not separate storage.
-- Alert role types computed per account config:
-  - Human always shown when GBO is live
-  - Ally AI alert when account has Ally AI
-  - Rule Based alert when account has Rule Based
-  - Custom and System alerts always available
-- Actor badge always visible on Action Log rows; deactivated users retain name/email captured at action time with "(deactivated)"; service accounts labelled **System**.
+- **Four actor types** can change goal-based optimization. Alerts group by `(calendar day, actor type)`:
+  - **Manual** — always shown when GBO is live (setup Save & Launch, direct human edits)
+  - **Ally AI** — when account has Ally AI (includes custom optimizer actions rolled into Ally AI)
+  - **Day Parting** — day-parting schedule changes (manual or automated)
+  - **Rule Based** — when account has Rule Based automation
+- There is **no System actor** — observational or batch jobs are attributed to the relevant actor type above.
+- Actor badge always visible on Action Log rows; deactivated users retain name/email captured at action time with "(deactivated)" on Manual entries.
 
 ### 2. Four action families + grouping (FR-003)
 
 | Family | Frequency | Action Log |
 | ------ | --------- | ---------- |
 | Ally AI action status (Success / Failure) | Real-time ≤15 min | One row per run/batch |
-| Campaigns out of budget / % time in budget | Once a day | One row per campaign (System role) |
-| Setup Created / Updated / Deleted (budget, goals, seasonality, constraints, strategies, day-parting, etc.) | On Save & Launch | One grouped row per session |
+| Campaigns out of budget / % time in budget | Once a day | One row per campaign (attributed to the detecting automation — Ally AI or Rule Based, not a separate System actor) |
+| Setup Created / Updated / Deleted (budget, goals, seasonality, constraints, strategies, day-parting, etc.) | On Save & Launch | One grouped row per session (Manual actor) |
+| Day-parting schedule changes | On change or re-optimize | One row per change (Day Parting actor) |
 | API / business-rule failures | Real-time ≤15 min | One row per failed action/batch |
 
-- **Alerts** aggregate all Action Log entries of a given role on a given calendar day into one summary card.
+- **Alerts** aggregate all Action Log entries of a given actor type on a given calendar day into one summary card.
 - Session-grouping: multiple setup changes in one save → one expandable entry. Design must not show every field-level diff as a separate top-level row.
 
 ### 3. Why + Impact annotation (FR-004)
@@ -392,14 +394,14 @@ Defaults must work with **zero personalization** by the user (last 7 days, Alert
 
 - Filters combine with **AND**; active filters as removable chips; clear-all available.
 - **Alerts tab:** date range only (default last 7 days).
-- **Action Log tab (unified):** date/time, action status, **role** (who took action), person (specific human email), action type, change status (Created / Updated / Deleted), setup step, failure reason type, out-of-budget checkbox.
-- Drill-down from alert pre-applies date + role filters as a chip (e.g. `Ally AI · Jul 29`).
+- **Action Log tab (unified):** date/time, action status, **actor type** (Ally AI / Manual / Day Parting / Rule Based), person (specific user email for Manual entries), action type, change status (Created / Updated / Deleted), setup step, failure reason type, out-of-budget checkbox.
+- Drill-down from alert pre-applies date + actor-type filters as a chip (e.g. `Ally AI · Jul 29`).
 - Date range persists when switching Alerts ↔ Action Log; Action Log-specific filters remain when switching back from alert drill-down until cleared.
 - **Search is entity-only** (name case-insensitive, ID exact) — Action Log only; not full-text over reasons.
 
 ### 5. Day-parting deep diff (FR-008)
 
-- Log full before/after schedule, actor, and reason for human, Ally AI, and rule-based day-parting changes.
+- Log full before/after schedule, actor type, and reason for Manual, Ally AI, and Rule Based day-parting changes — all surfaced under the **Day Parting** actor type in Alerts.
 - All day-parting entries appear in Action Log; filter by action type `day-parting-change`.
 - Treat as its own content type in entry detail (schedule before/after), not a simple scalar value diff.
 
@@ -430,16 +432,16 @@ Five distinct states — each with its own message and, where relevant, a CTA:
 ## Behaviour rules (quick reference)
 
 - Default land: **Alerts** tab, **last 7 days**, newest-first, local-time timestamps.
-- Alert role types adapt to account optimizer config — no dead cards.
-- Click alert → Action Log with that day + role filtered; chip shows drill-down context.
+- Four alert actor types: **Ally AI**, **Manual**, **Day Parting**, **Rule Based** — adapt to account optimizer config where applicable (no dead cards).
+- Click alert → Action Log with that day + actor type filtered; chip shows drill-down context.
 - Badge = actor **at action time**, not current account config.
-- Setup Save & Launch session → one grouped expandable entry (even for a single change).
+- Setup Save & Launch session → one grouped expandable entry (even for a single change); actor type **Manual**.
+- Day-parting changes → **Day Parting** actor type regardless of whether the underlying trigger was manual or automated.
 - Empty session (nothing committed) → no grouped entry.
 - Logs are **immutable**; retry creates a new entry.
 - Summary / why numbers must reconcile with detail rows; LLM down → templated fallback.
 - Export / download = Action Log filtered view only; today's Ally AI download disabled when empty.
-- System / out-of-budget daily scans → **System** alert role (prototype decision).
-- Custom automation actions → **Custom** alert role (`automationType === custom`).
+- Custom optimizer actions → roll into **Ally AI** alert actor type (`automationType === custom`).
 - GBO not live / not supported → keep current product flow; do not invent a broken Explainability experience.
 
 ---

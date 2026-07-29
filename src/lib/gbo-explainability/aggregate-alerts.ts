@@ -1,6 +1,17 @@
 import { toIsoDate } from "./filter-entries";
-import { countSignalsInEntries } from "./alert-signals";
-import type { AlertRole, AlertSummary, Actor, LogEntry } from "./types";
+import {
+  countSignalsInEntries,
+  extractAlertConflictDetails,
+  extractAlertDeviationDetails,
+} from "./alert-signals";
+import type {
+  AlertConflictDetail,
+  AlertDeviationDetail,
+  AlertRole,
+  AlertSummary,
+  Actor,
+  LogEntry,
+} from "./types";
 
 /** Map a log entry to one of four daily alert actor buckets. */
 export function mapEntryToAlertRole(entry: LogEntry): AlertRole {
@@ -146,6 +157,50 @@ function aggregateGroupStatus(
   return "partial";
 }
 
+/** Daily digest copy for the expanded alert panel. */
+function buildAlertAiSummary(
+  role: AlertRole,
+  entries: LogEntry[],
+  conflicts: AlertConflictDetail[],
+  deviations: AlertDeviationDetail[],
+): string {
+  const sorted = [...entries].sort(compareEntriesNewestFirst);
+  const newest = sorted[0];
+  const roleLabel = alertRoleLabel(role);
+  const signalParts: string[] = [];
+
+  if (conflicts.length > 0) {
+    signalParts.push(
+      `${conflicts.length} change${conflicts.length === 1 ? "" : "s"} were later overridden by another actor`,
+    );
+  }
+
+  if (deviations.length > 0) {
+    signalParts.push(
+      `${deviations.length} field update${deviations.length === 1 ? "" : "s"} exceeded the 12.5% deviation threshold`,
+    );
+  }
+
+  if (sorted.length === 1) {
+    const parts = [newest.claim];
+    if (newest.impact) parts.push(newest.impact);
+    if (signalParts.length > 0) parts.push(`${signalParts.join("; ")}.`);
+    return parts.join(" ");
+  }
+
+  const failureCount = sorted.filter((entry) =>
+    isFailureStatus(entry.status),
+  ).length;
+
+  const base = `${sorted.length} ${roleLabel} actions today`;
+  const failureNote =
+    failureCount > 0 ? `, including ${failureCount} with failures` : "";
+  const signalNote =
+    signalParts.length > 0 ? `. ${signalParts.join("; ")}.` : ".";
+
+  return `${base}${failureNote}${signalNote}`;
+}
+
 function summarizeRoleDay(
   date: string,
   role: AlertRole,
@@ -157,6 +212,14 @@ function summarizeRoleDay(
     isFailureStatus(entry.status),
   ).length;
   const { conflictCount, highDeviationCount } = countSignalsInEntries(sorted);
+  const conflicts = extractAlertConflictDetails(sorted);
+  const deviations = extractAlertDeviationDetails(sorted);
+  const aiSummary = buildAlertAiSummary(
+    role,
+    sorted,
+    conflicts,
+    deviations,
+  );
 
   return {
     id: `${date}:${role}`,
@@ -169,6 +232,9 @@ function summarizeRoleDay(
     failureCount,
     conflictCount,
     highDeviationCount,
+    conflicts,
+    deviations,
+    aiSummary,
     claim: buildGroupClaim(role, sorted),
     reason: buildGroupReason(sorted),
     impact: buildGroupImpact(sorted),
@@ -205,7 +271,7 @@ export function aggregateAlerts(entries: LogEntry[]): AlertSummary[] {
 
 export function alertRoleLabel(role: AlertRole): string {
   const labels: Record<AlertRole, string> = {
-    human: "Human",
+    human: "Manual",
     "ally-ai": "Ally AI",
     "rule-based": "Rule Based",
     system: "System",

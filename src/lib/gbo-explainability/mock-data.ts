@@ -65,6 +65,28 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     entityId: "brand-jbc-fresh",
     scopeLevel: "Brand",
     conflictCount: 1,
+    conflictDetails: [
+      {
+        entityName: "JBC Fresh",
+        overriddenActor: "Ally AI",
+        timeSinceOverride: "2h 10m later",
+        otherChange: {
+          actorType: "Ally AI",
+          change: "$500 → $700 daily budget",
+          timestamp: "Today, 6:15 AM",
+          summary:
+            "Scheduled run raised budget to close a pacing gap vs monthly plan.",
+        },
+        inEffectNow: {
+          actorType: "Manual",
+          actorName: "Priyal Jain",
+          change: "$700/day held",
+          timestamp: "Today, 8:25 AM",
+          summary:
+            "Manual setup temporarily held the budget before this session's changes.",
+        },
+      },
+    ],
     diffs: [
       {
         field: "Daily budget",
@@ -289,6 +311,48 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     changeStatus: "updated",
     setupStep: "Goals & Budgets",
     conflictCount: 2,
+    conflictDetails: [
+      {
+        entityName: "JBC Fresh",
+        overriddenActor: "Ally AI",
+        timeSinceOverride: "3h 25m later",
+        otherChange: {
+          actorType: "Ally AI",
+          change: "$4,200 → $5,600",
+          timestamp: "Jul 6, 6:15 AM",
+          summary:
+            "Raised budget because the brand was underpacing 19% against its monthly target.",
+        },
+        inEffectNow: {
+          actorType: "Manual",
+          actorName: "Priyal Jain",
+          change: "$4,200/day",
+          timestamp: "Jul 6, 9:40 AM",
+          summary:
+            "Reverted Ally AI's raise — pacing correction cancelled, gap widens to ~24% by month-end.",
+        },
+      },
+      {
+        entityName: "Sponsored Brands",
+        overriddenActor: "Rule Based",
+        timeSinceOverride: "1h 12m later",
+        otherChange: {
+          actorType: "Rule Based",
+          change: "Spend share cap 12%",
+          timestamp: "Jul 6, 8:28 AM",
+          summary:
+            "Capped SB spend share at 12% of portfolio spend per automation rule.",
+        },
+        inEffectNow: {
+          actorType: "Manual",
+          actorName: "Priyal Jain",
+          change: "15% spend share",
+          timestamp: "Jul 6, 9:40 AM",
+          summary:
+            "Set 15% SB share in setup — bypasses the rule cap by ~3pp.",
+        },
+      },
+    ],
     setupSnapshot: {
       goalLabel: "Brand iROAS",
       aggressivenessLabel: "Moderate",

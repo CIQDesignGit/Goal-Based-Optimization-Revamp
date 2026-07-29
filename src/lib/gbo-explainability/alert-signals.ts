@@ -1,12 +1,27 @@
-import type { LogActionDetail, LogEntry, ValueDiff } from "./types";
+import type {
+  AlertConflictDetail,
+  AlertDeviationDetail,
+  ConflictDetail,
+  LogEntry,
+  ValueDiff,
+} from "./types";
 
 /** Values changing more than this fraction vs. original count as high deviation. */
 export const HIGH_DEVIATION_THRESHOLD = 0.125;
 
-function parseNumeric(value: string | null): number | null {
+const OVERRIDE_ACTORS = ["Rule Based", "Ally AI", "Manual setup"] as const;
+
+export function parseNumeric(value: string | null): number | null {
   if (!value) return null;
   const n = Number.parseFloat(value.replace(/[^0-9.-]/g, ""));
   return Number.isFinite(n) ? n : null;
+}
+
+export function percentChangeFromDiff(diff: ValueDiff): number | null {
+  const before = parseNumeric(diff.before);
+  const after = parseNumeric(diff.after);
+  if (before === null || after === null || before === 0) return null;
+  return Math.abs((after - before) / before);
 }
 
 export function isHighDeviationDiff(diff: ValueDiff): boolean {
@@ -61,4 +76,120 @@ export function formatConflictTag(count: number): string {
 
 export function formatHighDeviationTag(count: number): string {
   return `${count} high deviation${count === 1 ? "" : "s"}`;
+}
+
+function syntheticConflictDetail(
+  entry: LogEntry,
+  index: number,
+): ConflictDetail {
+  const overriddenActor = OVERRIDE_ACTORS[index % OVERRIDE_ACTORS.length];
+  const timestamp = new Date(entry.timestamp).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  return {
+    entityName: entry.entityName,
+    overriddenActor,
+    timeSinceOverride: "earlier today",
+    otherChange: {
+      actorType: overriddenActor,
+      change: entry.claim,
+      timestamp,
+      summary: entry.reason,
+    },
+    inEffectNow: {
+      actorType: entry.actor.kind === "human" ? "Manual" : entry.actor.label,
+      actorName:
+        entry.actor.kind === "human" ? entry.actor.label : undefined,
+      change: entry.entityName,
+      timestamp,
+      summary: `Superseded the ${overriddenActor} action on ${entry.entityName}.`,
+    },
+  };
+}
+
+/** Flatten explicit or synthetic conflict records for an entry. */
+export function extractConflictDetailsFromEntry(
+  entry: LogEntry,
+): AlertConflictDetail[] {
+  if (entry.conflictDetails?.length) {
+    return entry.conflictDetails.map((detail, index) => ({
+      id: `${entry.id}-conflict-${index}`,
+      ...detail,
+    }));
+  }
+
+  const count = entry.conflictCount ?? 0;
+  return Array.from({ length: count }, (_, index) => ({
+    id: `${entry.id}-conflict-${index}`,
+    ...syntheticConflictDetail(entry, index),
+  }));
+}
+
+type DeviationCandidate = {
+  entry: LogEntry;
+  childId?: string;
+  diff: ValueDiff;
+};
+
+function deviationCandidatesFromEntry(entry: LogEntry): DeviationCandidate[] {
+  const own =
+    entry.diffs?.map((diff) => ({ entry, diff })) ??
+    ([] as DeviationCandidate[]);
+  const fromChildren =
+    entry.children?.flatMap((child) =>
+      (child.diffs ?? []).map((diff) => ({
+        entry,
+        childId: child.id,
+        diff,
+      })),
+    ) ?? [];
+
+  return [...own, ...fromChildren];
+}
+
+/** Collect high-deviation field changes with entity context. */
+export function extractDeviationDetailsFromEntry(
+  entry: LogEntry,
+): AlertDeviationDetail[] {
+  const results: AlertDeviationDetail[] = [];
+
+  for (const { entry: sourceEntry, childId, diff } of deviationCandidatesFromEntry(
+    entry,
+  )) {
+    if (!isHighDeviationDiff(diff)) continue;
+
+    const pct = percentChangeFromDiff(diff);
+    if (pct === null) continue;
+
+    const child = childId
+      ? sourceEntry.children?.find((item) => item.id === childId)
+      : undefined;
+
+    results.push({
+      id: `${sourceEntry.id}-${childId ?? "root"}-${diff.field}`,
+      entityName: child?.entityName ?? sourceEntry.entityName,
+      field: diff.field,
+      before: diff.before ?? "—",
+      after: diff.after ?? "—",
+      percentChange: pct,
+    });
+  }
+
+  return results;
+}
+
+export function extractAlertConflictDetails(
+  entries: LogEntry[],
+): AlertConflictDetail[] {
+  return entries.flatMap(extractConflictDetailsFromEntry);
+}
+
+export function extractAlertDeviationDetails(
+  entries: LogEntry[],
+): AlertDeviationDetail[] {
+  return entries.flatMap(extractDeviationDetailsFromEntry);
 }

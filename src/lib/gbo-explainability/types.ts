@@ -183,6 +183,40 @@ export type LogEntry = {
   retryOutcomeLabel?: string;
   /** Actions overridden by another actor (e.g. rule after Ally AI). */
   conflictCount?: number;
+  /** Optional per-conflict detail when available from the backend. */
+  conflictDetails?: ConflictDetail[];
+};
+
+export type ConflictActorChange = {
+  actorType: string;
+  actorName?: string;
+  timestamp: string;
+  change: string;
+  /** One-line summary shown at the bottom of the card. */
+  summary: string;
+};
+
+export type ConflictDetail = {
+  entityName: string;
+  overriddenActor: string;
+  timeSinceOverride: string;
+  /** First actor chronologically — left card. */
+  otherChange: ConflictActorChange;
+  /** Second actor that superseded the first — right card. */
+  inEffectNow: ConflictActorChange;
+};
+
+export type AlertConflictDetail = ConflictDetail & {
+  id: string;
+};
+
+export type AlertDeviationDetail = {
+  id: string;
+  entityName: string;
+  field: string;
+  before: string;
+  after: string;
+  percentChange: number;
 };
 
 export type AlertSummary = {
@@ -198,6 +232,9 @@ export type AlertSummary = {
   failureCount: number;
   conflictCount: number;
   highDeviationCount: number;
+  conflicts: AlertConflictDetail[];
+  deviations: AlertDeviationDetail[];
+  aiSummary: string;
   /** Primary line — what changed */
   claim: string;
   /** Why / trigger context */

@@ -18,7 +18,7 @@ const KIND_STYLES: Record<
   },
   human: {
     className: "bg-slate-100 text-slate-700 border-slate-200",
-    defaultLabel: "Human",
+    defaultLabel: "Manual",
   },
   system: {
     className: "bg-slate-100 text-slate-500 border-slate-200",
