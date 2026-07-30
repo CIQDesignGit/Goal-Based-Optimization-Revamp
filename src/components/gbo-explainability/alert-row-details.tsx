@@ -26,7 +26,6 @@ type DetailSectionProps = {
   title: string;
   icon: ReactNode;
   iconClassName: string;
-  headerExtra?: ReactNode;
   titleId?: string;
   children: ReactNode;
   className?: string;
@@ -36,7 +35,6 @@ function DetailSection({
   title,
   icon,
   iconClassName,
-  headerExtra,
   titleId,
   children,
   className,
@@ -58,7 +56,6 @@ function DetailSection({
         >
           {title}
         </h4>
-        {headerExtra}
       </div>
       {children}
     </section>
@@ -110,8 +107,6 @@ export function AlertRowDetails({
   alert,
   onViewActionLog,
 }: AlertRowDetailsProps) {
-  const showAiBadge = alert.summarySource === "ai";
-
   return (
     <div className="border-t border-border bg-slate-50/40">
       <div className={ALERT_DETAILS_GRID}>
@@ -122,13 +117,6 @@ export function AlertRowDetails({
             titleId={`${alert.id}-ai-summary`}
             icon={<Sparkles className="size-4" aria-hidden />}
             iconClassName="bg-brand-50 text-brand-600"
-            headerExtra={
-              showAiBadge ? (
-                <span className="rounded-full bg-brand-50 px-2 py-0.5 text-2xs font-medium text-brand-700">
-                  AI-generated
-                </span>
-              ) : null
-            }
           >
             <p className="text-sm leading-relaxed text-foreground">
               {alert.aiSummary}

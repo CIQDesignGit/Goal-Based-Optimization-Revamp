@@ -70,9 +70,6 @@ export function AlertConflictCard({ conflict }: AlertConflictCardProps) {
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {conflict.overriddenActor} was overridden
-            {conflict.timeSinceOverride
-              ? ` · ${conflict.timeSinceOverride}`
-              : ""}
           </p>
         </div>
       </header>

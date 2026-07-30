@@ -4,8 +4,8 @@ import Image from "next/image";
 import { Binary, Calendar } from "lucide-react";
 
 import {
+  ACTOR_MARK_STYLE,
   getProfileInitials,
-  PROFILE_AVATAR_STYLE,
 } from "@/lib/gbo-explainability/actor-display";
 import type { Actor, ActorKind } from "@/lib/gbo-explainability/types";
 import { cn } from "@/lib/utils";
@@ -56,15 +56,19 @@ export function ActorMark({ kind, name, size = "md", className }: ActorMarkProps
   const iconSize = isSmall ? "size-3" : "size-3.5";
   const imageSize = isSmall ? 20 : 24;
   const markClass = cn(
-    "inline-flex shrink-0 items-center justify-center rounded-full",
+    "inline-flex shrink-0 items-center justify-center",
     markSize,
+    ACTOR_MARK_STYLE[kind].shape === "rounded" ? "rounded-md" : "rounded-full",
+    ACTOR_MARK_STYLE[kind].bg,
+    ACTOR_MARK_STYLE[kind].text,
+    ACTOR_MARK_STYLE[kind].ring,
     className,
   );
 
   switch (kind) {
     case "ally-ai":
       return (
-        <span className={cn(markClass, "overflow-hidden bg-white")}>
+        <span className={cn(markClass, "overflow-hidden")}>
           <Image
             src="/icons/ally-ai.png"
             alt=""
@@ -77,25 +81,14 @@ export function ActorMark({ kind, name, size = "md", className }: ActorMarkProps
 
     case "rule-based":
       return (
-        <span
-          className={cn(
-            "inline-flex shrink-0 items-center justify-center rounded-md bg-info-50 text-info-600",
-            markSize,
-            className,
-          )}
-        >
+        <span className={markClass}>
           <Binary className={iconSize} aria-hidden />
         </span>
       );
 
     case "day-parting":
       return (
-        <span
-          className={cn(
-            markClass,
-            "bg-pink-100 text-pink-800 ring-1 ring-pink-200/80",
-          )}
-        >
+        <span className={markClass}>
           <Calendar className={iconSize} aria-hidden />
         </span>
       );
@@ -107,8 +100,6 @@ export function ActorMark({ kind, name, size = "md", className }: ActorMarkProps
             markClass,
             isSmall ? "text-[9px]" : "text-[10px]",
             "font-semibold leading-none",
-            PROFILE_AVATAR_STYLE.bg,
-            PROFILE_AVATAR_STYLE.text,
           )}
           aria-hidden
         >
