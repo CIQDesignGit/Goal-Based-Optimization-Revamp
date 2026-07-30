@@ -11,6 +11,7 @@ import type {
   AlertSummary,
   Actor,
   LogEntry,
+  ManualContributorSummary,
 } from "./types";
 
 /** Map a log entry to one of four daily alert actor buckets. */
@@ -57,6 +58,80 @@ function isFailureStatus(status: LogEntry["status"]): boolean {
   return status === "failure" || status === "partial";
 }
 
+function personKey(entry: LogEntry): string {
+  return entry.actor.email ?? entry.actor.label;
+}
+
+function buildManualContributors(entries: LogEntry[]): ManualContributorSummary[] {
+  const byPerson = new Map<string, LogEntry[]>();
+
+  for (const entry of entries) {
+    const key = personKey(entry);
+    const bucket = byPerson.get(key);
+    if (bucket) {
+      bucket.push(entry);
+    } else {
+      byPerson.set(key, [entry]);
+    }
+  }
+
+  return [...byPerson.values()]
+    .map((personEntries) => {
+      const sorted = [...personEntries].sort(compareEntriesNewestFirst);
+      const actor = sorted[0].actor;
+      const claims = sorted.map(entryClaim);
+
+      const changeSummary =
+        sorted.length === 1
+          ? claims[0]
+          : `${sorted.length} changes — ${claims.join("; ")}`;
+
+      return {
+        id: personKey(sorted[0]),
+        name: actor.label,
+        email: actor.email,
+        deactivated: actor.deactivated,
+        actionCount: sorted.length,
+        changeSummary,
+        claims,
+        entryIds: sorted.map((entry) => entry.id),
+      };
+    })
+    .sort((a, b) => {
+      const aNewest = entries.find((entry) => personKey(entry) === a.id);
+      const bNewest = entries.find((entry) => personKey(entry) === b.id);
+      if (!aNewest || !bNewest) return 0;
+      return (
+        new Date(bNewest.timestamp).getTime() -
+        new Date(aNewest.timestamp).getTime()
+      );
+    });
+}
+
+function buildManualGroupClaim(
+  entries: LogEntry[],
+  contributors: ManualContributorSummary[],
+): string {
+  if (entries.length === 1) {
+    return entryClaim(entries[0]);
+  }
+
+  const failureCount = entries.filter((entry) =>
+    isFailureStatus(entry.status),
+  ).length;
+
+  const peopleLabel =
+    contributors.length === 1
+      ? contributors[0].name
+      : `${contributors.length} people`;
+
+  if (failureCount > 0) {
+    return `${peopleLabel} made ${entries.length} manual changes — ${failureCount} with failures`;
+  }
+
+  return `${peopleLabel} made ${entries.length} manual changes today`;
+}
+
 function entryClaim(entry: LogEntry): string {
   return entry.isSessionGroup
     ? (entry.sessionSummary ?? entry.claim)
@@ -67,12 +142,16 @@ function representativeActor(role: AlertRole, entries: LogEntry[]): Actor {
   const newest = [...entries].sort(compareEntriesNewestFirst)[0];
 
   switch (role) {
-    case "human":
-      if (entries.length === 1) return newest.actor;
+    case "human": {
+      const contributors = buildManualContributors(entries);
+      if (contributors.length === 1) return contributors[0].email
+        ? { ...newest.actor, label: contributors[0].name, email: contributors[0].email }
+        : newest.actor;
       return {
         kind: "human",
-        label: `${entries.length} people`,
+        label: `${contributors.length} people`,
       };
+    }
     case "ally-ai":
       return {
         kind: "ally-ai",
@@ -95,6 +174,10 @@ function representativeActor(role: AlertRole, entries: LogEntry[]): Actor {
 }
 
 function buildGroupClaim(role: AlertRole, entries: LogEntry[]): string {
+  if (role === "human") {
+    return buildManualGroupClaim(entries, buildManualContributors(entries));
+  }
+
   if (entries.length === 1) {
     return entryClaim(entries[0]);
   }
@@ -198,6 +281,47 @@ function buildAlertAiSummary(
     return parts.join(" ");
   }
 
+  if (role === "human") {
+    const contributors = buildManualContributors(sorted);
+    const entities = [
+      ...new Set(sorted.map((entry) => entry.entityName)),
+    ];
+    const entityPhrase =
+      entities.length === 1
+        ? entities[0]
+        : entities.length === 2
+          ? `${entities[0]} and ${entities[1]}`
+          : `${entities.slice(0, -1).join(", ")}, and ${entities.at(-1)}`;
+
+    const base =
+      contributors.length === 1
+        ? sorted[0].claim
+        : `${contributors.length} manual saves across ${entityPhrase}.`;
+
+    const failureCount = sorted.filter((entry) =>
+      isFailureStatus(entry.status),
+    ).length;
+    const notes: string[] = [];
+    if (failureCount > 0) {
+      notes.push(
+        `${failureCount} failed action${failureCount === 1 ? "" : "s"}`,
+      );
+    }
+    if (conflicts.length > 0) {
+      notes.push(
+        `${conflicts.length} override${conflicts.length === 1 ? "" : "s"}`,
+      );
+    }
+    if (deviations.length > 0) {
+      notes.push(
+        `${deviations.length} high deviation${deviations.length === 1 ? "" : "s"}`,
+      );
+    }
+
+    if (notes.length === 0) return base;
+    return `${base} ${notes.join("; ")}.`;
+  }
+
   const failureCount = sorted.filter((entry) =>
     isFailureStatus(entry.status),
   ).length;
@@ -224,6 +348,8 @@ function summarizeRoleDay(
   const { conflictCount, highDeviationCount } = countSignalsInEntries(sorted);
   const conflicts = extractAlertConflictDetails(sorted);
   const deviations = extractAlertDeviationDetails(sorted);
+  const manualContributors =
+    role === "human" ? buildManualContributors(sorted) : undefined;
   const aiSummary = buildAlertAiSummary(
     role,
     sorted,
@@ -252,6 +378,7 @@ function summarizeRoleDay(
     status: aggregateGroupStatus(sorted),
     actor: representativeActor(role, sorted),
     entityName: buildGroupEntityName(sorted),
+    manualContributors,
   };
 }
 
@@ -295,6 +422,16 @@ export function formatAlertDate(date: string): string {
     weekday: "short",
     month: "short",
     day: "numeric",
+  });
+}
+
+/** Compact date shown on each alert row (top-right). */
+export function formatAlertRowDate(date: string): string {
+  const d = new Date(`${date}T12:00:00`);
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
 }
 
@@ -346,8 +483,27 @@ export function formatAlertTitle(alert: AlertSummary): string {
   return `${alert.claim} — ${alert.impact}`;
 }
 
-/** Subtitle: trigger / reason · entity */
+function formatContributorIdentity(
+  contributor: ManualContributorSummary,
+): string {
+  return contributor.email
+    ? `${contributor.name} (${contributor.email})`
+    : contributor.name;
+}
+
+/** Subtitle: trigger / reason · entity — or contributor names for Manual alerts. */
 export function formatAlertSubtitle(alert: AlertSummary): string {
+  if (alert.manualContributors && alert.manualContributors.length > 0) {
+    if (alert.manualContributors.length > 1) {
+      return alert.manualContributors
+        .map(formatContributorIdentity)
+        .join(", ");
+    }
+
+    const contributor = alert.manualContributors[0];
+    return `${formatContributorIdentity(contributor)} — ${contributor.changeSummary}`;
+  }
+
   if (alert.actionCount > 1) {
     const trigger =
       alert.reason.split(";")[0]?.trim() ??
@@ -361,4 +517,35 @@ export function formatAlertSubtitle(alert: AlertSummary): string {
     alert.reason.split("—")[0]?.trim() ??
     alert.reason;
   return `${trigger} · ${alert.entityName}`;
+}
+
+/** Search aggregated alert cards by claim, context, entity, or actor. */
+export function searchAlerts(
+  alerts: AlertSummary[],
+  query: string,
+): AlertSummary[] {
+  const q = query.trim();
+  if (!q) return alerts;
+
+  const lower = q.toLowerCase();
+
+  return alerts.filter((alert) => {
+    if (alert.claim.toLowerCase().includes(lower)) return true;
+    if (alert.reason.toLowerCase().includes(lower)) return true;
+    if (alert.entityName.toLowerCase().includes(lower)) return true;
+    if (alert.aiSummary.toLowerCase().includes(lower)) return true;
+    if (alert.actor.label.toLowerCase().includes(lower)) return true;
+    if (alert.actor.email?.toLowerCase().includes(lower)) return true;
+    if (
+      alert.manualContributors?.some(
+        (contributor) =>
+          contributor.name.toLowerCase().includes(lower) ||
+          contributor.email?.toLowerCase().includes(lower) ||
+          contributor.changeSummary.toLowerCase().includes(lower),
+      )
+    ) {
+      return true;
+    }
+    return false;
+  });
 }

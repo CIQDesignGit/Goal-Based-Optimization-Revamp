@@ -6,22 +6,43 @@ import {
   getActorLabel,
   getActorTooltip,
 } from "@/lib/gbo-explainability/actor-display";
-import type { Actor } from "@/lib/gbo-explainability/types";
+import type { Actor, ManualContributorSummary } from "@/lib/gbo-explainability/types";
 import { cn } from "@/lib/utils";
 
 type ActorLabelProps = {
   actor: Actor;
+  manualContributors?: ManualContributorSummary[];
   className?: string;
 };
 
+function buildManualTooltip(contributors: ManualContributorSummary[]): string {
+  return contributors
+    .map((contributor) => {
+      const identity = contributor.email
+        ? `${contributor.name} · ${contributor.email}`
+        : contributor.name;
+      return `${identity} — ${contributor.changeSummary}`;
+    })
+    .join("\n");
+}
+
 /** Slim category label for alert rows — accent bar + text, not a chip or avatar. */
-export function ActorLabel({ actor, className }: ActorLabelProps) {
+export function ActorLabel({
+  actor,
+  manualContributors,
+  className,
+}: ActorLabelProps) {
   const label = getActorLabel(actor);
+  const contributorCount = manualContributors?.length ?? 0;
+  const tooltip =
+    contributorCount > 0
+      ? buildManualTooltip(manualContributors!)
+      : getActorTooltip(actor);
 
   return (
     <div
       className={cn("flex min-w-0 items-stretch gap-2", className)}
-      title={getActorTooltip(actor)}
+      title={tooltip}
     >
       <span
         className={cn(
@@ -30,14 +51,25 @@ export function ActorLabel({ actor, className }: ActorLabelProps) {
         )}
         aria-hidden
       />
-      <span
-        className={cn(
-          "text-xs font-semibold leading-snug",
-          ACTOR_LABEL_TEXT[actor.kind],
-        )}
-      >
-        {label}
-      </span>
+      <div className="min-w-0">
+        <span
+          className={cn(
+            "block text-xs font-semibold leading-snug",
+            ACTOR_LABEL_TEXT[actor.kind],
+          )}
+        >
+          {label}
+        </span>
+        {contributorCount > 1 ? (
+          <span className="mt-0.5 block text-[10px] font-medium leading-snug text-muted-foreground">
+            {contributorCount} people
+          </span>
+        ) : contributorCount === 1 ? (
+          <span className="mt-0.5 block truncate text-[10px] leading-snug text-muted-foreground">
+            {manualContributors![0].name}
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }

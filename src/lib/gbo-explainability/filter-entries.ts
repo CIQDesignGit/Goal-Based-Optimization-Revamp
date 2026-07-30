@@ -1,4 +1,9 @@
 import { mapEntryToAlertRole } from "./aggregate-alerts";
+import {
+  filterActionLogRows,
+  filterActionLogRowsByRetailer,
+  flattenLogEntries,
+} from "./flatten-log-entries";
 import type { FilterState, LogEntry } from "./types";
 
 function startOfDay(isoDate: string): Date {
@@ -90,6 +95,22 @@ export function filterEntries(
 
     return true;
   });
+}
+
+/**
+ * Narrow log entries before aggregating into daily alert cards.
+ * Mirrors Action Log row filters (status + retailer categorization).
+ */
+export function filterEntriesForAlerts(
+  entries: LogEntry[],
+  filters: FilterState,
+): LogEntry[] {
+  const base = filterEntries(entries, { ...filters, actionStatus: "all" });
+  const rows = flattenLogEntries(base);
+  const byRetailer = filterActionLogRowsByRetailer(rows, filters);
+  const byStatus = filterActionLogRows(byRetailer, filters.actionStatus);
+  const allowedIds = new Set(byStatus.map((row) => row.parentEntry.id));
+  return base.filter((entry) => allowedIds.has(entry.id));
 }
 
 /** Entity name (case-insensitive) or exact entity ID. */

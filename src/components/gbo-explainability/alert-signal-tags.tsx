@@ -9,16 +9,18 @@ import {
   formatHighDeviationTag,
 } from "@/lib/gbo-explainability/alert-signals";
 import type { AlertSummary } from "@/lib/gbo-explainability/types";
+import { cn } from "@/lib/utils";
 
 type AlertSignalTagsProps = {
   alert: Pick<
     AlertSummary,
     "conflictCount" | "highDeviationCount" | "failureCount"
   >;
+  className?: string;
 };
 
 /** Secondary signal chips — failures, conflicts, and high-deviation changes. */
-export function AlertSignalTags({ alert }: AlertSignalTagsProps) {
+export function AlertSignalTags({ alert, className }: AlertSignalTagsProps) {
   if (
     alert.failureCount === 0 &&
     alert.conflictCount === 0 &&
@@ -28,7 +30,7 @@ export function AlertSignalTags({ alert }: AlertSignalTagsProps) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className={cn("flex shrink-0 flex-wrap items-center gap-1.5", className)}>
       {alert.failureCount > 0 ? (
         <Badge
           variant="outline"

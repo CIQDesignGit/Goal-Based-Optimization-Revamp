@@ -12,6 +12,7 @@ import {
   aggregateAlerts,
   alertRoleLabel,
   formatAlertDate,
+  searchAlerts,
 } from "@/lib/gbo-explainability/aggregate-alerts";
 import {
   downloadCsv,
@@ -21,6 +22,7 @@ import {
 import {
   buildDefaultFilters,
   filterEntries,
+  filterEntriesForAlerts,
   hasDateFilter,
   searchEntries,
   sortNewestFirst,
@@ -269,7 +271,13 @@ export function ActionLogsPage() {
 
   const chips = useMemo(() => chipsFromFilters(filters), [filters]);
 
-  const alerts = useMemo(() => aggregateAlerts(entries), [entries]);
+  const allAlerts = useMemo(() => aggregateAlerts(entries), [entries]);
+
+  const filteredAlerts = useMemo(() => {
+    const narrowed = filterEntriesForAlerts(entries, filters);
+    const aggregated = aggregateAlerts(narrowed);
+    return searchAlerts(aggregated, search);
+  }, [entries, filters, search]);
 
   const filteredEntries = useMemo(() => {
     const entryFilters = { ...filters, actionStatus: "all" as const };
@@ -306,9 +314,6 @@ export function ActionLogsPage() {
   function handleViewChange(next: PageView) {
     setView(next);
     setPage(1);
-    if (next === "alerts") {
-      setSearch("");
-    }
     if (next === "action-log") {
       setSearch("");
       setFilters(buildDefaultFilters());
@@ -409,7 +414,7 @@ export function ActionLogsPage() {
         onViewChange={handleViewChange}
         filters={filters}
         onFiltersChange={patchFilters}
-        chips={view === "action-log" ? chips : []}
+        chips={chips}
         onRemoveChip={removeChip}
         onClearAll={clearAll}
         search={search}
@@ -422,11 +427,18 @@ export function ActionLogsPage() {
         onExport={handleExport}
         onDownloadToday={handleDownloadToday}
         todayAllyCount={todayAlly.length}
-        alertCount={alerts.length}
+        alertCount={allAlerts.length}
       />
 
       {view === "alerts" ? (
-        <AlertsView alerts={alerts} onAlertClick={handleAlertClick} />
+        filteredAlerts.length === 0 ? (
+          <ActionLogsEmptyState
+            kind={hasActiveNarrowing ? "no-results" : "no-activity"}
+            onClearFilters={hasActiveNarrowing ? clearAll : undefined}
+          />
+        ) : (
+          <AlertsView alerts={filteredAlerts} onAlertClick={handleAlertClick} />
+        )
       ) : flatRows.length === 0 ? (
         <ActionLogsEmptyState
           kind={hasActiveNarrowing ? "no-results" : "no-activity"}

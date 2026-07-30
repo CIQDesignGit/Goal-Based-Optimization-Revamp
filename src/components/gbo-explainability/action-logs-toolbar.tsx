@@ -71,34 +71,40 @@ export function ActionLogsToolbar({
         </TabButton>
       </div>
 
-      {view === "action-log" ? (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative w-full min-w-[18rem] shrink-0 sm:w-[18rem]">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Search campaign, keyword, or ID"
-                className="h-8 pl-8 text-sm placeholder:whitespace-nowrap"
-                aria-label="Search by entity"
-              />
-            </div>
-            <FiltersPopover
-              filters={filters}
-              config={config}
-              onChange={onFiltersChange}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-full min-w-[18rem] shrink-0 sm:w-[18rem]">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => onSearchChange(e.target.value)}
+              placeholder={
+                view === "alerts"
+                  ? "Search alerts, campaigns, or keywords"
+                  : "Search campaign, keyword, or ID"
+              }
+              className="h-8 pl-8 text-sm placeholder:whitespace-nowrap"
+              aria-label={
+                view === "alerts" ? "Search alerts" : "Search by entity"
+              }
             />
           </div>
+          <FiltersPopover
+            filters={filters}
+            config={config}
+            onChange={onFiltersChange}
+          />
+        </div>
 
+        {view === "action-log" ? (
           <ExportPopover
             filteredCount={filteredCount}
             todayAllyCount={todayAllyCount}
             onExportFiltered={onExport}
             onExportTodayAlly={onDownloadToday}
           />
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       {chips.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2">

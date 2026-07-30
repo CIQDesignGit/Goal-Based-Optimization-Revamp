@@ -223,6 +223,20 @@ export type AlertDeviationDetail = {
   percentChange: number;
 };
 
+/** One person rolled into a daily Manual alert card. */
+export type ManualContributorSummary = {
+  id: string;
+  name: string;
+  email?: string;
+  deactivated?: boolean;
+  actionCount: number;
+  /** Short line for the alert row — what this person changed. */
+  changeSummary: string;
+  /** Individual action claims for expanded detail. */
+  claims: string[];
+  entryIds: string[];
+};
+
 export type AlertSummary = {
   id: string;
   date: string; // YYYY-MM-DD local
@@ -249,6 +263,8 @@ export type AlertSummary = {
   status: ActionStatus;
   actor: Actor;
   entityName: string;
+  /** Per-person breakdown when role = human. */
+  manualContributors?: ManualContributorSummary[];
 };
 
 export type ActiveFilterChip = {
