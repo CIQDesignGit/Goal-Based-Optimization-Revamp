@@ -64,6 +64,43 @@ function DetailSection({
   );
 }
 
+/** Inner radius for the 1px gradient ring — matches outer rounded-xl. */
+const AI_SUMMARY_INNER_RADIUS = "rounded-[calc(var(--radius-xl)-1px)]";
+
+function AlertAiSummary({
+  id,
+  summary,
+}: {
+  id: string;
+  summary: string;
+}) {
+  return (
+    <div
+      id={id}
+      role="note"
+      aria-label="Summary"
+      className="rounded-xl bg-linear-to-br from-brand-300/55 via-violet-200/45 to-sky-300/50 p-px"
+    >
+      <div className={cn("relative bg-white", AI_SUMMARY_INNER_RADIUS)}>
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(219,234,254,0.45)_0%,transparent_58%),radial-gradient(ellipse_at_bottom_right,rgba(186,230,253,0.3)_0%,transparent_52%)]",
+            AI_SUMMARY_INNER_RADIUS,
+          )}
+          aria-hidden
+        />
+        <div className="relative flex gap-2.5 px-4 py-3.5">
+          <Sparkles
+            className="mt-0.5 size-4 shrink-0 text-brand-500"
+            aria-hidden
+          />
+          <p className="text-sm leading-relaxed text-slate-800">{summary}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function formatPercentChange(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
@@ -123,22 +160,14 @@ export function AlertRowDetails({
   onViewActionLog,
 }: AlertRowDetailsProps) {
   return (
-    <div className="border-t border-border bg-slate-50/40">
+    <div className="bg-white">
       <div className={ALERT_DETAILS_GRID}>
         <div aria-hidden className="hidden sm:block" />
         <div className="space-y-6">
-          <div
+          <AlertAiSummary
             id={`${alert.id}-ai-summary`}
-            className="rounded-lg border border-brand-200/70 bg-brand-50/90 px-3 py-2.5"
-          >
-            <div className="mb-1.5 flex items-center gap-1.5 text-2xs font-medium text-brand-700">
-              <Sparkles className="size-3 shrink-0" aria-hidden />
-              <span>AI-generated summary</span>
-            </div>
-            <p className="text-sm leading-relaxed text-foreground">
-              {alert.aiSummary}
-            </p>
-          </div>
+            summary={alert.aiSummary}
+          />
 
           {alert.manualContributors && alert.manualContributors.length > 0 ? (
             <DetailSection
@@ -157,7 +186,7 @@ export function AlertRowDetails({
               icon={<ArrowLeftRight className="size-3.5" aria-hidden />}
               iconClassName="bg-amber-50 text-amber-700"
             >
-              <div className="overflow-hidden rounded-xl border border-border bg-slate-50/50">
+              <div className="overflow-hidden rounded-md border border-border bg-background">
                 <ul className="divide-y divide-border">
                   {alert.conflicts.map((conflict) => (
                     <li key={conflict.id}>

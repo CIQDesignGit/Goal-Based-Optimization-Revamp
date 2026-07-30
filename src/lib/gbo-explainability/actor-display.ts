@@ -26,11 +26,13 @@ export const ACTOR_MARK_STYLE: Record<
   "rule-based": {
     bg: "bg-sky-50",
     text: "text-sky-600",
+    ring: "ring-1 ring-sky-200",
     shape: "rounded",
   },
   human: {
     bg: PROFILE_AVATAR_STYLE.bg,
     text: PROFILE_AVATAR_STYLE.text,
+    ring: "ring-1 ring-slate-200",
   },
   "day-parting": {
     bg: "bg-pink-50",

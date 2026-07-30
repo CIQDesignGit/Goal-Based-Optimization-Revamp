@@ -14,7 +14,7 @@ type ActorMarkProps = {
   kind: ActorKind;
   /** Person name for manual actors — used for initials. */
   name?: string;
-  size?: "sm" | "md";
+  size?: "xs" | "sm" | "md";
   className?: string;
 };
 
@@ -30,6 +30,7 @@ function actorKindFromType(actorType: string): ActorKind {
 type ConflictActorMarkProps = {
   actorType: string;
   actorName?: string;
+  size?: "xs" | "sm" | "md";
   className?: string;
 };
 
@@ -37,6 +38,7 @@ type ConflictActorMarkProps = {
 export function ConflictActorMark({
   actorType,
   actorName,
+  size = "xs",
   className,
 }: ConflictActorMarkProps) {
   const kind = actorKindFromType(actorType);
@@ -46,15 +48,23 @@ export function ConflictActorMark({
         (actorType.replace(/^manual\s*/i, "").trim() || "Manual"))
       : undefined;
 
-  return <ActorMark kind={kind} name={name} className={className} />;
+  return (
+    <ActorMark
+      kind={kind}
+      name={name}
+      size={size}
+      className={cn("rounded", className)}
+    />
+  );
 }
 
 /** Avatar / icon mark aligned with Action Log user column styling. */
 export function ActorMark({ kind, name, size = "md", className }: ActorMarkProps) {
-  const isSmall = size === "sm";
-  const markSize = isSmall ? "size-5" : "size-6";
-  const iconSize = isSmall ? "size-3" : "size-3.5";
-  const imageSize = isSmall ? 20 : 24;
+  const markSize =
+    size === "xs" ? "size-4" : size === "sm" ? "size-5" : "size-6";
+  const iconSize =
+    size === "xs" ? "size-2.5" : size === "sm" ? "size-3" : "size-3.5";
+  const imageSize = size === "xs" ? 16 : size === "sm" ? 20 : 24;
   const markClass = cn(
     "inline-flex shrink-0 items-center justify-center",
     markSize,
@@ -98,7 +108,11 @@ export function ActorMark({ kind, name, size = "md", className }: ActorMarkProps
         <span
           className={cn(
             markClass,
-            isSmall ? "text-[9px]" : "text-[10px]",
+            size === "xs"
+              ? "text-[8px]"
+              : size === "sm"
+                ? "text-[9px]"
+                : "text-[10px]",
             "font-semibold leading-none",
           )}
           aria-hidden
@@ -115,7 +129,7 @@ export function ActorMarkFromActor({
   size = "md",
 }: {
   actor: Actor;
-  size?: "sm" | "md";
+  size?: "xs" | "sm" | "md";
 }) {
   return (
     <ActorMark

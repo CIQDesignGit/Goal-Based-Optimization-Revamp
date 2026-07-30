@@ -15,7 +15,7 @@ export function AlertsView({ alerts, onAlertClick }: AlertsViewProps) {
   }
 
   return (
-    <section className="overflow-hidden rounded-lg border border-border bg-background">
+    <section className="overflow-hidden border border-border bg-background">
       <ul>
         {alerts.map((alert) => (
           <AlertRow

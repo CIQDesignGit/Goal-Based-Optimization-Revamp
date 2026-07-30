@@ -8,7 +8,8 @@ import { AlertRowDetails } from "@/components/gbo-explainability/alert-row-detai
 import { ClaimSentence } from "@/components/gbo-explainability/claim-sentence";
 import { AlertSignalTags } from "@/components/gbo-explainability/alert-signal-tags";
 import {
-  formatAlertRowDate,
+  alertRowTimestampValue,
+  formatAlertRowTimestamp,
   formatAlertSubtitle,
   formatAlertTitle,
 } from "@/lib/gbo-explainability/aggregate-alerts";
@@ -106,10 +107,10 @@ export function AlertRow({ alert, onClick }: AlertRowProps) {
 
         <div className="flex flex-col items-end gap-1 self-start">
           <time
-            dateTime={alert.date}
+            dateTime={alertRowTimestampValue(alert)}
             className="shrink-0 whitespace-nowrap text-xs text-muted-foreground"
           >
-            {formatAlertRowDate(alert.date)}
+            {formatAlertRowTimestamp(alert)}
           </time>
           <button
             type="button"

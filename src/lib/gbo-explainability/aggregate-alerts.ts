@@ -569,6 +569,28 @@ export function formatAlertRowDate(date: string): string {
   });
 }
 
+/** Row timestamp — strategies show last-updated wording. */
+export function formatAlertRowTimestamp(
+  alert: Pick<AlertSummary, "role" | "date">,
+): string {
+  if (alert.role === "day-parting" || alert.role === "rule-based") {
+    return `Last updated · ${formatAlertRowDate(alert.date)}`;
+  }
+
+  return formatAlertRowDate(alert.date);
+}
+
+/** `dateTime` value for the alert row timestamp. */
+export function alertRowTimestampValue(
+  alert: Pick<AlertSummary, "role" | "date" | "timestamp">,
+): string {
+  if (alert.role === "day-parting" || alert.role === "rule-based") {
+    return alert.timestamp;
+  }
+
+  return alert.date;
+}
+
 /** Section header label for date separators in the Alerts feed. */
 export function formatAlertDateSeparator(date: string): string {
   const d = new Date(`${date}T12:00:00`);

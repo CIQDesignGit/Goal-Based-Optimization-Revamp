@@ -9,7 +9,56 @@ import type {
 /** Values changing more than this fraction vs. original count as high deviation. */
 export const HIGH_DEVIATION_THRESHOLD = 0.125;
 
-const OVERRIDE_ACTORS = ["Rule Based", "Ally AI", "Manual setup"] as const;
+const OVERRIDE_ACTORS = ["Rule Based", "Ally AI", "Manual"] as const;
+
+const SYNTHETIC_MANUAL_NAMES = [
+  "Marcus Webb",
+  "Emily Carter",
+  "Priyal Jain",
+  "Jordan Lee",
+] as const;
+
+function isManualActor(actorType: string): boolean {
+  return actorType.toLowerCase().includes("manual");
+}
+
+function conflictActorFields(
+  actorType: string,
+  entry: LogEntry,
+  index: number,
+): { actorType: string; actorName?: string } {
+  if (isManualActor(actorType)) {
+    const name =
+      entry.actor.kind === "human"
+        ? entry.actor.label
+        : SYNTHETIC_MANUAL_NAMES[index % SYNTHETIC_MANUAL_NAMES.length];
+    return { actorType: "Manual", actorName: name };
+  }
+
+  return { actorType };
+}
+
+function winnerActorForSyntheticConflict(
+  entry: LogEntry,
+  index: number,
+): { actorType: string; actorName?: string } {
+  const candidates = ["Ally AI", "Manual", "Rule Based"] as const;
+  const winner = candidates[(index + 1) % candidates.length];
+
+  if (winner === "Manual") {
+    return conflictActorFields("Manual", entry, index + 1);
+  }
+
+  if (winner === "Ally AI" && entry.actor.kind === "ally-ai") {
+    return { actorType: entry.actor.label };
+  }
+
+  if (winner === "Rule Based" && entry.actor.kind === "rule-based") {
+    return { actorType: entry.actor.label };
+  }
+
+  return { actorType: winner };
+}
 
 export function parseNumeric(value: string | null): number | null {
   if (!value) return null;
@@ -93,20 +142,26 @@ function syntheticConflictDetail(
     hour: "numeric",
     minute: "2-digit",
   });
-  const diff = diffsFromEntry(entry)[0];
+  const childSources =
+    entry.children?.filter((child) => (child.diffs?.length ?? 0) > 0) ?? [];
+  const child = childSources[index % Math.max(childSources.length, 1)];
+  const allDiffs = diffsFromEntry(entry);
+  const diff = child?.diffs?.[0] ?? allDiffs[index] ?? allDiffs[0];
   const field = diff?.field ?? "Setting";
   const before = diff?.before ?? null;
   const after = diff?.after ?? null;
   const changeLine =
     before && after ? `${before} → ${after}` : (entry.claim ?? entry.entityName);
+  const previousActor = conflictActorFields(overriddenActor, entry, index);
+  const currentActor = winnerActorForSyntheticConflict(entry, index);
 
   return {
-    entityName: entry.entityName,
+    entityName: child?.entityName ?? entry.entityName,
     field,
     overriddenActor,
     timeSinceOverride: "earlier today",
     otherChange: {
-      actorType: overriddenActor,
+      ...previousActor,
       before,
       after,
       change: changeLine,
@@ -114,9 +169,7 @@ function syntheticConflictDetail(
       summary: entry.reason,
     },
     inEffectNow: {
-      actorType: entry.actor.kind === "human" ? "Manual" : entry.actor.label,
-      actorName:
-        entry.actor.kind === "human" ? entry.actor.label : undefined,
+      ...currentActor,
       before,
       after,
       change: changeLine,

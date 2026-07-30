@@ -7,7 +7,6 @@ import type {
   AlertConflictDetail,
   ConflictActorChange,
 } from "@/lib/gbo-explainability/types";
-import { cn } from "@/lib/utils";
 
 type AlertConflictCardProps = {
   conflict: AlertConflictDetail;
@@ -34,10 +33,8 @@ function resolveChangeValues(side: ConflictActorChange): {
   return { before: null, after: null };
 }
 
-type ActorChangeCardProps = {
+type ActorChangeSideProps = {
   side: ConflictActorChange;
-  field: string;
-  role: "earlier" | "current";
 };
 
 function ChangeValues({ side }: { side: ConflictActorChange }) {
@@ -47,29 +44,27 @@ function ChangeValues({ side }: { side: ConflictActorChange }) {
 
   if (hasBeforeAfter && !isHeld) {
     return (
-      <>
-        <span className="rounded bg-slate-50 px-1.5 py-0.5 font-mono text-xs text-muted-foreground line-through decoration-slate-300">
+      <span className="inline-flex flex-wrap items-center gap-1.5 text-sm">
+        <span className="font-mono text-muted-foreground line-through decoration-slate-300">
           {before}
         </span>
-        <ArrowRight className="size-3 shrink-0 text-brand-500" aria-hidden />
-        <span className="rounded bg-brand-50 px-1.5 py-0.5 font-mono text-xs font-semibold text-brand-800">
+        <ArrowRight className="size-3.5 shrink-0 text-slate-500" aria-hidden />
+        <span className="rounded bg-brand-50 px-1 py-px font-mono font-medium text-brand-800">
           {after}
         </span>
-      </>
+      </span>
     );
   }
 
   if (isHeld) {
     return (
-      <span className="rounded bg-slate-50 px-1.5 py-0.5 font-mono text-xs font-medium text-slate-700">
-        Held at {after}
-      </span>
+      <span className="font-mono text-sm text-slate-600">Held at {after}</span>
     );
   }
 
   if (after) {
     return (
-      <span className="rounded bg-brand-50 px-1.5 py-0.5 font-mono text-xs font-semibold text-brand-800">
+      <span className="rounded bg-brand-50 px-1 py-px font-mono text-sm font-semibold text-brand-800">
         Set to {after}
       </span>
     );
@@ -77,52 +72,35 @@ function ChangeValues({ side }: { side: ConflictActorChange }) {
 
   if (before) {
     return (
-      <span className="rounded bg-slate-50 px-1.5 py-0.5 font-mono text-xs text-muted-foreground line-through">
+      <span className="font-mono text-sm text-muted-foreground line-through">
         {before}
       </span>
     );
   }
 
-  return <span className="text-xs font-medium text-slate-800">{side.change}</span>;
+  return <span className="text-sm text-slate-500">{side.change}</span>;
 }
 
-function ActorChangeCard({ side, field, role }: ActorChangeCardProps) {
-  const isCurrent = role === "current";
-  const roleLabel = isCurrent ? "Override (in effect)" : "Previous change";
-
+function ActorChangeSide({ side }: ActorChangeSideProps) {
   return (
-    <div
-      className={cn(
-        "rounded-md border bg-background px-3 py-2.5",
-        isCurrent
-          ? "border-emerald-200/80 ring-1 ring-emerald-100"
-          : "border-border",
-      )}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <ConflictActorMark
-            actorType={side.actorType}
-            actorName={side.actorName}
-          />
-          <p className="truncate text-xs font-medium text-slate-600">
-            {displayActor(side)}
-          </p>
-        </div>
-        <time className="shrink-0 text-2xs text-muted-foreground">
-          {side.timestamp}
-        </time>
+    <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-0.5">
+      <ConflictActorMark
+        actorType={side.actorType}
+        actorName={side.actorName}
+        className="row-start-1 self-center"
+      />
+
+      <div className="row-start-1 min-w-0">
+        <span className="truncate text-sm font-medium text-slate-700">
+          {displayActor(side)}
+        </span>
       </div>
 
-      <p className="mt-2 text-xs font-medium text-muted-foreground">{field}</p>
-
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <ChangeValues side={side} />
-        </div>
-        <p className="shrink-0 text-2xs font-medium text-muted-foreground">
-          {roleLabel}
-        </p>
+      <div className="col-span-2 row-start-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+        <ChangeValues side={side} />
+        <time className="shrink-0 text-2xs tabular-nums text-muted-foreground">
+          {side.timestamp}
+        </time>
       </div>
     </div>
   );
@@ -131,34 +109,28 @@ function ActorChangeCard({ side, field, role }: ActorChangeCardProps) {
 /** Before/after actor comparison for one overridden entity. */
 export function AlertConflictCard({ conflict }: AlertConflictCardProps) {
   return (
-    <div className="px-3 py-2.5">
-      <header className="mb-2">
-        <p className="text-sm font-semibold text-foreground">
-          {conflict.entityName}
-        </p>
-        <p className="text-2xs text-muted-foreground">
-          {conflict.field} · {conflict.overriddenActor} was overridden{" "}
-          {conflict.timeSinceOverride}
-        </p>
-      </header>
+    <div className="px-4 py-3.5">
+      <p className="mb-4 truncate text-sm font-semibold text-slate-700">
+        {conflict.entityName}
+        <span className="ml-1.5 inline-flex rounded bg-slate-100 px-1.5 py-0.5 text-xs font-normal text-slate-700">
+          {conflict.field}
+        </span>
+      </p>
 
-      <div className="grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr]">
-        <ActorChangeCard
-          side={conflict.otherChange}
-          field={conflict.field}
-          role="earlier"
-        />
+      <div className="grid items-start gap-y-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-x-6">
+        <ActorChangeSide side={conflict.otherChange} />
+
         <div
-          className="hidden items-center justify-center text-muted-foreground sm:flex"
+          className="flex shrink-0 items-center justify-center px-3 py-1 text-slate-400 sm:self-center"
           aria-hidden
         >
-          <ArrowRight className="size-3.5" />
+          <ArrowRight
+            className="h-4 w-7 rotate-90 sm:rotate-0"
+            strokeWidth={2.25}
+          />
         </div>
-        <ActorChangeCard
-          side={conflict.inEffectNow}
-          field={conflict.field}
-          role="current"
-        />
+
+        <ActorChangeSide side={conflict.inEffectNow} />
       </div>
     </div>
   );
