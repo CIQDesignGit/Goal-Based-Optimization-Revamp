@@ -14,6 +14,7 @@ type ActorMarkProps = {
   kind: ActorKind;
   /** Person name for manual actors — used for initials. */
   name?: string;
+  size?: "sm" | "md";
   className?: string;
 };
 
@@ -49,8 +50,16 @@ export function ConflictActorMark({
 }
 
 /** Avatar / icon mark aligned with Action Log user column styling. */
-export function ActorMark({ kind, name, className }: ActorMarkProps) {
-  const markClass = cn("inline-flex size-6 shrink-0 items-center justify-center rounded-full", className);
+export function ActorMark({ kind, name, size = "md", className }: ActorMarkProps) {
+  const isSmall = size === "sm";
+  const markSize = isSmall ? "size-5" : "size-6";
+  const iconSize = isSmall ? "size-3" : "size-3.5";
+  const imageSize = isSmall ? 20 : 24;
+  const markClass = cn(
+    "inline-flex shrink-0 items-center justify-center rounded-full",
+    markSize,
+    className,
+  );
 
   switch (kind) {
     case "ally-ai":
@@ -59,9 +68,9 @@ export function ActorMark({ kind, name, className }: ActorMarkProps) {
           <Image
             src="/icons/ally-ai.png"
             alt=""
-            width={24}
-            height={24}
-            className="size-6 object-cover"
+            width={imageSize}
+            height={imageSize}
+            className={cn(markSize, "object-cover")}
           />
         </span>
       );
@@ -70,11 +79,12 @@ export function ActorMark({ kind, name, className }: ActorMarkProps) {
       return (
         <span
           className={cn(
-            "inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-info-50 text-info-600",
+            "inline-flex shrink-0 items-center justify-center rounded-md bg-info-50 text-info-600",
+            markSize,
             className,
           )}
         >
-          <Binary className="size-3.5" aria-hidden />
+          <Binary className={iconSize} aria-hidden />
         </span>
       );
 
@@ -83,10 +93,10 @@ export function ActorMark({ kind, name, className }: ActorMarkProps) {
         <span
           className={cn(
             markClass,
-            "bg-orange-100 text-orange-800 ring-1 ring-orange-200/80",
+            "bg-pink-100 text-pink-800 ring-1 ring-pink-200/80",
           )}
         >
-          <Calendar className="size-3.5" aria-hidden />
+          <Calendar className={iconSize} aria-hidden />
         </span>
       );
 
@@ -95,7 +105,8 @@ export function ActorMark({ kind, name, className }: ActorMarkProps) {
         <span
           className={cn(
             markClass,
-            "text-[10px] font-semibold leading-none",
+            isSmall ? "text-[9px]" : "text-[10px]",
+            "font-semibold leading-none",
             PROFILE_AVATAR_STYLE.bg,
             PROFILE_AVATAR_STYLE.text,
           )}
@@ -108,10 +119,17 @@ export function ActorMark({ kind, name, className }: ActorMarkProps) {
 }
 
 /** Convenience wrapper for Action Log rows. */
-export function ActorMarkFromActor({ actor }: { actor: Actor }) {
+export function ActorMarkFromActor({
+  actor,
+  size = "md",
+}: {
+  actor: Actor;
+  size?: "sm" | "md";
+}) {
   return (
     <ActorMark
       kind={actor.kind}
+      size={size}
       name={actor.kind === "human" ? actor.label : undefined}
     />
   );

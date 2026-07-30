@@ -103,16 +103,11 @@ export function ActionLogsToolbar({
       {chips.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2">
           {chips.map((chip) => (
-            <button
+            <AppliedFilterChip
               key={chip.id}
-              type="button"
-              onClick={() => onRemoveChip(chip.id)}
-              className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200"
-            >
-              {chip.label}
-              <X className="size-3" aria-hidden />
-              <span className="sr-only">Remove {chip.label}</span>
-            </button>
+              chip={chip}
+              onRemove={() => onRemoveChip(chip.id)}
+            />
           ))}
           <button
             type="button"
@@ -124,6 +119,29 @@ export function ActionLogsToolbar({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function AppliedFilterChip({
+  chip,
+  onRemove,
+}: {
+  chip: ActiveFilterChip;
+  onRemove: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onRemove}
+      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs transition-colors hover:bg-slate-50"
+    >
+      <span className="font-normal uppercase tracking-wide text-slate-400">
+        {chip.categoryLabel}
+      </span>
+      <span className="font-medium text-slate-900">{chip.valueLabel}</span>
+      <X className="size-3.5 shrink-0 text-slate-400" aria-hidden />
+      <span className="sr-only">Remove {chip.label}</span>
+    </button>
   );
 }
 

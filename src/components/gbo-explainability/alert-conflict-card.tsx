@@ -62,7 +62,7 @@ function ActorChangeCard({ side, role }: ActorChangeCardProps) {
 /** Before/after actor comparison for one overridden entity. */
 export function AlertConflictCard({ conflict }: AlertConflictCardProps) {
   return (
-    <article className="overflow-hidden rounded-xl border border-border bg-slate-50/50 p-4">
+    <div className="p-4">
       <header className="mb-4 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <div>
           <p className="text-sm font-semibold text-foreground">
@@ -89,6 +89,6 @@ export function AlertConflictCard({ conflict }: AlertConflictCardProps) {
         </div>
         <ActorChangeCard side={conflict.inEffectNow} role="current" />
       </div>
-    </article>
+    </div>
   );
 }

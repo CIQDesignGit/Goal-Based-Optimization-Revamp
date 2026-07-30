@@ -32,6 +32,7 @@ import {
 } from "@/lib/gbo-explainability/mock-data";
 import {
   filterActionLogRows,
+  filterActionLogRowsByRetailer,
   flattenLogEntries,
   sortActionLogRowsNewestFirst,
 } from "@/lib/gbo-explainability/flatten-log-entries";
@@ -46,91 +47,182 @@ import type {
 
 const PAGE_SIZE = 50;
 
+function filterChip(
+  chip: Omit<ActiveFilterChip, "label"> & { label?: string },
+): ActiveFilterChip {
+  const label =
+    chip.label ?? `${chip.categoryLabel}: ${chip.valueLabel}`.trim();
+  return { ...chip, label };
+}
+
 function chipsFromFilters(filters: FilterState): ActiveFilterChip[] {
   const chips: ActiveFilterChip[] = [];
 
   if (filters.actionStatus !== "all") {
-    chips.push({
-      id: "status",
-      key: "actionStatus",
-      value: filters.actionStatus,
-      label: `Status: ${filters.actionStatus}`,
-      scope: "common",
-    });
+    chips.push(
+      filterChip({
+        id: "status",
+        key: "actionStatus",
+        value: filters.actionStatus,
+        categoryLabel: "Status",
+        valueLabel:
+          filters.actionStatus.charAt(0).toUpperCase() +
+          filters.actionStatus.slice(1),
+        scope: "common",
+      }),
+    );
   }
 
   if (filters.actorRole !== "all") {
     const isAlertDrill =
       hasDateFilter(filters) && filters.dateFrom === filters.dateTo;
     if (!isAlertDrill) {
-      chips.push({
-        id: "actorRole",
-        key: "actorRole",
-        value: filters.actorRole,
-        label: `Role: ${alertRoleLabel(filters.actorRole)}`,
-        scope: "detail",
-      });
+      chips.push(
+        filterChip({
+          id: "actorRole",
+          key: "actorRole",
+          value: filters.actorRole,
+          categoryLabel: "Role",
+          valueLabel: alertRoleLabel(filters.actorRole),
+          scope: "detail",
+        }),
+      );
     }
   }
 
   if (filters.user !== "all") {
-    chips.push({
-      id: "user",
-      key: "user",
-      value: filters.user,
-      label: `Person: ${filters.user}`,
-      scope: "detail",
-    });
+    chips.push(
+      filterChip({
+        id: "user",
+        key: "user",
+        value: filters.user,
+        categoryLabel: "Person",
+        valueLabel: filters.user,
+        scope: "detail",
+      }),
+    );
   }
 
   if (filters.changeStatus !== "all") {
-    chips.push({
-      id: "changeStatus",
-      key: "changeStatus",
-      value: filters.changeStatus,
-      label: `Change: ${filters.changeStatus}`,
-      scope: "detail",
-    });
+    chips.push(
+      filterChip({
+        id: "changeStatus",
+        key: "changeStatus",
+        value: filters.changeStatus,
+        categoryLabel: "Change",
+        valueLabel:
+          filters.changeStatus.charAt(0).toUpperCase() +
+          filters.changeStatus.slice(1),
+        scope: "detail",
+      }),
+    );
   }
 
   if (filters.setupStep !== "all") {
-    chips.push({
-      id: "setupStep",
-      key: "setupStep",
-      value: filters.setupStep,
-      label: `Step: ${filters.setupStep}`,
-      scope: "detail",
-    });
+    chips.push(
+      filterChip({
+        id: "setupStep",
+        key: "setupStep",
+        value: filters.setupStep,
+        categoryLabel: "Step",
+        valueLabel: filters.setupStep,
+        scope: "detail",
+      }),
+    );
   }
 
   if (filters.actionType !== "all") {
-    chips.push({
-      id: "actionType",
-      key: "actionType",
-      value: filters.actionType,
-      label: `Action: ${filters.actionType}`,
-      scope: "detail",
-    });
+    chips.push(
+      filterChip({
+        id: "actionType",
+        key: "actionType",
+        value: filters.actionType,
+        categoryLabel: "Action",
+        valueLabel:
+          filters.actionType.replace(/-/g, " ").replace(/^\w/, (c) => c.toUpperCase()),
+        scope: "detail",
+      }),
+    );
   }
 
   if (filters.failureCategory !== "all") {
-    chips.push({
-      id: "failureCategory",
-      key: "failureCategory",
-      value: filters.failureCategory,
-      label: `Failure: ${filters.failureCategory}`,
-      scope: "detail",
-    });
+    chips.push(
+      filterChip({
+        id: "failureCategory",
+        key: "failureCategory",
+        value: filters.failureCategory,
+        categoryLabel: "Failure",
+        valueLabel: filters.failureCategory.replace(/-/g, " "),
+        scope: "detail",
+      }),
+    );
   }
 
   if (filters.outOfBudgetOnly) {
-    chips.push({
-      id: "outOfBudget",
-      key: "outOfBudgetOnly",
-      value: "true",
-      label: "Out of budget",
-      scope: "detail",
-    });
+    chips.push(
+      filterChip({
+        id: "outOfBudget",
+        key: "outOfBudgetOnly",
+        value: "true",
+        categoryLabel: "Budget",
+        valueLabel: "Out of budget",
+        scope: "detail",
+      }),
+    );
+  }
+
+  const retailerChips: Array<{
+    id: string;
+    key: keyof FilterState;
+    categoryLabel: string;
+    value: string;
+  }> = [
+    {
+      id: "entityType",
+      key: "entityType",
+      categoryLabel: "Entity Type",
+      value: filters.entityType,
+    },
+    {
+      id: "campaignType",
+      key: "campaignType",
+      categoryLabel: "Campaign Type",
+      value: filters.campaignType,
+    },
+    {
+      id: "matchType",
+      key: "matchType",
+      categoryLabel: "Match Type",
+      value: filters.matchType,
+    },
+    { id: "source", key: "source", categoryLabel: "Source", value: filters.source },
+    {
+      id: "objective",
+      key: "objective",
+      categoryLabel: "Objective",
+      value: filters.objective,
+    },
+    {
+      id: "strategy",
+      key: "strategy",
+      categoryLabel: "Strategy",
+      value: filters.strategy,
+    },
+  ];
+
+  for (const chip of retailerChips) {
+    if (chip.value !== "all") {
+      chips.push(
+        filterChip({
+          id: chip.id,
+          key: chip.key,
+          value: chip.value,
+          categoryLabel: chip.categoryLabel,
+          valueLabel: chip.value,
+          scope: "detail",
+        }),
+      );
+    }
   }
 
   if (
@@ -138,13 +230,16 @@ function chipsFromFilters(filters: FilterState): ActiveFilterChip[] {
     filters.dateFrom === filters.dateTo &&
     filters.actorRole !== "all"
   ) {
-    chips.push({
-      id: "alertDrill",
-      key: "alertDrill",
-      value: `${filters.dateFrom}:${filters.actorRole}`,
-      label: `${alertRoleLabel(filters.actorRole)} · ${formatAlertDate(filters.dateFrom)}`,
-      scope: "detail",
-    });
+    chips.push(
+      filterChip({
+        id: "alertDrill",
+        key: "alertDrill",
+        value: `${filters.dateFrom}:${filters.actorRole}`,
+        categoryLabel: alertRoleLabel(filters.actorRole),
+        valueLabel: formatAlertDate(filters.dateFrom),
+        scope: "detail",
+      }),
+    );
   }
 
   return chips;
@@ -185,8 +280,9 @@ export function ActionLogsPage() {
   const flatRows = useMemo(() => {
     const rows = flattenLogEntries(filteredEntries);
     const byStatus = filterActionLogRows(rows, filters.actionStatus);
-    return sortActionLogRowsNewestFirst(byStatus);
-  }, [filteredEntries, filters.actionStatus]);
+    const byRetailer = filterActionLogRowsByRetailer(byStatus, filters);
+    return sortActionLogRowsNewestFirst(byRetailer);
+  }, [filteredEntries, filters]);
 
   const totalPages = Math.max(1, Math.ceil(flatRows.length / PAGE_SIZE));
   const pageRows = flatRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -235,6 +331,12 @@ export function ActionLogsPage() {
       actionType: "all",
       failureCategory: "all",
       outOfBudgetOnly: false,
+      entityType: "all",
+      campaignType: "all",
+      matchType: "all",
+      source: "all",
+      objective: "all",
+      strategy: "all",
     }));
   }
 

@@ -253,7 +253,12 @@ export type AlertSummary = {
 
 export type ActiveFilterChip = {
   id: string;
+  /** Full label for screen readers and fallbacks. */
   label: string;
+  /** Muted category shown on the left of the chip (e.g. "Entity Type"). */
+  categoryLabel: string;
+  /** Primary value shown on the chip (e.g. "Campaign"). */
+  valueLabel: string;
   scope: "common" | "detail";
   key: string;
   value: string;
@@ -270,4 +275,11 @@ export type FilterState = {
   actionType: ActionType | "all";
   failureCategory: FailureReasonCategory | "all";
   outOfBudgetOnly: boolean;
+  /** Retailer categorization filters (Action Log panel). */
+  entityType: string;
+  campaignType: string;
+  matchType: string;
+  source: string;
+  objective: string;
+  strategy: string;
 };

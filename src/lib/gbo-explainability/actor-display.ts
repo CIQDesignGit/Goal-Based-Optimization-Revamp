@@ -39,15 +39,15 @@ export function getProfileInitials(name: string): string {
 }
 
 export const ACTOR_LABEL_TEXT: Record<ActorKind, string> = {
-  "ally-ai": "text-brand-700",
-  "rule-based": "text-info-700",
+  "ally-ai": "text-violet-700",
+  "rule-based": "text-sky-600",
   human: "text-slate-600",
-  "day-parting": "text-warning-700",
+  "day-parting": "text-pink-700",
 };
 
 export const ACTOR_ACCENT_BAR: Record<ActorKind, string> = {
-  "ally-ai": "bg-brand-500",
-  "rule-based": "bg-info-500",
+  "ally-ai": "bg-violet-500",
+  "rule-based": "bg-sky-500",
   human: "bg-slate-400",
-  "day-parting": "bg-warning-500",
+  "day-parting": "bg-pink-500",
 };

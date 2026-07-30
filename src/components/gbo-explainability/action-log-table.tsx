@@ -28,9 +28,16 @@ const STATUS_LABELS: Record<ActionStatus, string> = {
 };
 
 const STICKY_USER_SHADOW = "shadow-[1px_0_2px_0_rgba(15,23,42,0.04)]";
+/** User column — min-w-44 (176px) + 15% ≈ 202px */
+const USER_COLUMN_MIN_W = "min-w-[202px]";
+const CELL_X = "px-4";
+const CELL_Y = "py-3.5";
 
 const STICKY_USER_HEADER_CLASS = cn(
-  "sticky left-0 z-20 min-w-36 whitespace-nowrap border-r border-border bg-slate-50 px-3 py-2.5 font-medium",
+  "sticky left-0 z-20 whitespace-nowrap border-r border-border bg-slate-50 font-medium",
+  CELL_X,
+  CELL_Y,
+  USER_COLUMN_MIN_W,
   STICKY_USER_SHADOW,
 );
 
@@ -39,7 +46,10 @@ function stickyUserCellClass(
   isSelected: boolean,
 ) {
   return cn(
-    "sticky left-0 z-10 min-w-36 whitespace-nowrap border-r border-border px-3 py-2.5 align-middle",
+    "sticky left-0 z-10 whitespace-nowrap border-r border-border align-middle",
+    CELL_X,
+    CELL_Y,
+    USER_COLUMN_MIN_W,
     STICKY_USER_SHADOW,
     isSelected
       ? "bg-brand-50"
@@ -50,8 +60,10 @@ function stickyUserCellClass(
   );
 }
 
-const TH_CLASS = "whitespace-nowrap px-3 py-2.5 font-medium";
-const TD_CLASS = "whitespace-nowrap px-3 py-2.5 align-middle";
+const TH_CLASS = cn("whitespace-nowrap font-medium", CELL_X, CELL_Y);
+const TD_CLASS = cn("whitespace-nowrap align-middle font-normal", CELL_X, CELL_Y);
+const TD_PRIMARY = cn(TD_CLASS, "truncate text-foreground");
+const TD_MUTED = cn(TD_CLASS, "truncate text-muted-foreground");
 const FIXED_COLUMN_200 = "min-w-[200px] w-[200px] max-w-[200px]";
 
 type ActionLogTableProps = {
@@ -71,17 +83,18 @@ export function ActionLogTable({
 
   return (
     <>
-      <div className="space-y-0.5">
-        <h2 className="m-0 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-          Total actions
-        </h2>
-        <p className="m-0 text-xs text-muted-foreground">
-          Showing {rows.length} of {totalCount} actions · newest first
-        </p>
-      </div>
+      <div className="overflow-hidden rounded-lg border border-border bg-background">
+        <div className="border-b border-border px-4 py-2.5">
+          <h2 className="m-0 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Total actions
+          </h2>
+          <p className="m-0 mt-0.5 text-xs text-muted-foreground">
+            Showing {rows.length} of {totalCount} actions · newest first
+          </p>
+        </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border bg-background">
-        <table className="w-full min-w-[960px] border-separate border-spacing-0 text-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[960px] border-separate border-spacing-0 text-sm">
           <thead>
             <tr className="border-b border-border bg-slate-50/80 text-left text-xs font-medium text-muted-foreground">
               <th className={STICKY_USER_HEADER_CLASS}>User</th>
@@ -122,7 +135,7 @@ export function ActionLogTable({
                   <td className={stickyUserCellClass(index, isSelected)}>
                     <UserCell actor={row.actor} />
                   </td>
-                  <td className={cn(TD_CLASS, "text-muted-foreground")}>
+                  <td className={TD_MUTED}>
                     <time dateTime={row.timestamp}>
                       {formatActionLogDate(row.timestamp)}
                     </time>
@@ -133,47 +146,26 @@ export function ActionLogTable({
                       isRetrying={isRetrying}
                     />
                   </td>
-                  <td
-                    className={cn(
-                      TD_CLASS,
-                      FIXED_COLUMN_200,
-                      "truncate text-muted-foreground",
-                    )}
-                  >
+                  <td className={cn(TD_MUTED, FIXED_COLUMN_200)}>
                     {row.source}
                   </td>
-                  <td
-                    className={cn(
-                      TD_CLASS,
-                      FIXED_COLUMN_200,
-                      "truncate text-foreground",
-                    )}
-                  >
+                  <td className={cn(TD_PRIMARY, FIXED_COLUMN_200)}>
                     {row.actionLabel}
                   </td>
-                  <td
-                    className={cn(
-                      TD_CLASS,
-                      "max-w-35 truncate font-medium text-foreground",
-                    )}
-                  >
+                  <td className={cn(TD_PRIMARY, "max-w-35")}>
                     {row.entityName}
                   </td>
-                  <td className={cn(TD_CLASS, "text-muted-foreground")}>
-                    {row.entityType}
-                  </td>
+                  <td className={TD_MUTED}>{row.entityType}</td>
                   <td
                     className={cn(
-                      TD_CLASS,
-                      "max-w-45 truncate",
                       row.entityType === "Campaign"
-                        ? "text-foreground"
-                        : "text-muted-foreground",
+                        ? cn(TD_PRIMARY, "max-w-45")
+                        : cn(TD_MUTED, "max-w-45"),
                     )}
                   >
                     {row.entityType === "Campaign" ? row.campaignName : "—"}
                   </td>
-                  <td className={cn(TD_CLASS, "min-w-max text-muted-foreground")}>
+                  <td className={cn(TD_MUTED, "min-w-max")}>
                     {row.campaignType}
                   </td>
                 </tr>
@@ -181,6 +173,7 @@ export function ActionLogTable({
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
       <Sheet
@@ -219,9 +212,23 @@ export function ActionLogTable({
 
 function UserCell({ actor }: { actor: ActionLogRow["actor"] }) {
   return (
-    <div className="flex items-center gap-1.5 whitespace-nowrap">
-      <ActorMarkFromActor actor={actor} />
-      <span className="text-foreground">{actor.label}</span>
+    <div
+      className={cn(
+        "flex gap-2",
+        actor.email ? "items-start" : "items-center",
+      )}
+    >
+      <ActorMarkFromActor actor={actor} size="sm" />
+      <div className="min-w-0 py-0.5">
+        <p className="truncate text-sm font-normal leading-snug text-foreground">
+          {actor.label}
+        </p>
+        {actor.email ? (
+          <p className="mt-0.5 truncate text-xs leading-relaxed text-muted-foreground">
+            {actor.email}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

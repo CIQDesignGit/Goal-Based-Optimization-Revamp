@@ -164,5 +164,11 @@ export function buildDefaultFilters(): FilterState {
     actionType: "all",
     failureCategory: "all",
     outOfBudgetOnly: false,
+    entityType: "all",
+    campaignType: "all",
+    matchType: "all",
+    source: "all",
+    objective: "all",
+    strategy: "all",
   };
 }

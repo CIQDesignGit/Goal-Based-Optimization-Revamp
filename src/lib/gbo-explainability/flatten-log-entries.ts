@@ -146,6 +146,80 @@ export function filterActionLogRows(
   return rows.filter((row) => row.status === actionStatus);
 }
 
+function inferMatchType(row: ActionLogRow): string {
+  if (row.entityType !== "Keyword") return "";
+  if (row.entityName.includes("exact") || row.entityName.includes("Exact")) {
+    return "exact";
+  }
+  if (row.entityName.includes("phrase") || row.entityName.includes("Phrase")) {
+    return "phrase";
+  }
+  return "broad";
+}
+
+function inferObjective(row: ActionLogRow): string {
+  const claim = row.parentEntry.claim.toLowerCase();
+  if (claim.includes("sov") || claim.includes("share of voice")) return "sov";
+  if (claim.includes("roas")) return "roas";
+  if (claim.includes("sales")) return "sales";
+  return "roas";
+}
+
+function inferStrategy(row: ActionLogRow): string {
+  const automation = row.parentEntry.automationType;
+  if (automation) return automation;
+  if (row.parentEntry.tab === "setup") return "custom";
+  return row.actor.kind;
+}
+
+/** Row-level retailer categorization filters for the Action Log table. */
+export function filterActionLogRowsByRetailer(
+  rows: ActionLogRow[],
+  filters: {
+    entityType: string;
+    campaignType: string;
+    matchType: string;
+    source: string;
+    objective: string;
+    strategy: string;
+  },
+): ActionLogRow[] {
+  return rows.filter((row) => {
+    if (filters.entityType !== "all" && row.entityType !== filters.entityType) {
+      return false;
+    }
+
+    if (
+      filters.campaignType !== "all" &&
+      row.campaignType !== filters.campaignType
+    ) {
+      return false;
+    }
+
+    if (filters.matchType !== "all" && inferMatchType(row) !== filters.matchType) {
+      return false;
+    }
+
+    if (
+      filters.source !== "all" &&
+      !row.source.toLowerCase().includes(filters.source.toLowerCase()) &&
+      row.actor.label !== filters.source
+    ) {
+      return false;
+    }
+
+    if (filters.objective !== "all" && inferObjective(row) !== filters.objective) {
+      return false;
+    }
+
+    if (filters.strategy !== "all" && inferStrategy(row) !== filters.strategy) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
 export function sortActionLogRowsNewestFirst(rows: ActionLogRow[]): ActionLogRow[] {
   return [...rows].sort(
     (a, b) =>
