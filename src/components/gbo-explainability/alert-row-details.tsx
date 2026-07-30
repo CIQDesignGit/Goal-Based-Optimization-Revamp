@@ -43,10 +43,10 @@ function DetailSection({
 }: DetailSectionProps) {
   return (
     <section className={cn("space-y-3", className)}>
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2">
         <span
           className={cn(
-            "flex size-8 shrink-0 items-center justify-center rounded-lg",
+            "flex size-6 shrink-0 items-center justify-center rounded-md",
             iconClassName,
           )}
         >
@@ -108,7 +108,7 @@ function DeviationsPanel({
                 {deviation.after}
               </span>
             </div>
-            <span className="shrink-0 justify-self-start rounded-full bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-800 sm:justify-self-end">
+            <span className="shrink-0 justify-self-start text-xs text-muted-foreground sm:justify-self-end sm:text-right">
               {formatPercentChange(deviation.percentChange)}
             </span>
           </li>
@@ -143,7 +143,7 @@ export function AlertRowDetails({
           {alert.manualContributors && alert.manualContributors.length > 0 ? (
             <DetailSection
               title={`Manual changes by person (${alert.manualContributors.length})`}
-              icon={<Users className="size-4" aria-hidden />}
+              icon={<Users className="size-3.5" aria-hidden />}
               iconClassName="bg-slate-100 text-slate-600"
               className="space-y-2"
             >
@@ -154,7 +154,7 @@ export function AlertRowDetails({
           {alert.conflicts.length > 0 ? (
             <DetailSection
               title={`Overrides (${alert.conflicts.length})`}
-              icon={<ArrowLeftRight className="size-4" aria-hidden />}
+              icon={<ArrowLeftRight className="size-3.5" aria-hidden />}
               iconClassName="bg-amber-50 text-amber-700"
             >
               <div className="overflow-hidden rounded-xl border border-border bg-slate-50/50">
@@ -172,7 +172,7 @@ export function AlertRowDetails({
           {alert.deviations.length > 0 ? (
             <DetailSection
               title={`High deviations (${alert.deviations.length})`}
-              icon={<TrendingUp className="size-4" aria-hidden />}
+              icon={<TrendingUp className="size-3.5" aria-hidden />}
               iconClassName="bg-violet-50 text-violet-700"
               className="space-y-2"
             >

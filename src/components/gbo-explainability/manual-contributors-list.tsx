@@ -12,7 +12,7 @@ type ManualContributorsListProps = {
   className?: string;
 };
 
-/** Dense one-line-per-person list for expanded Manual alert details. */
+/** Per-person list with each change showing before → after values. */
 export function ManualContributorsList({
   contributors,
   className,
@@ -27,37 +27,47 @@ export function ManualContributorsList({
       )}
     >
       {contributors.map((contributor) => (
-        <li
-          key={contributor.id}
-          className="flex min-w-0 items-center gap-2 px-2.5 py-1.5"
-        >
-          <span
-            className={cn(
-              "flex size-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold",
-              PROFILE_AVATAR_STYLE.bg,
-              PROFILE_AVATAR_STYLE.text,
-            )}
-            aria-hidden
-          >
-            {getProfileInitials(contributor.name)}
-          </span>
-          <p className="min-w-0 truncate text-xs leading-tight text-foreground">
-            <span className="font-medium">{contributor.name}</span>
-            {contributor.email ? (
-              <span className="font-normal text-muted-foreground">
-                {" "}
-                · {contributor.email}
-              </span>
-            ) : null}
-            {contributor.deactivated ? (
-              <span className="font-normal text-muted-foreground">
-                {" "}
-                (deactivated)
-              </span>
-            ) : null}
-            <span className="text-muted-foreground"> — </span>
-            <span className="font-normal">{contributor.changeSummary}</span>
-          </p>
+        <li key={contributor.id} className="px-2.5 py-2">
+          <div className="flex min-w-0 items-start gap-2">
+            <span
+              className={cn(
+                "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold",
+                PROFILE_AVATAR_STYLE.bg,
+                PROFILE_AVATAR_STYLE.text,
+              )}
+              aria-hidden
+            >
+              {getProfileInitials(contributor.name)}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs leading-tight text-foreground">
+                <span className="font-medium">{contributor.name}</span>
+                {contributor.email ? (
+                  <span className="font-normal text-muted-foreground">
+                    {" "}
+                    · {contributor.email}
+                  </span>
+                ) : null}
+                {contributor.deactivated ? (
+                  <span className="font-normal text-muted-foreground">
+                    {" "}
+                    (deactivated)
+                  </span>
+                ) : null}
+              </p>
+
+              <ul className="mt-1.5 space-y-1">
+                {contributor.claims.map((claim, index) => (
+                  <li
+                    key={`${contributor.id}-${index}`}
+                    className="text-xs leading-snug text-muted-foreground before:mr-1.5 before:text-slate-400 before:content-['•']"
+                  >
+                    {claim}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </li>
       ))}
     </ul>

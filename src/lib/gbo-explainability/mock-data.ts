@@ -68,11 +68,14 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     conflictDetails: [
       {
         entityName: "JBC Fresh",
+        field: "Daily budget",
         overriddenActor: "Ally AI",
         timeSinceOverride: "2h 10m later",
         otherChange: {
           actorType: "Ally AI",
-          change: "$500 → $700 daily budget",
+          before: "$500",
+          after: "$700",
+          change: "$500 → $700",
           timestamp: "Today, 6:15 AM",
           summary:
             "Scheduled run raised budget to close a pacing gap vs monthly plan.",
@@ -80,7 +83,9 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
         inEffectNow: {
           actorType: "Manual",
           actorName: "Priyal Jain",
-          change: "$700/day held",
+          before: "$700",
+          after: "$700",
+          change: "Held at $700/day",
           timestamp: "Today, 8:25 AM",
           summary:
             "Manual setup temporarily held the budget before this session's changes.",
@@ -387,11 +392,14 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     conflictDetails: [
       {
         entityName: "JBC Fresh",
+        field: "Monthly budget",
         overriddenActor: "Ally AI",
         timeSinceOverride: "3h 25m later",
         otherChange: {
           actorType: "Ally AI",
-          change: "$4,200 → $5,600",
+          before: "$21.0k",
+          after: "$22.5k",
+          change: "$21.0k → $22.5k",
           timestamp: "Jul 6, 6:15 AM",
           summary:
             "Raised budget because the brand was underpacing 19% against its monthly target.",
@@ -399,10 +407,12 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
         inEffectNow: {
           actorType: "Manual",
           actorName: "Emily Carter",
-          change: "$24.0k monthly budget",
+          before: "$22.5k",
+          after: "$24.0k",
+          change: "$22.5k → $24.0k",
           timestamp: "Jul 6, 9:40 AM",
           summary:
-            "Set a higher monthly budget in setup — overrides Ally AI's daily pacing raise.",
+            "Set a higher monthly budget in setup — overrides Ally AI's pacing raise.",
         },
       },
     ],

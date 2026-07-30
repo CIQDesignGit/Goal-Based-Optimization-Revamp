@@ -8,7 +8,10 @@ import {
   Loader2,
 } from "lucide-react";
 
-import { LogEntryExpanded } from "@/components/gbo-explainability/log-entry-expanded";
+import {
+  ActionDetailPanel,
+  ActionDetailPanelTitle,
+} from "@/components/gbo-explainability/action-detail-panel";
 import { ActorMarkFromActor } from "@/components/gbo-explainability/actor-mark";
 import {
   Sheet,
@@ -34,7 +37,7 @@ const CELL_X = "px-4";
 const CELL_Y = "py-3.5";
 
 const STICKY_USER_HEADER_CLASS = cn(
-  "sticky left-0 z-20 whitespace-nowrap border-r border-border bg-slate-50 font-medium",
+  "sticky left-0 z-20 whitespace-nowrap bg-slate-50 font-medium",
   CELL_X,
   CELL_Y,
   USER_COLUMN_MIN_W,
@@ -46,7 +49,7 @@ function stickyUserCellClass(
   isSelected: boolean,
 ) {
   return cn(
-    "sticky left-0 z-10 whitespace-nowrap border-r border-border align-middle",
+    "sticky left-0 z-10 whitespace-nowrap align-middle",
     CELL_X,
     CELL_Y,
     USER_COLUMN_MIN_W,
@@ -61,9 +64,11 @@ function stickyUserCellClass(
 }
 
 const TH_CLASS = cn("whitespace-nowrap font-medium", CELL_X, CELL_Y);
-const TD_CLASS = cn("whitespace-nowrap align-middle font-normal", CELL_X, CELL_Y);
-const TD_PRIMARY = cn(TD_CLASS, "truncate text-foreground");
-const TD_MUTED = cn(TD_CLASS, "truncate text-muted-foreground");
+const TD_CELL = cn(
+  "whitespace-nowrap align-middle font-normal truncate text-foreground",
+  CELL_X,
+  CELL_Y,
+);
 const FIXED_COLUMN_200 = "min-w-[200px] w-[200px] max-w-[200px]";
 
 type ActionLogTableProps = {
@@ -85,7 +90,7 @@ export function ActionLogTable({
     <>
       <div className="overflow-hidden rounded-lg border border-border bg-background">
         <div className="border-b border-border px-4 py-2.5">
-          <h2 className="m-0 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          <h2 className="m-0 text-sm font-semibold text-muted-foreground">
             Total actions
           </h2>
           <p className="m-0 mt-0.5 text-xs text-muted-foreground">
@@ -135,39 +140,29 @@ export function ActionLogTable({
                   <td className={stickyUserCellClass(index, isSelected)}>
                     <UserCell actor={row.actor} />
                   </td>
-                  <td className={TD_MUTED}>
+                  <td className={TD_CELL}>
                     <time dateTime={row.timestamp}>
                       {formatActionLogDate(row.timestamp)}
                     </time>
                   </td>
-                  <td className={TD_CLASS}>
+                  <td className={TD_CELL}>
                     <ActionStatusIndicator
                       status={row.status}
                       isRetrying={isRetrying}
                     />
                   </td>
-                  <td className={cn(TD_MUTED, FIXED_COLUMN_200)}>
+                  <td className={cn(TD_CELL, FIXED_COLUMN_200)}>
                     {row.source}
                   </td>
-                  <td className={cn(TD_PRIMARY, FIXED_COLUMN_200)}>
+                  <td className={cn(TD_CELL, FIXED_COLUMN_200)}>
                     {row.actionLabel}
                   </td>
-                  <td className={cn(TD_PRIMARY, "max-w-35")}>
-                    {row.entityName}
-                  </td>
-                  <td className={TD_MUTED}>{row.entityType}</td>
-                  <td
-                    className={cn(
-                      row.entityType === "Campaign"
-                        ? cn(TD_PRIMARY, "max-w-45")
-                        : cn(TD_MUTED, "max-w-45"),
-                    )}
-                  >
+                  <td className={TD_CELL}>{row.entityName}</td>
+                  <td className={TD_CELL}>{row.entityType}</td>
+                  <td className={TD_CELL}>
                     {row.entityType === "Campaign" ? row.campaignName : "—"}
                   </td>
-                  <td className={cn(TD_MUTED, "min-w-max")}>
-                    {row.campaignType}
-                  </td>
+                  <td className={TD_CELL}>{row.campaignType}</td>
                 </tr>
               );
             })}
@@ -184,20 +179,18 @@ export function ActionLogTable({
       >
         <SheetContent
           side="right"
-          className="h-full w-3/4 max-w-3xl overflow-y-auto p-0 data-[side=right]:sm:max-w-3xl"
+          className="h-full w-full max-w-md overflow-y-auto p-0 data-[side=right]:sm:max-w-md"
         >
           {detailRow ? (
             <>
               <SheetHeader className="border-b border-border px-6 py-4">
                 <SheetTitle>
-                  {detailRow.parentEntry.isSessionGroup
-                    ? "Setup session review"
-                    : "Action details"}
+                  <ActionDetailPanelTitle />
                 </SheetTitle>
               </SheetHeader>
-              <div className="px-6 py-4">
-                <LogEntryExpanded
-                  entry={detailRow.parentEntry}
+              <div className="px-6 py-5">
+                <ActionDetailPanel
+                  row={detailRow}
                   isRetrying={retryingId === detailRow.parentEntryId}
                   onRetry={() => onRetry(detailRow.parentEntryId)}
                 />
@@ -240,48 +233,39 @@ function ActionStatusIndicator({
   status: ActionStatus;
   isRetrying: boolean;
 }) {
-  const label = isRetrying ? "Retrying" : STATUS_LABELS[status];
+  const label = isRetrying ? STATUS_LABELS.retrying : STATUS_LABELS[status];
 
   if (isRetrying) {
     return (
-      <span
-        className="inline-flex items-center text-muted-foreground"
-        title={label}
-      >
-        <Loader2 className="size-4 animate-spin" aria-hidden />
-        <span className="sr-only">{label}</span>
+      <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+        <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden />
+        <span>{label}</span>
       </span>
     );
   }
 
   if (status === "success") {
     return (
-      <span
-        className="inline-flex items-center text-success-600"
-        title={label}
-      >
-        <Check className="size-4 stroke-[2.5]" aria-hidden />
-        <span className="sr-only">{label}</span>
+      <span className="inline-flex items-center gap-1.5 text-success-700">
+        <Check className="size-4 shrink-0 stroke-[2.5]" aria-hidden />
+        <span>{label}</span>
       </span>
     );
   }
 
   if (status === "partial") {
     return (
-      <span
-        className="inline-flex items-center text-warning-600"
-        title={label}
-      >
-        <AlertTriangle className="size-4" aria-hidden />
-        <span className="sr-only">{label}</span>
+      <span className="inline-flex items-center gap-1.5 text-warning-700">
+        <AlertTriangle className="size-4 shrink-0" aria-hidden />
+        <span>{label}</span>
       </span>
     );
   }
 
   return (
-    <span className="inline-flex items-center text-error-600" title={label}>
-      <AlertCircle className="size-4" aria-hidden />
-      <span className="sr-only">{label}</span>
+    <span className="inline-flex items-center gap-1.5 text-error-700">
+      <AlertCircle className="size-4 shrink-0" aria-hidden />
+      <span>{label}</span>
     </span>
   );
 }

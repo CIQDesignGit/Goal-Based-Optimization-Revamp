@@ -79,8 +79,7 @@ function resolveSource(entry: LogEntry): string {
   if (entry.tab === "setup" || entry.actionType === "setup-change") {
     return "Goal Based Optimizer";
   }
-  if (entry.actor.triggerOrRule) return entry.actor.triggerOrRule;
-  return "Goal Based Optimizer";
+  return "Campaign Optimizer";
 }
 
 function resolveStatus(
@@ -146,7 +145,7 @@ export function filterActionLogRows(
   return rows.filter((row) => row.status === actionStatus);
 }
 
-function inferMatchType(row: ActionLogRow): string {
+export function inferMatchType(row: ActionLogRow): string {
   if (row.entityType !== "Keyword") return "";
   if (row.entityName.includes("exact") || row.entityName.includes("Exact")) {
     return "exact";
@@ -157,7 +156,7 @@ function inferMatchType(row: ActionLogRow): string {
   return "broad";
 }
 
-function inferObjective(row: ActionLogRow): string {
+export function inferObjective(row: ActionLogRow): string {
   const claim = row.parentEntry.claim.toLowerCase();
   if (claim.includes("sov") || claim.includes("share of voice")) return "sov";
   if (claim.includes("roas")) return "roas";
@@ -165,7 +164,7 @@ function inferObjective(row: ActionLogRow): string {
   return "roas";
 }
 
-function inferStrategy(row: ActionLogRow): string {
+export function inferStrategy(row: ActionLogRow): string {
   const automation = row.parentEntry.automationType;
   if (automation) return automation;
   if (row.parentEntry.tab === "setup") return "custom";

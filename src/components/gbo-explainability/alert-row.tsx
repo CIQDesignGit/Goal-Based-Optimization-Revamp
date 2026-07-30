@@ -27,6 +27,18 @@ const ALERT_ROW_GRID =
 /** Subtitle with styled contributor names for Manual alerts. */
 function AlertRowSubtitle({ alert }: { alert: AlertSummary }) {
   if (alert.manualContributors && alert.manualContributors.length > 0) {
+    if (alert.actionCount === 1 && alert.manualContributors.length === 1) {
+      const contributor = alert.manualContributors[0];
+      return (
+        <p className="truncate text-xs text-muted-foreground">
+          <span className="font-medium text-slate-700">{contributor.name}</span>
+          {contributor.email ? ` (${contributor.email})` : null}
+          {" · "}
+          {alert.entityName}
+        </p>
+      );
+    }
+
     if (alert.manualContributors.length > 1) {
       return (
         <p className="truncate text-xs text-muted-foreground">

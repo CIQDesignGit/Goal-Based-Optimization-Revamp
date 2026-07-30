@@ -195,6 +195,11 @@ export type ConflictActorChange = {
   actorType: string;
   actorName?: string;
   timestamp: string;
+  /** Value before this actor's change; null when not applicable. */
+  before: string | null;
+  /** Value after this actor's change; null when not applicable. */
+  after: string | null;
+  /** Fallback one-line change when before/after are unavailable. */
   change: string;
   /** One-line summary shown at the bottom of the card. */
   summary: string;
@@ -202,6 +207,8 @@ export type ConflictActorChange = {
 
 export type ConflictDetail = {
   entityName: string;
+  /** The field both actors changed. */
+  field: string;
   overriddenActor: string;
   timeSinceOverride: string;
   /** First actor chronologically — left card. */

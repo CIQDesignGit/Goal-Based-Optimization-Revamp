@@ -1,3 +1,8 @@
+import {
+  SETUP_CHANGE_STEP_LABELS,
+  type ChangeLedgerEntry,
+} from "@/lib/gbo-optimization/setup-session-store";
+
 import { toIsoDate } from "./filter-entries";
 import {
   countSignalsInEntries,
@@ -10,8 +15,11 @@ import type {
   AlertRole,
   AlertSummary,
   Actor,
+  ChangeStatus,
+  LogActionDetail,
   LogEntry,
   ManualContributorSummary,
+  ValueDiff,
 } from "./types";
 
 /** Map a log entry to one of four daily alert actor buckets. */
@@ -62,39 +70,162 @@ function personKey(entry: LogEntry): string {
   return entry.actor.email ?? entry.actor.label;
 }
 
+/** One manual change surfaced as its own Alerts row. */
+type ManualChangeUnit = {
+  id: string;
+  claim: string;
+  entityName: string;
+  changeStatus?: ChangeStatus;
+  setupStep?: string;
+};
+
+function inferLedgerChangeStatus(row: ChangeLedgerEntry): ChangeStatus {
+  const from = row.from.trim();
+  const to = row.to.trim();
+  if (!from && to) return "created";
+  if (from && !to) return "deleted";
+  return "updated";
+}
+
+function formatLedgerChangeClaim(row: ChangeLedgerEntry): string {
+  return formatValueChangeClaim(row.scopeName, row.fieldLabel, row.from, row.to);
+}
+
+function formatValueChangeClaim(
+  entityName: string,
+  fieldLabel: string,
+  from: string | null | undefined,
+  to: string | null | undefined,
+  fallbackLabel?: string,
+): string {
+  const before = from?.trim() ?? "";
+  const after = to?.trim() ?? "";
+
+  if (before && after) {
+    return `${fieldLabel} for ${entityName}: ${before} → ${after}`;
+  }
+
+  if (after) {
+    return `${fieldLabel} for ${entityName}: set to ${after}`;
+  }
+
+  if (before) {
+    return `${fieldLabel} for ${entityName}: cleared from ${before}`;
+  }
+
+  return fallbackLabel ?? `${fieldLabel} for ${entityName}`;
+}
+
+function formatDiffClaim(
+  entityName: string,
+  diff: ValueDiff,
+  fallbackLabel?: string,
+): string {
+  return formatValueChangeClaim(
+    entityName,
+    diff.field,
+    diff.before,
+    diff.after,
+    fallbackLabel,
+  );
+}
+
+function formatChildChangeClaim(child: LogActionDetail): string {
+  const diff = child.diffs[0];
+  if (diff) {
+    return formatDiffClaim(child.entityName, diff, child.label);
+  }
+
+  return `${child.label} · ${child.entityName}`;
+}
+
+/** Split a manual log entry into one unit per individual change. */
+function explodeManualChangeUnits(entry: LogEntry): ManualChangeUnit[] {
+  if (entry.children && entry.children.length > 0) {
+    return entry.children.map((child) => ({
+      id: child.id,
+      claim: formatChildChangeClaim(child),
+      entityName: child.entityName,
+      changeStatus: child.changeStatus,
+      setupStep: entry.setupStep,
+    }));
+  }
+
+  const ledger = entry.setupSnapshot?.changeLedger;
+  if (ledger && ledger.length > 0) {
+    return ledger.map((row) => ({
+      id: row.id,
+      claim: formatLedgerChangeClaim(row),
+      entityName: row.scopeName,
+      changeStatus: inferLedgerChangeStatus(row),
+      setupStep: SETUP_CHANGE_STEP_LABELS[row.step],
+    }));
+  }
+
+  if (entry.diffs && entry.diffs.length > 0) {
+    return entry.diffs.map((diff, index) => ({
+      id: `${entry.id}-diff-${index}`,
+      claim: formatDiffClaim(entry.entityName, diff, entryClaim(entry)),
+      entityName: entry.entityName,
+      changeStatus: diff.changeStatus ?? entry.changeStatus,
+      setupStep: entry.setupStep,
+    }));
+  }
+
+  return [
+    {
+      id: entry.id,
+      claim: entryClaim(entry),
+      entityName: entry.entityName,
+      changeStatus: entry.changeStatus,
+      setupStep: entry.setupStep,
+    },
+  ];
+}
+
 function buildManualContributors(entries: LogEntry[]): ManualContributorSummary[] {
-  const byPerson = new Map<string, LogEntry[]>();
+  const byPerson = new Map<
+    string,
+    {
+      actor: LogEntry["actor"];
+      claims: string[];
+      entryIds: string[];
+    }
+  >();
 
   for (const entry of entries) {
     const key = personKey(entry);
-    const bucket = byPerson.get(key);
-    if (bucket) {
-      bucket.push(entry);
-    } else {
-      byPerson.set(key, [entry]);
+    const bucket = byPerson.get(key) ?? {
+      actor: entry.actor,
+      claims: [],
+      entryIds: [],
+    };
+
+    bucket.claims.push(...explodeManualChangeUnits(entry).map((unit) => unit.claim));
+
+    if (!bucket.entryIds.includes(entry.id)) {
+      bucket.entryIds.push(entry.id);
     }
+
+    byPerson.set(key, bucket);
   }
 
   return [...byPerson.values()]
-    .map((personEntries) => {
-      const sorted = [...personEntries].sort(compareEntriesNewestFirst);
-      const actor = sorted[0].actor;
-      const claims = sorted.map(entryClaim);
-
+    .map(({ actor, claims, entryIds }) => {
       const changeSummary =
-        sorted.length === 1
+        claims.length === 1
           ? claims[0]
-          : `${sorted.length} changes — ${claims.join("; ")}`;
+          : `${claims.length} changes — ${claims.join("; ")}`;
 
       return {
-        id: personKey(sorted[0]),
+        id: actor.email ?? actor.label,
         name: actor.label,
         email: actor.email,
         deactivated: actor.deactivated,
-        actionCount: sorted.length,
+        actionCount: claims.length,
         changeSummary,
         claims,
-        entryIds: sorted.map((entry) => entry.id),
+        entryIds,
       };
     })
     .sort((a, b) => {
@@ -382,7 +513,10 @@ function summarizeRoleDay(
   };
 }
 
-/** One alert card per (calendar day, role) — daily digest for the Alerts tab. */
+/**
+ * Daily digest for the Alerts tab — one card per (calendar day, actor type).
+ * Manual changes from every person on that day roll up into a single alert.
+ */
 export function aggregateAlerts(entries: LogEntry[]): AlertSummary[] {
   const groups = new Map<string, LogEntry[]>();
 
@@ -494,6 +628,11 @@ function formatContributorIdentity(
 /** Subtitle: trigger / reason · entity — or contributor names for Manual alerts. */
 export function formatAlertSubtitle(alert: AlertSummary): string {
   if (alert.manualContributors && alert.manualContributors.length > 0) {
+    if (alert.actionCount === 1 && alert.manualContributors.length === 1) {
+      const contributor = alert.manualContributors[0];
+      return `${formatContributorIdentity(contributor)} · ${alert.entityName}`;
+    }
+
     if (alert.manualContributors.length > 1) {
       return alert.manualContributors
         .map(formatContributorIdentity)
@@ -541,7 +680,10 @@ export function searchAlerts(
         (contributor) =>
           contributor.name.toLowerCase().includes(lower) ||
           contributor.email?.toLowerCase().includes(lower) ||
-          contributor.changeSummary.toLowerCase().includes(lower),
+          contributor.changeSummary.toLowerCase().includes(lower) ||
+          contributor.claims.some((claim) =>
+            claim.toLowerCase().includes(lower),
+          ),
       )
     ) {
       return true;

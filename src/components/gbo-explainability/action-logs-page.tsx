@@ -21,6 +21,7 @@ import {
 } from "@/lib/gbo-explainability/export-csv";
 import {
   buildDefaultFilters,
+  defaultDateRange,
   filterEntries,
   filterEntriesForAlerts,
   hasDateFilter,
@@ -48,6 +49,17 @@ import type {
 } from "@/lib/gbo-explainability/types";
 
 const PAGE_SIZE = 50;
+
+function buildDefaultAlertsFilters(): FilterState {
+  return {
+    ...buildDefaultFilters(),
+    ...defaultDateRange(),
+  };
+}
+
+function buildDefaultActionLogFilters(): FilterState {
+  return buildDefaultFilters();
+}
 
 function filterChip(
   chip: Omit<ActiveFilterChip, "label"> & { label?: string },
@@ -253,11 +265,21 @@ export function ActionLogsPage() {
 
   const [entries, setEntries] = useState<LogEntry[]>(INITIAL_MOCK_ENTRIES);
   const [view, setView] = useState<PageView>("alerts");
-  const [filters, setFilters] = useState<FilterState>(buildDefaultFilters);
-  const [search, setSearch] = useState("");
+  const [alertsFilters, setAlertsFilters] = useState<FilterState>(
+    buildDefaultAlertsFilters,
+  );
+  const [actionLogFilters, setActionLogFilters] = useState<FilterState>(
+    buildDefaultActionLogFilters,
+  );
+  const [alertsSearch, setAlertsSearch] = useState("");
+  const [actionLogSearch, setActionLogSearch] = useState("");
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [, startTransition] = useTransition();
+
+  const filters = view === "alerts" ? alertsFilters : actionLogFilters;
+  const search = view === "alerts" ? alertsSearch : actionLogSearch;
+  const setSearch = view === "alerts" ? setAlertsSearch : setActionLogSearch;
 
   useEffect(() => {
     setBreadcrumbs([
@@ -306,7 +328,11 @@ export function ActionLogsPage() {
 
   function patchFilters(patch: Partial<FilterState>) {
     startTransition(() => {
-      setFilters((prev) => ({ ...prev, ...patch }));
+      if (view === "alerts") {
+        setAlertsFilters((prev) => ({ ...prev, ...patch }));
+      } else {
+        setActionLogFilters((prev) => ({ ...prev, ...patch }));
+      }
       setPage(1);
     });
   }
@@ -314,35 +340,18 @@ export function ActionLogsPage() {
   function handleViewChange(next: PageView) {
     setView(next);
     setPage(1);
-    if (next === "action-log") {
-      setSearch("");
-      setFilters(buildDefaultFilters());
-    }
   }
 
   function handleAlertClick(alert: AlertSummary) {
-    setView("action-log");
-    setPage(1);
-    setSearch("");
-    setFilters((prev) => ({
-      ...prev,
+    setActionLogFilters({
+      ...buildDefaultActionLogFilters(),
       dateFrom: alert.date,
       dateTo: alert.date,
       actorRole: alert.role,
-      actionStatus: "all",
-      user: "all",
-      changeStatus: "all",
-      setupStep: "all",
-      actionType: "all",
-      failureCategory: "all",
-      outOfBudgetOnly: false,
-      entityType: "all",
-      campaignType: "all",
-      matchType: "all",
-      source: "all",
-      objective: "all",
-      strategy: "all",
-    }));
+    });
+    setActionLogSearch("");
+    setView("action-log");
+    setPage(1);
   }
 
   function removeChip(chipId: string) {
@@ -370,8 +379,13 @@ export function ActionLogsPage() {
   }
 
   function clearAll() {
-    setFilters(buildDefaultFilters());
-    setSearch("");
+    if (view === "alerts") {
+      setAlertsFilters(buildDefaultAlertsFilters());
+      setAlertsSearch("");
+    } else {
+      setActionLogFilters(buildDefaultActionLogFilters());
+      setActionLogSearch("");
+    }
     setPage(1);
   }
 

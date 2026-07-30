@@ -93,14 +93,23 @@ function syntheticConflictDetail(
     hour: "numeric",
     minute: "2-digit",
   });
+  const diff = diffsFromEntry(entry)[0];
+  const field = diff?.field ?? "Setting";
+  const before = diff?.before ?? null;
+  const after = diff?.after ?? null;
+  const changeLine =
+    before && after ? `${before} → ${after}` : (entry.claim ?? entry.entityName);
 
   return {
     entityName: entry.entityName,
+    field,
     overriddenActor,
     timeSinceOverride: "earlier today",
     otherChange: {
       actorType: overriddenActor,
-      change: entry.claim,
+      before,
+      after,
+      change: changeLine,
       timestamp,
       summary: entry.reason,
     },
@@ -108,7 +117,9 @@ function syntheticConflictDetail(
       actorType: entry.actor.kind === "human" ? "Manual" : entry.actor.label,
       actorName:
         entry.actor.kind === "human" ? entry.actor.label : undefined,
-      change: entry.entityName,
+      before,
+      after,
+      change: changeLine,
       timestamp,
       summary: `Superseded the ${overriddenActor} action on ${entry.entityName}.`,
     },
