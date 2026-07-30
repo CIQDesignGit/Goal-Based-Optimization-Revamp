@@ -14,6 +14,7 @@ type AppShellProps = {
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const isSetupFlow = pathname.startsWith("/gbo-optimization");
+  const isHomePage = pathname === "/";
 
   return (
     <div className="relative flex h-screen overflow-hidden bg-background">
@@ -22,11 +23,14 @@ export function AppShell({ children }: AppShellProps) {
       <div className="relative flex min-w-0 flex-1 flex-col">
         {!isSetupFlow ? (
           <PageTitleProvider>
-            <TopBar />
+            {!isHomePage ? <TopBar /> : null}
             <main
               className={cn(
                 "flex flex-1 flex-col",
-                isSetupFlow ? "min-h-0 overflow-hidden p-0" : "overflow-y-auto p-6",
+                isSetupFlow || isHomePage
+                  ? "min-h-0 overflow-hidden p-0"
+                  : "overflow-y-auto p-6",
+                isHomePage && "overflow-y-auto",
               )}
             >
               {children}

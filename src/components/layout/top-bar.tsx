@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, ChevronRight, HelpCircle, Settings } from "lucide-react";
+import { Bell, ChevronRight, HelpCircle, Home, Settings } from "lucide-react";
 import Link from "next/link";
 import { Fragment } from "react";
 
@@ -28,33 +28,40 @@ export function TopBar() {
       {hasBreadcrumbs ? (
         <nav
           aria-label="Breadcrumb"
-          className="flex min-w-0 items-center gap-1.5 text-sm"
+          className="flex min-w-0 items-center gap-1.5 text-sm text-slate-500"
         >
           {breadcrumbs.map((item, index) => {
             const isLast = index === breadcrumbs.length - 1;
+            const isHomeLink = item.label === "Home" && item.href === "/";
 
             return (
               <Fragment key={`${item.label}-${index}`}>
                 {index > 0 ? (
                   <ChevronRight
-                    className="size-3.5 shrink-0 text-muted-foreground/70"
+                    className="size-3.5 shrink-0 text-slate-400"
                     aria-hidden
                   />
                 ) : null}
                 {item.href && !isLast ? (
                   <Link
                     href={item.href}
-                    className="truncate text-muted-foreground transition-colors hover:text-foreground"
+                    className={cn(
+                      "truncate transition-colors hover:text-slate-800",
+                      isHomeLink
+                        ? "flex shrink-0 items-center text-slate-500"
+                        : "text-slate-500",
+                    )}
+                    aria-label={isHomeLink ? "Home" : undefined}
                   >
-                    {item.label}
+                    {isHomeLink ? <Home className="size-4" /> : item.label}
                   </Link>
                 ) : (
                   <span
                     className={cn(
                       "truncate",
                       isLast
-                        ? "font-medium text-foreground"
-                        : "text-muted-foreground",
+                        ? "font-medium text-slate-800"
+                        : "text-slate-500",
                     )}
                     aria-current={isLast ? "page" : undefined}
                   >

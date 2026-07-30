@@ -165,8 +165,8 @@ export function ActionLogsPage() {
   useEffect(() => {
     setBreadcrumbs([
       { label: "Home", href: "/" },
-      { label: "GBO", href: "/" },
-      { label: "Explainability", href: "/explainability-dashboard" },
+      { label: "Advertising" },
+      { label: "Optimization", href: "/" },
       { label: view === "alerts" ? "Alerts" : "Action Log" },
     ]);
     return () => setBreadcrumbs([]);

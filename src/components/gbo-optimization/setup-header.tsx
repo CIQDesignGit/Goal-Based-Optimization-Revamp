@@ -5,7 +5,7 @@ import {
   ArrowLeft,
   ArrowRight,
   ChevronDown,
-  Cloud,
+  ChevronRight,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -105,10 +105,25 @@ export function SetupHeader({
   return (
     <div className="z-30 shrink-0 border-b border-slate-200 bg-white px-6 py-4">
       <div className="flex min-h-9 items-center">
-        <div className="flex min-w-0 items-center gap-2 text-sm text-slate-600">
-          <Cloud className="size-4 shrink-0 text-slate-500" />
-          <span className="shrink-0">Optimization</span>
-          <span className="shrink-0 text-slate-400">&gt;</span>
+        <nav
+          aria-label="Breadcrumb"
+          className="flex min-w-0 items-center gap-1.5 text-sm"
+        >
+          <span className="shrink-0 text-slate-600">Advertising</span>
+          <ChevronRight
+            className="size-3.5 shrink-0 text-slate-400"
+            aria-hidden
+          />
+          <Link
+            href="/"
+            className="shrink-0 text-slate-600 transition-colors hover:text-slate-900"
+          >
+            Optimization
+          </Link>
+          <ChevronRight
+            className="size-3.5 shrink-0 text-slate-400"
+            aria-hidden
+          />
           <button
             type="button"
             className="flex min-w-0 items-center gap-1 truncate font-medium text-brand-600 underline decoration-dashed underline-offset-4"
@@ -116,7 +131,7 @@ export function SetupHeader({
             <span className="truncate">Setup for Amazon Retail</span>
             <ChevronDown className="size-4 shrink-0" />
           </button>
-        </div>
+        </nav>
       </div>
 
       <div className="mt-3 flex items-center gap-3">

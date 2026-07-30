@@ -17,8 +17,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GBO Revamp",
-  description: "Internal dashboard for GBO operations and workflows",
+  title: "AI Goal Optimizer",
+  description: "Budget pacing and goal-based optimization for retail media",
 };
 
 export default function RootLayout({
