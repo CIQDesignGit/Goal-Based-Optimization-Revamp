@@ -16,7 +16,11 @@ export type SetupSessionSnapshot = {
   changeLedger: ChangeLedgerEntry[];
 };
 
-export type ActorKind = "ally-ai" | "rule-based" | "human" | "system";
+export type ActorKind =
+  | "ally-ai"
+  | "rule-based"
+  | "human"
+  | "day-parting";
 
 export type ActionStatus = "success" | "failure" | "partial" | "retrying";
 
@@ -28,7 +32,7 @@ export type ActionTab = "automation" | "setup";
 export type PageView = "alerts" | "action-log";
 
 /** Daily alert grouping by who took action — four actor types only. */
-export type AlertRole = "human" | "ally-ai" | "rule-based" | "system";
+export type AlertRole = "human" | "ally-ai" | "day-parting" | "rule-based";
 
 export type AutomationType =
   | "ally-ai"

@@ -36,16 +36,12 @@ function resolveCampaignName(
   entry: LogEntry,
   detail?: LogActionDetail,
 ): string {
+  const scopeLevel = detail?.scopeLevel ?? entry.scopeLevel;
+  if (scopeLevel !== "Campaign") return "";
+
   if (detail?.campaignName) return detail.campaignName;
   if (entry.campaignName) return entry.campaignName;
-  if (detail?.scopeLevel === "Campaign") return detail.entityName;
-  if (entry.scopeLevel === "Campaign") return entry.entityName;
-  if (detail?.scopeLevel === "Keyword") {
-    return detail.entityName.includes(" - ")
-      ? detail.entityName
-      : `${entry.entityName} · ${detail.entityName}`;
-  }
-  return entry.entityName;
+  return detail?.entityName ?? entry.entityName;
 }
 
 function resolveActionLabel(

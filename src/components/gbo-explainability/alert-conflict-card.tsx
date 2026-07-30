@@ -1,9 +1,13 @@
 "use client";
 
+import { ArrowRight } from "lucide-react";
+
+import { ConflictActorMark } from "@/components/gbo-explainability/actor-mark";
 import type {
   AlertConflictDetail,
   ConflictActorChange,
 } from "@/lib/gbo-explainability/types";
+import { cn } from "@/lib/utils";
 
 type AlertConflictCardProps = {
   conflict: AlertConflictDetail;
@@ -15,44 +19,75 @@ function displayActor(side: ConflictActorChange): string {
 
 type ActorChangeCardProps = {
   side: ConflictActorChange;
-  borderClassName: string;
+  role: "earlier" | "current";
 };
 
-/** One actor's change — actor + time, value, one-line summary. */
-function ActorChangeCard({ side, borderClassName }: ActorChangeCardProps) {
+function ActorChangeCard({ side, role }: ActorChangeCardProps) {
+  const isCurrent = role === "current";
+
   return (
     <div
-      className={`flex h-full flex-col rounded-md border bg-white p-3 ${borderClassName}`}
+      className={cn(
+        "flex h-full flex-col rounded-lg border bg-background p-4",
+        isCurrent
+          ? "border-emerald-200/80 ring-1 ring-emerald-100"
+          : "border-border",
+      )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-sm font-semibold text-foreground">
-          {displayActor(side)}
-        </p>
-        <p className="shrink-0 font-mono text-xs text-muted-foreground">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <ConflictActorMark
+            actorType={side.actorType}
+            actorName={side.actorName}
+          />
+          <p className="truncate text-sm font-semibold text-foreground">
+            {displayActor(side)}
+          </p>
+        </div>
+        <time className="shrink-0 text-xs text-muted-foreground">
           {side.timestamp}
-        </p>
+        </time>
       </div>
-      <p className="mt-2 text-sm font-semibold text-foreground">{side.change}</p>
-      <p className="mt-auto pt-2 text-sm leading-snug text-muted-foreground">
+
+      <p className="text-base font-medium text-slate-800">
+        {side.change}
+      </p>
+      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
         {side.summary}
       </p>
     </div>
   );
 }
 
-/** Two cards comparing the first actor's change vs the second that superseded it. */
+/** Before/after actor comparison for one overridden entity. */
 export function AlertConflictCard({ conflict }: AlertConflictCardProps) {
   return (
-    <article className="overflow-hidden rounded-lg border border-border bg-white p-3">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <ActorChangeCard
-          side={conflict.otherChange}
-          borderClassName="border-border"
-        />
-        <ActorChangeCard
-          side={conflict.inEffectNow}
-          borderClassName="border-success-200"
-        />
+    <article className="overflow-hidden rounded-xl border border-border bg-slate-50/50 p-4">
+      <header className="mb-4 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <div>
+          <p className="text-sm font-semibold text-foreground">
+            {conflict.entityName}
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {conflict.overriddenActor} was overridden
+            {conflict.timeSinceOverride
+              ? ` · ${conflict.timeSinceOverride}`
+              : ""}
+          </p>
+        </div>
+      </header>
+
+      <div className="grid items-stretch gap-3 sm:grid-cols-[1fr_auto_1fr]">
+        <ActorChangeCard side={conflict.otherChange} role="earlier" />
+        <div
+          className="hidden items-center justify-center text-muted-foreground sm:flex"
+          aria-hidden
+        >
+          <span className="flex size-8 items-center justify-center rounded-full border border-border bg-background">
+            <ArrowRight className="size-4" />
+          </span>
+        </div>
+        <ActorChangeCard side={conflict.inEffectNow} role="current" />
       </div>
     </article>
   );

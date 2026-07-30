@@ -255,6 +255,25 @@ optimization modes are valid throughout the wizard:
 
 ---
 
+## Four actor types (canonical)
+
+Every GBO Explainability event is attributed to **exactly one** of these four actors. There is no fifth “System” actor — batch or observational jobs roll up into the relevant type below.
+
+| Actor | When it applies | Alerts tab | Action Log badge |
+| ----- | ---------------- | ---------- | ---------------- |
+| **Ally AI** | Optimizer runs, budget/bid automation, custom portfolio rules, out-of-budget scans | Shown when account has Ally AI | Purple “Ally AI” |
+| **Manual** | A person saved setup (Save & Launch) or made a direct human edit | Always shown when GBO is live | Gray “Manual” (+ person name in detail) |
+| **Day Parting** | Any day-parting schedule change — whether triggered manually, by Ally AI, or by a rule | Always shown | Amber “Day Parting” |
+| **Rule Based** | Rule-triggered automation (pause, bid/budget rules, etc.) | Shown when account has Rule Based | Blue “Rule Based” |
+
+**Grouping rules:**
+- Alerts roll up to one card per `(calendar day, actor type)`.
+- Day-parting rows always use the **Day Parting** actor, even when a person initiated the change in setup.
+- Custom optimizer actions roll into **Ally AI** (`automationType === custom`).
+- Out-of-budget detections attribute to **Ally AI** or **Rule Based** (whichever automation detected it), never a separate system actor.
+
+---
+
 ## Problem statement
 
 Customers and customer-facing teams can't tell why a change happened in Goal Based Optimization. There is no cumulative view of who did what across Ally AI, rule-based automations, and humans — and when a manual change overrides an Ally AI change, no one can see the impact. The result is confusion, mistaken changes, and lost trust in the automation.

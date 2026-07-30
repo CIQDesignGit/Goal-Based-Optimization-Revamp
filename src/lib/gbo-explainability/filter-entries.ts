@@ -47,9 +47,7 @@ export function filterEntries(
       const who =
         entry.actor.kind === "human"
           ? (entry.actor.email ?? entry.actor.label)
-          : entry.actor.kind === "system"
-            ? "system"
-            : entry.actor.label;
+          : entry.actor.label;
       if (
         who.toLowerCase() !== filters.user.toLowerCase() &&
         entry.actor.label.toLowerCase() !== filters.user.toLowerCase()

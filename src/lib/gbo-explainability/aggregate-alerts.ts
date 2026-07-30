@@ -15,8 +15,14 @@ import type {
 
 /** Map a log entry to one of four daily alert actor buckets. */
 export function mapEntryToAlertRole(entry: LogEntry): AlertRole {
+  if (
+    entry.actor.kind === "day-parting" ||
+    entry.actionType === "day-parting-change" ||
+    entry.automationType === "day-parting"
+  ) {
+    return "day-parting";
+  }
   if (entry.actor.kind === "human") return "human";
-  if (entry.actor.kind === "system") return "system";
   if (
     entry.actor.kind === "rule-based" ||
     entry.automationType === "rule-based"
@@ -31,8 +37,8 @@ export function mapEntryToAlertRole(entry: LogEntry): AlertRole {
 export const ALERT_ROLE_ORDER: AlertRole[] = [
   "human",
   "ally-ai",
+  "day-parting",
   "rule-based",
-  "system",
 ];
 
 function toLocalIsoDate(isoTimestamp: string): string {
@@ -73,14 +79,18 @@ function representativeActor(role: AlertRole, entries: LogEntry[]): Actor {
         label: "Ally AI",
         triggerOrRule: newest.actor.triggerOrRule,
       };
+    case "day-parting":
+      return {
+        kind: "day-parting",
+        label: "Day Parting",
+        triggerOrRule: newest.actor.triggerOrRule ?? newest.reason,
+      };
     case "rule-based":
       return {
         kind: "rule-based",
         label: "Rule Based",
         triggerOrRule: newest.actor.triggerOrRule,
       };
-    case "system":
-      return { kind: "system", label: "System" };
   }
 }
 
@@ -273,8 +283,8 @@ export function alertRoleLabel(role: AlertRole): string {
   const labels: Record<AlertRole, string> = {
     human: "Manual",
     "ally-ai": "Ally AI",
+    "day-parting": "Day Parting",
     "rule-based": "Rule Based",
-    system: "System",
   };
   return labels[role];
 }

@@ -127,6 +127,8 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
         entityName: "SP Auto - Protein Bars",
         entityId: "camp-sp-auto-pb",
         scopeLevel: "Campaign",
+        campaignName: "SP Auto - Protein Bars",
+        campaignType: "Sponsored Products",
         diffs: [
           {
             field: "Bid",
@@ -147,6 +149,8 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
         entityName: "SB Video - Fresh Pack",
         entityId: "camp-sb-video-fp",
         scopeLevel: "Campaign",
+        campaignName: "SB Video - Fresh Pack",
+        campaignType: "Sponsored Brands",
         diffs: [
           {
             field: "Bid",
@@ -184,6 +188,8 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     entityName: "SP Manual - Wings",
     entityId: "camp-sp-manual-wings",
     scopeLevel: "Campaign",
+    campaignName: "SP Manual - Wings",
+    campaignType: "Sponsored Products",
     conflictCount: 1,
     canRetry: false,
     retryBlockedReason:
@@ -203,14 +209,15 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     ],
   },
 
-  // --- Automation: out of budget (daily job) ---
+  // --- Automation: out of budget (daily job — attributed to Ally AI, not a System actor) ---
   {
     id: "auto-oob-001",
     tab: "automation",
     timestamp: daysAgo(1, 6),
     actor: {
-      kind: "system",
-      label: "System",
+      kind: "ally-ai",
+      label: "Ally AI",
+      triggerOrRule: "Out-of-budget scan",
     },
     status: "success",
     actionType: "out-of-budget",
@@ -222,9 +229,75 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     entityName: "SP Auto - Breakfast",
     entityId: "camp-sp-auto-bf",
     scopeLevel: "Campaign",
+    campaignName: "SP Auto - Breakfast",
+    campaignType: "Sponsored Products",
   },
 
-  // --- Automation: Rule Based ---
+  // --- Day Parting: today (most recent day — all four actor types represented) ---
+  {
+    id: "auto-dp-today",
+    tab: "automation",
+    timestamp: hoursAgo(3),
+    actor: {
+      kind: "day-parting",
+      label: "Day Parting",
+      triggerOrRule: "Day-parting re-optimize",
+    },
+    status: "success",
+    actionType: "day-parting-change",
+    automationType: "day-parting",
+    claim: "Shifted day-parting window two hours later for SP Auto - Wings",
+    reason: "Performance dip in early morning CPC",
+    impact: "Concentrate bids on 10am–8pm high-conversion hours",
+    summarySource: "ai",
+    entityName: "SP Auto - Wings",
+    entityId: "camp-sp-auto-wings",
+    scopeLevel: "Campaign",
+    campaignName: "SP Auto - Wings",
+    campaignType: "Sponsored Products",
+    dayParting: {
+      before: {
+        label: "Peak 8am–6pm",
+        hours: hoursFromWindows([{ start: 8, end: 18, mult: 1.2 }]),
+      },
+      after: {
+        label: "Peak 10am–8pm",
+        hours: hoursFromWindows([{ start: 10, end: 20, mult: 1.2 }]),
+      },
+    },
+  },
+
+  // --- Rule Based: today (most recent day — all four actor types represented) ---
+  {
+    id: "auto-rb-today",
+    tab: "automation",
+    timestamp: hoursAgo(4),
+    actor: {
+      kind: "rule-based",
+      label: "Rule Based",
+      triggerOrRule: "Pause if ACOS > 45%",
+    },
+    status: "success",
+    actionType: "status-change",
+    automationType: "rule-based",
+    claim: "Paused SP Keyword - organic trail mix (ACOS 52%)",
+    reason: "Rule: Pause if ACOS > 45%",
+    impact: "Stopped inefficient spend on this keyword",
+    summarySource: "template",
+    entityName: "organic trail mix",
+    entityId: "kw-organic-trail-today",
+    scopeLevel: "Keyword",
+    diffs: [
+      {
+        field: "Status",
+        before: "Enabled",
+        after: "Paused",
+        changeStatus: "updated",
+      },
+    ],
+  },
+
+  // --- Automation: Rule Based (previous day) ---
   {
     id: "auto-rb-001",
     tab: "automation",
@@ -255,34 +328,36 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     ],
   },
 
-  // --- Automation: Ally AI day-parting ---
+  // --- Day Parting: previous day (Ally-triggered re-optimize) ---
   {
     id: "auto-dp-001",
     tab: "automation",
     timestamp: daysAgo(2, 9),
     actor: {
-      kind: "ally-ai",
-      label: "Ally AI",
+      kind: "day-parting",
+      label: "Day Parting",
       triggerOrRule: "Day-parting re-optimize",
     },
     status: "success",
     actionType: "day-parting-change",
     automationType: "day-parting",
-    claim: "Shifted day-parting window two hours later for SP Auto - Wings",
-    reason: "Performance dip in early morning CPC",
-    impact: "Concentrate bids on 10am–8pm high-conversion hours",
-    summarySource: "ai",
-    entityName: "SP Auto - Wings",
-    entityId: "camp-sp-auto-wings",
+    claim: "Extended evening bid window for SP Manual - Deli",
+    reason: "Ally AI re-optimize — late-day conversion lift",
+    impact: "More spend in 6pm–10pm window",
+    summarySource: "template",
+    entityName: "SP Manual - Deli",
+    entityId: "camp-sp-manual-deli",
     scopeLevel: "Campaign",
+    campaignName: "SP Manual - Deli",
+    campaignType: "Sponsored Products",
     dayParting: {
       before: {
         label: "Peak 8am–6pm",
         hours: hoursFromWindows([{ start: 8, end: 18, mult: 1.2 }]),
       },
       after: {
-        label: "Peak 10am–8pm",
-        hours: hoursFromWindows([{ start: 10, end: 20, mult: 1.2 }]),
+        label: "Peak 8am–10pm",
+        hours: hoursFromWindows([{ start: 8, end: 22, mult: 1.2 }]),
       },
     },
   },
@@ -294,8 +369,8 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     timestamp: daysAgo(0, 14),
     actor: {
       kind: "human",
-      label: "Priyal Jain",
-      email: "priyal.j@commerceiq.ai",
+      label: "Elena Vasquez",
+      email: "elena.v@commerceiq.ai",
     },
     status: "success",
     actionType: "setup-change",
@@ -325,7 +400,7 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
         },
         inEffectNow: {
           actorType: "Manual",
-          actorName: "Priyal Jain",
+          actorName: "Elena Vasquez",
           change: "$4,200/day",
           timestamp: "Jul 6, 9:40 AM",
           summary:
@@ -345,7 +420,7 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
         },
         inEffectNow: {
           actorType: "Manual",
-          actorName: "Priyal Jain",
+          actorName: "Elena Vasquez",
           change: "15% spend share",
           timestamp: "Jul 6, 9:40 AM",
           summary:
@@ -447,15 +522,15 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     ],
   },
 
-  // --- Setup: day-parting config by human ---
+  // --- Day Parting: manual schedule edit (previous day) ---
   {
     id: "setup-dp-001",
     tab: "setup",
     timestamp: daysAgo(2, 16),
     actor: {
-      kind: "human",
-      label: "Alex Rivera",
-      email: "alex.r@example.com",
+      kind: "day-parting",
+      label: "Day Parting",
+      triggerOrRule: "Manual schedule edit",
     },
     status: "success",
     actionType: "day-parting-change",
@@ -466,6 +541,8 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     entityName: "SP Manual - Breakfast",
     entityId: "camp-sp-manual-bf",
     scopeLevel: "Campaign",
+    campaignName: "SP Manual - Breakfast",
+    campaignType: "Sponsored Products",
     changeStatus: "updated",
     setupStep: "Optimizer",
     dayParting: {
@@ -490,8 +567,8 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     timestamp: daysAgo(3, 10),
     actor: {
       kind: "human",
-      label: "Priyal Jain",
-      email: "priyal.j@commerceiq.ai",
+      label: "Marcus Webb",
+      email: "marcus.w@commerceiq.ai",
     },
     status: "failure",
     actionType: "api-failure",
@@ -575,8 +652,8 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     timestamp: daysAgo(1, 15),
     actor: {
       kind: "human",
-      label: "Alex Rivera",
-      email: "alex.r@example.com",
+      label: "Jordan Lee",
+      email: "jordan.l@commerceiq.ai",
     },
     status: "success",
     actionType: "setup-change",

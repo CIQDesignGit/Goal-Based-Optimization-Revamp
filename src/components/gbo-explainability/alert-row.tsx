@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 
-import { ActorBadge } from "@/components/gbo-explainability/actor-badge";
+import { ActorLabel } from "@/components/gbo-explainability/actor-label";
 import { AlertRowDetails } from "@/components/gbo-explainability/alert-row-details";
 import { ClaimSentence } from "@/components/gbo-explainability/claim-sentence";
 import { AlertSignalTags } from "@/components/gbo-explainability/alert-signal-tags";
@@ -19,28 +19,21 @@ type AlertRowProps = {
   onClick: () => void;
 };
 
-/** Fixed actor column — widest label is "Rule Based"; keeps claim text aligned. */
+/** Fixed actor column — category label with accent bar; claim text stays aligned. */
 const ALERT_ROW_GRID =
-  "grid w-full grid-cols-[5.5rem_minmax(0,1fr)_auto] items-start gap-x-3 px-3 py-3 sm:gap-x-4 sm:px-4";
+  "grid w-full grid-cols-[4.75rem_minmax(0,1fr)_auto] items-start gap-x-3 px-3 py-3 sm:gap-x-4 sm:px-4";
 
 export function AlertRow({ alert, onClick }: AlertRowProps) {
   const [expanded, setExpanded] = useState(false);
-  const failed =
-    alert.status === "failure" || alert.status === "partial";
 
   const toggleExpanded = () => {
     setExpanded((current) => !current);
   };
 
   return (
-    <li
-      className={cn(
-        "border-b border-border last:border-b-0",
-        failed && "border-l-2 border-l-error-400",
-      )}
-    >
+    <li className="border-b border-border last:border-b-0">
       <div className={ALERT_ROW_GRID}>
-        <ActorBadge actor={alert.actor} className="mt-0.5 justify-self-start" />
+        <ActorLabel actor={alert.actor} className="mt-0.5 justify-self-start" />
 
         <button
           type="button"

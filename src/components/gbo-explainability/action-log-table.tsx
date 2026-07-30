@@ -1,10 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, UserRound } from "lucide-react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  Check,
+  Loader2,
+} from "lucide-react";
 
 import { LogEntryExpanded } from "@/components/gbo-explainability/log-entry-expanded";
-import { Badge } from "@/components/ui/badge";
+import { ActorMarkFromActor } from "@/components/gbo-explainability/actor-mark";
 import {
   Sheet,
   SheetContent,
@@ -15,26 +20,11 @@ import { formatActionLogDate } from "@/lib/gbo-explainability/flatten-log-entrie
 import type { ActionLogRow, ActionStatus } from "@/lib/gbo-explainability/types";
 import { cn } from "@/lib/utils";
 
-const STATUS_STYLES: Record<
-  ActionStatus,
-  { label: string; className: string }
-> = {
-  success: {
-    label: "Success",
-    className: "border-success-200 bg-success-50 text-success-700",
-  },
-  failure: {
-    label: "Failure",
-    className: "border-error-200 bg-error-50 text-error-700",
-  },
-  partial: {
-    label: "Partial",
-    className: "border-warning-200 bg-warning-50 text-warning-700",
-  },
-  retrying: {
-    label: "Retrying",
-    className: "border-info-200 bg-info-50 text-info-700",
-  },
+const STATUS_LABELS: Record<ActionStatus, string> = {
+  success: "Success",
+  failure: "Failure",
+  partial: "Partial success",
+  retrying: "Retrying",
 };
 
 const STICKY_USER_SHADOW = "shadow-[1px_0_2px_0_rgba(15,23,42,0.04)]";
@@ -46,7 +36,6 @@ const STICKY_USER_HEADER_CLASS = cn(
 
 function stickyUserCellClass(
   rowIndex: number,
-  row: ActionLogRow,
   isSelected: boolean,
 ) {
   return cn(
@@ -54,17 +43,16 @@ function stickyUserCellClass(
     STICKY_USER_SHADOW,
     isSelected
       ? "bg-brand-50"
-      : row.status === "failure"
-        ? "bg-error-50"
-        : rowIndex % 2 === 1
-          ? "bg-slate-50"
-          : "bg-background",
+      : rowIndex % 2 === 1
+        ? "bg-slate-50"
+        : "bg-background",
     "group-hover:bg-slate-100",
   );
 }
 
 const TH_CLASS = "whitespace-nowrap px-3 py-2.5 font-medium";
 const TD_CLASS = "whitespace-nowrap px-3 py-2.5 align-middle";
+const FIXED_COLUMN_200 = "min-w-[200px] w-[200px] max-w-[200px]";
 
 type ActionLogTableProps = {
   rows: ActionLogRow[];
@@ -97,19 +85,18 @@ export function ActionLogTable({
           <thead>
             <tr className="border-b border-border bg-slate-50/80 text-left text-xs font-medium text-muted-foreground">
               <th className={STICKY_USER_HEADER_CLASS}>User</th>
+              <th className={TH_CLASS}>Date</th>
               <th className={TH_CLASS}>Status</th>
+              <th className={cn(TH_CLASS, FIXED_COLUMN_200)}>Source</th>
+              <th className={cn(TH_CLASS, FIXED_COLUMN_200)}>Action</th>
               <th className={TH_CLASS}>Entity</th>
               <th className={TH_CLASS}>Entity type</th>
               <th className={TH_CLASS}>Campaign name</th>
-              <th className={TH_CLASS}>Date</th>
               <th className={cn(TH_CLASS, "min-w-max")}>Campaign type</th>
-              <th className={TH_CLASS}>Source</th>
-              <th className={TH_CLASS}>Action</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row, index) => {
-              const status = STATUS_STYLES[row.status];
               const isRetrying = retryingId === row.parentEntryId;
               const isSelected = detailRow?.id === row.id;
 
@@ -129,20 +116,40 @@ export function ActionLogTable({
                   className={cn(
                     "group cursor-pointer border-b border-border transition-colors last:border-b-0 hover:bg-slate-50/80",
                     index % 2 === 1 && "bg-slate-50/40",
-                    row.status === "failure" && "bg-error-50/30",
                     isSelected && "bg-brand-50/60",
                   )}
                 >
-                  <td className={stickyUserCellClass(index, row, isSelected)}>
+                  <td className={stickyUserCellClass(index, isSelected)}>
                     <UserCell actor={row.actor} />
                   </td>
+                  <td className={cn(TD_CLASS, "text-muted-foreground")}>
+                    <time dateTime={row.timestamp}>
+                      {formatActionLogDate(row.timestamp)}
+                    </time>
+                  </td>
                   <td className={TD_CLASS}>
-                    <Badge
-                      variant="outline"
-                      className={cn("rounded-sm font-normal", status.className)}
-                    >
-                      {isRetrying ? "Retrying" : status.label}
-                    </Badge>
+                    <ActionStatusIndicator
+                      status={row.status}
+                      isRetrying={isRetrying}
+                    />
+                  </td>
+                  <td
+                    className={cn(
+                      TD_CLASS,
+                      FIXED_COLUMN_200,
+                      "truncate text-muted-foreground",
+                    )}
+                  >
+                    {row.source}
+                  </td>
+                  <td
+                    className={cn(
+                      TD_CLASS,
+                      FIXED_COLUMN_200,
+                      "truncate text-foreground",
+                    )}
+                  >
+                    {row.actionLabel}
                   </td>
                   <td
                     className={cn(
@@ -158,34 +165,16 @@ export function ActionLogTable({
                   <td
                     className={cn(
                       TD_CLASS,
-                      "max-w-45 truncate text-foreground",
+                      "max-w-45 truncate",
+                      row.entityType === "Campaign"
+                        ? "text-foreground"
+                        : "text-muted-foreground",
                     )}
                   >
-                    {row.campaignName}
-                  </td>
-                  <td className={cn(TD_CLASS, "text-muted-foreground")}>
-                    <time dateTime={row.timestamp}>
-                      {formatActionLogDate(row.timestamp)}
-                    </time>
+                    {row.entityType === "Campaign" ? row.campaignName : "—"}
                   </td>
                   <td className={cn(TD_CLASS, "min-w-max text-muted-foreground")}>
                     {row.campaignType}
-                  </td>
-                  <td
-                    className={cn(
-                      TD_CLASS,
-                      "max-w-40 truncate text-muted-foreground",
-                    )}
-                  >
-                    {row.source}
-                  </td>
-                  <td
-                    className={cn(
-                      TD_CLASS,
-                      "max-w-45 truncate text-foreground",
-                    )}
-                  >
-                    {row.actionLabel}
                   </td>
                 </tr>
               );
@@ -229,25 +218,63 @@ export function ActionLogTable({
 }
 
 function UserCell({ actor }: { actor: ActionLogRow["actor"] }) {
-  const isBot =
-    actor.kind === "ally-ai" ||
-    actor.kind === "rule-based" ||
-    actor.kind === "system";
-
   return (
     <div className="flex items-center gap-1.5 whitespace-nowrap">
-      {isBot ? (
-        <span className="inline-flex size-6 items-center justify-center rounded-full bg-info-100 text-info-700">
-          <Bot className="size-3.5" />
-        </span>
-      ) : (
-        <span className="inline-flex size-6 items-center justify-center rounded-full bg-slate-100 text-slate-600">
-          <UserRound className="size-3.5" />
-        </span>
-      )}
-      <span className="text-foreground">
-        {actor.kind === "human" ? actor.label : actor.label}
-      </span>
+      <ActorMarkFromActor actor={actor} />
+      <span className="text-foreground">{actor.label}</span>
     </div>
+  );
+}
+
+function ActionStatusIndicator({
+  status,
+  isRetrying,
+}: {
+  status: ActionStatus;
+  isRetrying: boolean;
+}) {
+  const label = isRetrying ? "Retrying" : STATUS_LABELS[status];
+
+  if (isRetrying) {
+    return (
+      <span
+        className="inline-flex items-center text-muted-foreground"
+        title={label}
+      >
+        <Loader2 className="size-4 animate-spin" aria-hidden />
+        <span className="sr-only">{label}</span>
+      </span>
+    );
+  }
+
+  if (status === "success") {
+    return (
+      <span
+        className="inline-flex items-center text-success-600"
+        title={label}
+      >
+        <Check className="size-4 stroke-[2.5]" aria-hidden />
+        <span className="sr-only">{label}</span>
+      </span>
+    );
+  }
+
+  if (status === "partial") {
+    return (
+      <span
+        className="inline-flex items-center text-warning-600"
+        title={label}
+      >
+        <AlertTriangle className="size-4" aria-hidden />
+        <span className="sr-only">{label}</span>
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center text-error-600" title={label}>
+      <AlertCircle className="size-4" aria-hidden />
+      <span className="sr-only">{label}</span>
+    </span>
   );
 }

@@ -91,10 +91,11 @@ export function FiltersPopover({
               onChange={(e) => onChange({ user: e.target.value })}
             >
               <option value="all">Anyone</option>
+              <option value="elena.v@commerceiq.ai">Elena Vasquez</option>
+              <option value="marcus.w@commerceiq.ai">Marcus Webb</option>
+              <option value="jordan.l@commerceiq.ai">Jordan Lee</option>
               <option value="priyal.j@commerceiq.ai">Priyal Jain</option>
-              <option value="alex.r@example.com">Alex Rivera</option>
               <option value="sam.c@example.com">Sam Chen</option>
-              <option value="system">System</option>
             </select>
           </div>
 

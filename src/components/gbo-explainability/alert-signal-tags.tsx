@@ -1,26 +1,44 @@
 "use client";
 
-import { ArrowLeftRight, TrendingUp } from "lucide-react";
+import { AlertCircle, ArrowLeftRight, TrendingUp } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import {
   formatConflictTag,
+  formatFailureTag,
   formatHighDeviationTag,
 } from "@/lib/gbo-explainability/alert-signals";
 import type { AlertSummary } from "@/lib/gbo-explainability/types";
 
 type AlertSignalTagsProps = {
-  alert: Pick<AlertSummary, "conflictCount" | "highDeviationCount">;
+  alert: Pick<
+    AlertSummary,
+    "conflictCount" | "highDeviationCount" | "failureCount"
+  >;
 };
 
-/** Secondary signal chips — conflicts and high-deviation changes on a daily alert card. */
+/** Secondary signal chips — failures, conflicts, and high-deviation changes. */
 export function AlertSignalTags({ alert }: AlertSignalTagsProps) {
-  if (alert.conflictCount === 0 && alert.highDeviationCount === 0) {
+  if (
+    alert.failureCount === 0 &&
+    alert.conflictCount === 0 &&
+    alert.highDeviationCount === 0
+  ) {
     return null;
   }
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
+      {alert.failureCount > 0 ? (
+        <Badge
+          variant="outline"
+          className="gap-1 border-error-200 bg-error-50 font-normal text-error-800"
+          title="One or more actions in this group did not complete successfully"
+        >
+          <AlertCircle className="size-3 shrink-0" aria-hidden />
+          {formatFailureTag(alert.failureCount)}
+        </Badge>
+      ) : null}
       {alert.conflictCount > 0 ? (
         <Badge
           variant="outline"

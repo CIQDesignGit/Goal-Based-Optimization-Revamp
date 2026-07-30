@@ -78,6 +78,10 @@ export function formatHighDeviationTag(count: number): string {
   return `${count} high deviation${count === 1 ? "" : "s"}`;
 }
 
+export function formatFailureTag(count: number): string {
+  return `${count} failed action${count === 1 ? "" : "s"}`;
+}
+
 function syntheticConflictDetail(
   entry: LogEntry,
   index: number,
