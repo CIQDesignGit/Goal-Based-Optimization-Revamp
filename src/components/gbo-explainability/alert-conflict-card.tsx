@@ -98,7 +98,7 @@ function ActorChangeSide({ side }: ActorChangeSideProps) {
 
       <div className="col-span-2 row-start-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
         <ChangeValues side={side} />
-        <time className="shrink-0 text-2xs tabular-nums text-muted-foreground">
+        <time className="shrink-0 text-xs tabular-nums text-muted-foreground">
           {side.timestamp}
         </time>
       </div>

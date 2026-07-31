@@ -13,6 +13,7 @@ import {
   ActionDetailPanelTitle,
 } from "@/components/gbo-explainability/action-detail-panel";
 import { ActorMarkFromActor } from "@/components/gbo-explainability/actor-mark";
+import { ExportPopover } from "@/components/gbo-explainability/export-popover";
 import {
   Sheet,
   SheetContent,
@@ -44,22 +45,15 @@ const STICKY_USER_HEADER_CLASS = cn(
   STICKY_USER_SHADOW,
 );
 
-function stickyUserCellClass(
-  rowIndex: number,
-  isSelected: boolean,
-) {
+function stickyUserCellClass(isSelected: boolean) {
   return cn(
     "sticky left-0 z-10 whitespace-nowrap align-middle",
     CELL_X,
     CELL_Y,
     USER_COLUMN_MIN_W,
     STICKY_USER_SHADOW,
-    isSelected
-      ? "bg-brand-50"
-      : rowIndex % 2 === 1
-        ? "bg-slate-50"
-        : "bg-background",
-    "group-hover:bg-slate-100",
+    isSelected ? "bg-brand-50" : "bg-background",
+    "group-hover:bg-slate-50",
   );
 }
 
@@ -76,6 +70,10 @@ type ActionLogTableProps = {
   totalCount: number;
   retryingId: string | null;
   onRetry: (entryId: string) => void;
+  filteredCount: number;
+  todayAllyCount: number;
+  onExport: () => void;
+  onDownloadToday: () => void;
 };
 
 export function ActionLogTable({
@@ -83,19 +81,31 @@ export function ActionLogTable({
   totalCount,
   retryingId,
   onRetry,
+  filteredCount,
+  todayAllyCount,
+  onExport,
+  onDownloadToday,
 }: ActionLogTableProps) {
   const [detailRow, setDetailRow] = useState<ActionLogRow | null>(null);
 
   return (
     <>
       <div className="overflow-hidden rounded-lg border border-border bg-background">
-        <div className="border-b border-border px-4 py-2.5">
-          <h2 className="m-0 text-sm font-semibold text-muted-foreground">
-            Total actions
-          </h2>
-          <p className="m-0 mt-0.5 text-xs text-muted-foreground">
-            Showing {rows.length} of {totalCount} actions · newest first
-          </p>
+        <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-2.5">
+          <div className="min-w-0">
+            <h2 className="m-0 text-sm font-semibold text-muted-foreground">
+              Total actions
+            </h2>
+            <p className="m-0 mt-0.5 text-xs text-muted-foreground">
+              Showing {rows.length} of {totalCount} actions · newest first
+            </p>
+          </div>
+          <ExportPopover
+            filteredCount={filteredCount}
+            todayAllyCount={todayAllyCount}
+            onExportFiltered={onExport}
+            onExportTodayAlly={onDownloadToday}
+          />
         </div>
 
         <div className="overflow-x-auto">
@@ -114,7 +124,7 @@ export function ActionLogTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, index) => {
+            {rows.map((row) => {
               const isRetrying = retryingId === row.parentEntryId;
               const isSelected = detailRow?.id === row.id;
 
@@ -132,12 +142,11 @@ export function ActionLogTable({
                     }
                   }}
                   className={cn(
-                    "group cursor-pointer border-b border-border transition-colors last:border-b-0 hover:bg-slate-50/80",
-                    index % 2 === 1 && "bg-slate-50/40",
+                    "group cursor-pointer border-b border-border bg-background transition-colors last:border-b-0 hover:bg-slate-50/80",
                     isSelected && "bg-brand-50/60",
                   )}
                 >
-                  <td className={stickyUserCellClass(index, isSelected)}>
+                  <td className={stickyUserCellClass(isSelected)}>
                     <UserCell actor={row.actor} />
                   </td>
                   <td className={TD_CELL}>

@@ -1,4 +1,5 @@
 import { mapEntryToAlertRole } from "./aggregate-alerts";
+import { countHighDeviationsInEntry } from "./alert-signals";
 import { isAutomationActorFilter } from "./core-filter-definitions";
 import {
   filterActionLogRows,
@@ -99,6 +100,25 @@ export function filterEntries(
       return false;
     }
 
+    if (filters.highDeviationOnly) {
+      if (entry.actionType !== "setup-change") return false;
+      if (countHighDeviationsInEntry(entry) === 0) return false;
+    }
+
+    if (filters.budgetLevel !== "all") {
+      const matchesLevel =
+        entry.scopeLevel === filters.budgetLevel ||
+        entry.children?.some(
+          (child) => child.scopeLevel === filters.budgetLevel,
+        );
+      if (!matchesLevel) return false;
+    }
+
+    if (filters.entityScope.trim()) {
+      const scoped = searchEntries([entry], filters.entityScope);
+      if (scoped.length === 0) return false;
+    }
+
     return true;
   });
 }
@@ -169,6 +189,108 @@ export function toIsoDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+export type DateRangeValue = {
+  dateFrom: string;
+  dateTo: string;
+};
+
+export type DateRangePreset = {
+  id: string;
+  label: string;
+  range: () => DateRangeValue;
+};
+
+function startOfWeekMonday(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** Canned ranges for the Date / time filter panel. */
+export function dateRangePresets(): DateRangePreset[] {
+  return [
+    {
+      id: "last-7-days",
+      label: "Last 7 days",
+      range: defaultDateRange,
+    },
+    {
+      id: "last-week",
+      label: "Last week",
+      range: () => {
+        const thisWeekStart = startOfWeekMonday(new Date());
+        const lastWeekEnd = new Date(thisWeekStart);
+        lastWeekEnd.setDate(lastWeekEnd.getDate() - 1);
+        const lastWeekStart = new Date(lastWeekEnd);
+        lastWeekStart.setDate(lastWeekStart.getDate() - 6);
+        return {
+          dateFrom: toIsoDate(lastWeekStart),
+          dateTo: toIsoDate(lastWeekEnd),
+        };
+      },
+    },
+    {
+      id: "last-month",
+      label: "Last month",
+      range: () => {
+        const now = new Date();
+        const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+        const firstDay = new Date(lastDay.getFullYear(), lastDay.getMonth(), 1);
+        return {
+          dateFrom: toIsoDate(firstDay),
+          dateTo: toIsoDate(lastDay),
+        };
+      },
+    },
+    {
+      id: "last-quarter",
+      label: "Last quarter",
+      range: () => {
+        const now = new Date();
+        const currentQuarter = Math.floor(now.getMonth() / 3);
+        const firstOfCurrentQuarter = new Date(
+          now.getFullYear(),
+          currentQuarter * 3,
+          1,
+        );
+        const lastDay = new Date(firstOfCurrentQuarter);
+        lastDay.setDate(0);
+        const prevQuarter = currentQuarter === 0 ? 3 : currentQuarter - 1;
+        const year =
+          currentQuarter === 0 ? now.getFullYear() - 1 : now.getFullYear();
+        const firstDay = new Date(year, prevQuarter * 3, 1);
+        return {
+          dateFrom: toIsoDate(firstDay),
+          dateTo: toIsoDate(lastDay),
+        };
+      },
+    },
+    {
+      id: "last-30-days",
+      label: "Last 30 days",
+      range: () => {
+        const to = new Date();
+        const from = new Date();
+        from.setDate(to.getDate() - 29);
+        return {
+          dateFrom: toIsoDate(from),
+          dateTo: toIsoDate(to),
+        };
+      },
+    },
+  ];
+}
+
+export function dateRangesMatch(
+  a: DateRangeValue,
+  b: DateRangeValue,
+): boolean {
+  return a.dateFrom === b.dateFrom && a.dateTo === b.dateTo;
+}
+
 export function formatLocalTimestamp(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleString(undefined, {
@@ -191,6 +313,9 @@ export function buildDefaultFilters(): FilterState {
     actionType: "all",
     failureCategory: "all",
     outOfBudgetOnly: false,
+    highDeviationOnly: false,
+    budgetLevel: "all",
+    entityScope: "",
     entityType: "all",
     campaignType: "all",
     matchType: "all",

@@ -119,16 +119,28 @@ export type AlertSignalCounts = {
   highDeviationCount: number;
 };
 
+export function conflictLabel(count: number): string {
+  return count === 1 ? "conflict" : "conflicts";
+}
+
+export function highDeviationLabel(count: number): string {
+  return count === 1 ? "high deviation" : "high deviations";
+}
+
+export function failureLabel(count: number): string {
+  return count === 1 ? "failed action" : "failed actions";
+}
+
 export function formatConflictTag(count: number): string {
-  return `${count} conflict${count === 1 ? "" : "s"}`;
+  return `${count} ${conflictLabel(count)}`;
 }
 
 export function formatHighDeviationTag(count: number): string {
-  return `${count} high deviation${count === 1 ? "" : "s"}`;
+  return `${count} ${highDeviationLabel(count)}`;
 }
 
 export function formatFailureTag(count: number): string {
-  return `${count} failed action${count === 1 ? "" : "s"}`;
+  return `${count} ${failureLabel(count)}`;
 }
 
 function syntheticConflictDetail(

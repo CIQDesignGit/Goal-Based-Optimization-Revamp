@@ -298,6 +298,12 @@ export type FilterState = {
   actionType: ActionType | "all";
   failureCategory: FailureReasonCategory | "all";
   outOfBudgetOnly: boolean;
+  /** Setup changes with field deltas above the high-deviation threshold. */
+  highDeviationOnly: boolean;
+  /** Budget hierarchy level where a budget was set (portfolio → campaign, etc.). */
+  budgetLevel: string;
+  /** Expression filter for keyword, campaign, or SKU name / ID. */
+  entityScope: string;
   /** Retailer categorization filters (Action Log panel). */
   entityType: string;
   campaignType: string;

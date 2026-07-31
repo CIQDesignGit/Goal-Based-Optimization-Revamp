@@ -129,3 +129,12 @@ export function buildRetailerFilterDefinitions(
 }
 
 export const RETAILER_FILTER_SECTION_LABEL = "Retailer Categorization";
+
+/** Retailer filters for Action Log — excludes Status/Action (covered by core filters). */
+export function buildActionLogRetailerFilterDefinitions(
+  config: AccountOptimizerConfig,
+): RetailerFilterDefinition[] {
+  return buildRetailerFilterDefinitions(config).filter(
+    (definition) => definition.key !== "status" && definition.key !== "action",
+  );
+}

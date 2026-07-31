@@ -21,6 +21,7 @@
 ## Styling
 - Tailwind CSS 4 utility classes only.
 - **Buttons:** 4px corner radius everywhere. Set in `src/components/ui/button.tsx` — do not override with larger radii on `Button` components.
+- **Compact controls** (buttons, inputs, filter triggers, search fields): **36px height** (`h-9`) — use default/`sm` button sizes and the shared `Input` component.
 - prompt-kit pattern for chat/AI UI (PromptInput, Message, Loader, etc.).
 
 ## Layout

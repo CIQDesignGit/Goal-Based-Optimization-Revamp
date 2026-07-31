@@ -11,25 +11,39 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+  buildActionLogFilterSections,
   buildAlertsFilterDefinitions,
-  buildCoreFilterDefinitions,
   CORE_FILTER_SECTION_LABEL,
   countActiveCoreFilters,
   coreDraftValueForKey,
+  flattenFilterSections,
   patchCoreDraftForKey,
   pickCoreFilterDraft,
   type CoreFilterDefinition,
   type CoreFilterDraft,
   type CoreFilterKey,
+  type FilterDefinitionSection,
 } from "@/lib/gbo-explainability/core-filter-definitions";
-import { defaultDateRange } from "@/lib/gbo-explainability/filter-entries";
-import type { FilterState, PageView } from "@/lib/gbo-explainability/types";
+import {
+  dateRangePresets,
+  dateRangesMatch,
+  defaultDateRange,
+} from "@/lib/gbo-explainability/filter-entries";
+import { MOCK_ACCOUNT_CONFIG, MOCK_ACCOUNT_META } from "@/lib/gbo-explainability/mock-data";
+import type {
+  AccountOptimizerConfig,
+  FilterState,
+  PageView,
+} from "@/lib/gbo-explainability/types";
 import { cn } from "@/lib/utils";
 
 type FiltersPopoverProps = {
   view: PageView;
   filters: FilterState;
   onChange: (patch: Partial<FilterState>) => void;
+  accountConfig?: AccountOptimizerConfig;
+  /** Earliest selectable date (account feature-onboarding). */
+  minDate?: string;
 };
 
 function isCoreFilterApplied(
@@ -41,18 +55,173 @@ function isCoreFilterApplied(
       return draft.dateFrom !== "" && draft.dateTo !== "";
     case "optimizerType":
       return draft.strategy !== "all";
+    case "entityScope":
+      return draft.entityScope.trim() !== "";
+    case "budgetLevel":
+      return draft.budgetLevel !== "all";
+    case "actionStatus":
+      return draft.actionStatus !== "all";
+    case "changeStatus":
+      return draft.changeStatus !== "all";
     case "actionType":
       return draft.actionType !== "all";
     case "setupStep":
       return draft.setupStep !== "all";
     case "user":
       return draft.user !== "all";
+    case "failureCategory":
+      return draft.failureCategory !== "all";
+    case "outOfBudgetOnly":
+      return draft.outOfBudgetOnly;
+    case "highDeviationOnly":
+      return draft.highDeviationOnly;
+    case "entityType":
+      return draft.entityType !== "all";
+    case "campaignType":
+      return draft.campaignType !== "all";
+    case "matchType":
+      return draft.matchType !== "all";
+    case "source":
+      return draft.source !== "all";
+    case "objective":
+      return draft.objective !== "all";
+    case "strategy":
+      return draft.strategy !== "all";
     default:
       return false;
   }
 }
 
+function clampDateRange(
+  draft: CoreFilterDraft,
+  minDate?: string,
+): CoreFilterDraft {
+  if (!minDate) return draft;
+
+  let { dateFrom, dateTo } = draft;
+  if (dateFrom && dateFrom < minDate) dateFrom = minDate;
+  if (dateTo && dateTo < minDate) dateTo = minDate;
+  if (dateFrom && dateTo && dateFrom > dateTo) dateTo = dateFrom;
+
+  return { ...draft, dateFrom, dateTo };
+}
+
 function DateRangePanel({
+  draft,
+  onChange,
+  minDate,
+}: {
+  draft: CoreFilterDraft;
+  onChange: (next: CoreFilterDraft) => void;
+  minDate?: string;
+}) {
+  const currentRange = { dateFrom: draft.dateFrom, dateTo: draft.dateTo };
+  const presets = dateRangePresets();
+
+  const applyRange = (range: { dateFrom: string; dateTo: string }) => {
+    onChange(clampDateRange({ ...draft, ...range }, minDate));
+  };
+
+  return (
+    <div className="flex flex-1 flex-col overflow-y-auto">
+      <div className="border-b border-slate-100 p-2">
+        <p className="px-2 py-1 text-xs font-medium text-slate-500">
+          Quick ranges
+        </p>
+        <ul className="space-y-0.5">
+          {presets.map((preset) => {
+            const isSelected = dateRangesMatch(currentRange, preset.range());
+
+            return (
+              <li key={preset.id}>
+                <button
+                  type="button"
+                  onClick={() => applyRange(preset.range())}
+                  className={cn(
+                    "flex w-full items-center rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-slate-50",
+                    isSelected
+                      ? "bg-brand-50 font-medium text-brand-500"
+                      : "text-slate-700",
+                  )}
+                >
+                  {preset.label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <div className="space-y-4 p-4">
+        {minDate ? (
+          <p className="text-xs text-slate-500">
+            Earliest date:{" "}
+            {new Date(`${minDate}T12:00:00`).toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
+          </p>
+        ) : null}
+        <div className="space-y-1.5">
+          <label
+            htmlFor="filter-date-from"
+            className="text-xs font-medium text-slate-600"
+          >
+            From
+          </label>
+          <Input
+            id="filter-date-from"
+            type="date"
+            value={draft.dateFrom}
+            min={minDate}
+            onChange={(event) =>
+              onChange(
+                clampDateRange(
+                  { ...draft, dateFrom: event.target.value },
+                  minDate,
+                ),
+              )
+            }
+            className="border-slate-200 text-sm shadow-none"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label
+            htmlFor="filter-date-to"
+            className="text-xs font-medium text-slate-600"
+          >
+            To
+          </label>
+          <Input
+            id="filter-date-to"
+            type="date"
+            value={draft.dateTo}
+            min={draft.dateFrom || minDate || undefined}
+            onChange={(event) =>
+              onChange(
+                clampDateRange(
+                  { ...draft, dateTo: event.target.value },
+                  minDate,
+                ),
+              )
+            }
+            className="border-slate-200 text-sm shadow-none"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => onChange({ ...draft, dateFrom: "", dateTo: "" })}
+          className="text-xs font-medium text-brand-500 hover:underline"
+        >
+          Clear date range
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function EntityScopePanel({
   draft,
   onChange,
 }: {
@@ -60,48 +229,25 @@ function DateRangePanel({
   onChange: (next: CoreFilterDraft) => void;
 }) {
   return (
-    <div className="space-y-4 p-4">
-      <div className="space-y-1.5">
-        <label
-          htmlFor="filter-date-from"
-          className="text-xs font-medium text-slate-600"
-        >
-          From
-        </label>
-        <Input
-          id="filter-date-from"
-          type="date"
-          value={draft.dateFrom}
-          onChange={(event) =>
-            onChange({ ...draft, dateFrom: event.target.value })
-          }
-          className="h-8 border-slate-200 text-sm shadow-none"
-        />
-      </div>
-      <div className="space-y-1.5">
-        <label
-          htmlFor="filter-date-to"
-          className="text-xs font-medium text-slate-600"
-        >
-          To
-        </label>
-        <Input
-          id="filter-date-to"
-          type="date"
-          value={draft.dateTo}
-          min={draft.dateFrom || undefined}
-          onChange={(event) =>
-            onChange({ ...draft, dateTo: event.target.value })
-          }
-          className="h-8 border-slate-200 text-sm shadow-none"
-        />
-      </div>
+    <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
+      <p className="text-xs text-slate-500">
+        Filter by keyword, campaign, or SKU name or ID. Matches are
+        case-insensitive.
+      </p>
+      <Input
+        value={draft.entityScope}
+        onChange={(event) =>
+          onChange({ ...draft, entityScope: event.target.value })
+        }
+        placeholder="e.g. SP-Breakfast or camp-123"
+        className="border-slate-200 text-sm shadow-none"
+      />
       <button
         type="button"
-        onClick={() => onChange({ ...draft, dateFrom: "", dateTo: "" })}
-        className="text-xs font-medium text-brand-500 hover:underline"
+        onClick={() => onChange({ ...draft, entityScope: "" })}
+        className="self-start text-xs font-medium text-brand-500 hover:underline"
       >
-        Clear date range
+        Clear expression
       </button>
     </div>
   );
@@ -125,7 +271,7 @@ function OptionsPanel({
         onClick={() => onSelect("all")}
         className={cn(
           "mb-1 flex w-full items-center rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-slate-50",
-          selected === "all"
+          selected === "all" || selected === ""
             ? "bg-brand-50 font-medium text-brand-500"
             : "text-slate-700",
         )}
@@ -155,18 +301,96 @@ function OptionsPanel({
   );
 }
 
+function FilterNavSections({
+  sections,
+  filteredSections,
+  activeKey,
+  draft,
+  onSelect,
+}: {
+  sections: FilterDefinitionSection[];
+  filteredSections: FilterDefinitionSection[];
+  activeKey: CoreFilterKey | null;
+  draft: CoreFilterDraft;
+  onSelect: (key: CoreFilterKey) => void;
+}) {
+  const visibleSections =
+    filteredSections.length > 0 ? filteredSections : sections;
+
+  return (
+    <>
+      {visibleSections.map((section) => (
+        <div key={section.id} className="mb-2">
+          <p className="px-2 py-1.5 text-xs font-semibold text-slate-800">
+            {section.label}
+          </p>
+          <ul className="space-y-0.5">
+            {section.definitions.map((definition) => {
+              const isActive = activeKey === definition.key;
+              const isApplied = isCoreFilterApplied(draft, definition.key);
+
+              return (
+                <li key={definition.key}>
+                  <button
+                    type="button"
+                    onClick={() => onSelect(definition.key)}
+                    className={cn(
+                      "flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors",
+                      isActive
+                        ? "bg-brand-500 text-white"
+                        : "text-slate-700 hover:bg-slate-100",
+                    )}
+                  >
+                    <span className="truncate">{definition.label}</span>
+                    <span className="flex shrink-0 items-center gap-1">
+                      {isApplied && !isActive ? (
+                        <span className="size-1.5 rounded-full bg-brand-500" />
+                      ) : null}
+                      <ChevronRight
+                        className={cn(
+                          "size-3.5",
+                          isActive ? "text-white/90" : "text-slate-400",
+                        )}
+                        aria-hidden
+                      />
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </>
+  );
+}
+
 export function FiltersPopover({
   view,
   filters,
   onChange,
+  accountConfig = MOCK_ACCOUNT_CONFIG,
+  minDate = MOCK_ACCOUNT_META.onboardingDate,
 }: FiltersPopoverProps) {
-  const definitions = useMemo(
+  const sections = useMemo(
     () =>
-      view === "alerts"
-        ? buildAlertsFilterDefinitions()
-        : buildCoreFilterDefinitions(),
-    [view],
+      view === "action-log"
+        ? buildActionLogFilterSections(accountConfig)
+        : [
+            {
+              id: "core",
+              label: CORE_FILTER_SECTION_LABEL,
+              definitions: buildAlertsFilterDefinitions(),
+            },
+          ],
+    [view, accountConfig],
   );
+
+  const definitions = useMemo(
+    () => flattenFilterSections(sections),
+    [sections],
+  );
+
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeKey, setActiveKey] = useState<CoreFilterKey | null>(null);
@@ -182,27 +406,33 @@ export function FiltersPopover({
     }
   }, [open, filters]);
 
-  const filteredDefinitions = useMemo(() => {
+  const filteredSections = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return definitions;
-    return definitions.filter((definition) =>
-      definition.label.toLowerCase().includes(q),
-    );
-  }, [definitions, query]);
+    if (!q) return sections;
+
+    return sections
+      .map((section) => ({
+        ...section,
+        definitions: section.definitions.filter((definition) =>
+          definition.label.toLowerCase().includes(q),
+        ),
+      }))
+      .filter((section) => section.definitions.length > 0);
+  }, [sections, query]);
 
   const activeDefinition =
-    filteredDefinitions.find((definition) => definition.key === activeKey) ??
-    definitions.find((definition) => definition.key === activeKey) ??
-    null;
+    definitions.find((definition) => definition.key === activeKey) ?? null;
+
+  const usesDefaultDateRange = view === "alerts" || view === "action-log";
 
   const activeCount = countActiveCoreFilters(
     filters,
     view,
-    view === "alerts" ? defaultDateRange() : undefined,
+    usesDefaultDateRange ? defaultDateRange() : undefined,
   );
 
   const handleApply = () => {
-    onChange(draft);
+    onChange(clampDateRange(draft, minDate));
     setOpen(false);
   };
 
@@ -240,50 +470,19 @@ export function FiltersPopover({
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search for any filter"
-                  className="h-8 border-slate-200 pr-8 text-sm shadow-none"
+                  className="border-slate-200 pr-8 text-sm shadow-none"
                 />
               </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-2">
-              <p className="px-2 py-1.5 text-xs font-semibold text-slate-800">
-                {CORE_FILTER_SECTION_LABEL}
-              </p>
-              <ul className="space-y-0.5">
-                {filteredDefinitions.map((definition) => {
-                  const isActive = activeKey === definition.key;
-                  const isApplied = isCoreFilterApplied(draft, definition.key);
-
-                  return (
-                    <li key={definition.key}>
-                      <button
-                        type="button"
-                        onClick={() => setActiveKey(definition.key)}
-                        className={cn(
-                          "flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors",
-                          isActive
-                            ? "bg-brand-500 text-white"
-                            : "text-slate-700 hover:bg-slate-100",
-                        )}
-                      >
-                        <span className="truncate">{definition.label}</span>
-                        <span className="flex shrink-0 items-center gap-1">
-                          {isApplied && !isActive ? (
-                            <span className="size-1.5 rounded-full bg-brand-500" />
-                          ) : null}
-                          <ChevronRight
-                            className={cn(
-                              "size-3.5",
-                              isActive ? "text-white/90" : "text-slate-400",
-                            )}
-                            aria-hidden
-                          />
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+              <FilterNavSections
+                sections={sections}
+                filteredSections={filteredSections}
+                activeKey={activeKey}
+                draft={draft}
+                onSelect={setActiveKey}
+              />
             </div>
           </div>
 
@@ -299,7 +498,10 @@ export function FiltersPopover({
                   <DateRangePanel
                     draft={draft}
                     onChange={setDraft}
+                    minDate={minDate}
                   />
+                ) : activeDefinition.panel === "text" ? (
+                  <EntityScopePanel draft={draft} onChange={setDraft} />
                 ) : (
                   <OptionsPanel
                     definition={activeDefinition}

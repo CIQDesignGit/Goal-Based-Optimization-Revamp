@@ -20,9 +20,13 @@ import {
   filterTodaysAllyAi,
 } from "@/lib/gbo-explainability/export-csv";
 import {
+  actionStatusLabel,
   actionTypeLabel,
-  optimizerTypeLabel,
+  budgetLevelLabel,
+  changeStatusLabel,
+  failureCategoryLabel,
   personLabel,
+  retailerFilterChipLabel,
 } from "@/lib/gbo-explainability/core-filter-definitions";
 import {
   buildDefaultFilters,
@@ -36,6 +40,7 @@ import {
 } from "@/lib/gbo-explainability/filter-entries";
 import {
   INITIAL_MOCK_ENTRIES,
+  MOCK_ACCOUNT_CONFIG,
 } from "@/lib/gbo-explainability/mock-data";
 import {
   filterActionLogRows,
@@ -62,7 +67,10 @@ function buildDefaultAlertsFilters(): FilterState {
 }
 
 function buildDefaultActionLogFilters(): FilterState {
-  return buildDefaultFilters();
+  return {
+    ...buildDefaultFilters(),
+    ...defaultDateRange(),
+  };
 }
 
 function filterChip(
@@ -87,6 +95,13 @@ function isDefaultAlertsDateRange(filters: FilterState): boolean {
   );
 }
 
+function isDefaultActionLogDateRange(filters: FilterState): boolean {
+  const defaults = defaultDateRange();
+  return (
+    filters.dateFrom === defaults.dateFrom && filters.dateTo === defaults.dateTo
+  );
+}
+
 function chipsFromFilters(
   filters: FilterState,
   view: PageView,
@@ -99,7 +114,8 @@ function chipsFromFilters(
   const showDateChip =
     hasDateFilter(filters) &&
     !isAlertDrill &&
-    !(view === "alerts" && isDefaultAlertsDateRange(filters));
+    !(view === "alerts" && isDefaultAlertsDateRange(filters)) &&
+    !(view === "action-log" && isDefaultActionLogDateRange(filters));
 
   if (showDateChip) {
     chips.push(
@@ -114,16 +130,40 @@ function chipsFromFilters(
     );
   }
 
+  if (filters.budgetLevel !== "all" && view === "action-log") {
+    chips.push(
+      filterChip({
+        id: "budgetLevel",
+        key: "budgetLevel",
+        value: filters.budgetLevel,
+        categoryLabel: "Budget level",
+        valueLabel: budgetLevelLabel(filters.budgetLevel),
+        scope: "detail",
+      }),
+    );
+  }
+
+  if (filters.entityScope.trim() !== "" && view === "action-log") {
+    chips.push(
+      filterChip({
+        id: "entityScope",
+        key: "entityScope",
+        value: filters.entityScope,
+        categoryLabel: "Entity / scope",
+        valueLabel: filters.entityScope,
+        scope: "detail",
+      }),
+    );
+  }
+
   if (filters.actionStatus !== "all") {
     chips.push(
       filterChip({
         id: "status",
         key: "actionStatus",
         value: filters.actionStatus,
-        categoryLabel: "Status",
-        valueLabel:
-          filters.actionStatus.charAt(0).toUpperCase() +
-          filters.actionStatus.slice(1),
+        categoryLabel: "Action status",
+        valueLabel: actionStatusLabel(filters.actionStatus),
         scope: "common",
       }),
     );
@@ -152,7 +192,7 @@ function chipsFromFilters(
         id: "user",
         key: "user",
         value: filters.user,
-        categoryLabel: "Who made the change",
+        categoryLabel: "Type",
         valueLabel: personLabel(filters.user),
         scope: "detail",
       }),
@@ -165,10 +205,8 @@ function chipsFromFilters(
         id: "changeStatus",
         key: "changeStatus",
         value: filters.changeStatus,
-        categoryLabel: "Change",
-        valueLabel:
-          filters.changeStatus.charAt(0).toUpperCase() +
-          filters.changeStatus.slice(1),
+        categoryLabel: "Change status",
+        valueLabel: changeStatusLabel(filters.changeStatus),
         scope: "detail",
       }),
     );
@@ -200,14 +238,103 @@ function chipsFromFilters(
     );
   }
 
-  if (filters.strategy !== "all") {
+  if (filters.strategy !== "all" && view === "action-log") {
     chips.push(
       filterChip({
-        id: "optimizerType",
+        id: "strategy",
         key: "strategy",
         value: filters.strategy,
-        categoryLabel: "Optimizer type",
-        valueLabel: optimizerTypeLabel(filters.strategy),
+        categoryLabel: "Strategy",
+        valueLabel: retailerFilterChipLabel(
+          "strategy",
+          filters.strategy,
+          MOCK_ACCOUNT_CONFIG,
+        ),
+        scope: "detail",
+      }),
+    );
+  }
+
+  if (filters.entityType !== "all" && view === "action-log") {
+    chips.push(
+      filterChip({
+        id: "entityType",
+        key: "entityType",
+        value: filters.entityType,
+        categoryLabel: "Entity type",
+        valueLabel: retailerFilterChipLabel(
+          "entityType",
+          filters.entityType,
+          MOCK_ACCOUNT_CONFIG,
+        ),
+        scope: "detail",
+      }),
+    );
+  }
+
+  if (filters.campaignType !== "all" && view === "action-log") {
+    chips.push(
+      filterChip({
+        id: "campaignType",
+        key: "campaignType",
+        value: filters.campaignType,
+        categoryLabel: "Campaign type",
+        valueLabel: retailerFilterChipLabel(
+          "campaignType",
+          filters.campaignType,
+          MOCK_ACCOUNT_CONFIG,
+        ),
+        scope: "detail",
+      }),
+    );
+  }
+
+  if (filters.matchType !== "all" && view === "action-log") {
+    chips.push(
+      filterChip({
+        id: "matchType",
+        key: "matchType",
+        value: filters.matchType,
+        categoryLabel: "Match type",
+        valueLabel: retailerFilterChipLabel(
+          "matchType",
+          filters.matchType,
+          MOCK_ACCOUNT_CONFIG,
+        ),
+        scope: "detail",
+      }),
+    );
+  }
+
+  if (filters.source !== "all" && view === "action-log") {
+    chips.push(
+      filterChip({
+        id: "source",
+        key: "source",
+        value: filters.source,
+        categoryLabel: "Source",
+        valueLabel: retailerFilterChipLabel(
+          "source",
+          filters.source,
+          MOCK_ACCOUNT_CONFIG,
+        ),
+        scope: "detail",
+      }),
+    );
+  }
+
+  if (filters.objective !== "all" && view === "action-log") {
+    chips.push(
+      filterChip({
+        id: "objective",
+        key: "objective",
+        value: filters.objective,
+        categoryLabel: "Objective",
+        valueLabel: retailerFilterChipLabel(
+          "objective",
+          filters.objective,
+          MOCK_ACCOUNT_CONFIG,
+        ),
         scope: "detail",
       }),
     );
@@ -219,8 +346,21 @@ function chipsFromFilters(
         id: "failureCategory",
         key: "failureCategory",
         value: filters.failureCategory,
-        categoryLabel: "Failure",
-        valueLabel: filters.failureCategory.replace(/-/g, " "),
+        categoryLabel: "Failure reason",
+        valueLabel: failureCategoryLabel(filters.failureCategory),
+        scope: "detail",
+      }),
+    );
+  }
+
+  if (filters.highDeviationOnly) {
+    chips.push(
+      filterChip({
+        id: "highDeviation",
+        key: "highDeviationOnly",
+        value: "true",
+        categoryLabel: "High deviation",
+        valueLabel: "Flagged only",
         scope: "detail",
       }),
     );
@@ -367,15 +507,24 @@ export function ActionLogsPage() {
 
     if (chip.id === "dateRange") {
       patchFilters(
-        view === "alerts"
+        view === "alerts" || view === "action-log"
           ? defaultDateRange()
           : { dateFrom: "", dateTo: "" },
       );
       return;
     }
 
+    if (chip.key === "entityScope") {
+      patchFilters({ entityScope: "" });
+      return;
+    }
+
     if (chip.key === "outOfBudgetOnly") {
       patchFilters({ outOfBudgetOnly: false });
+      return;
+    }
+    if (chip.key === "highDeviationOnly") {
+      patchFilters({ highDeviationOnly: false });
       return;
     }
     if (chip.key === "actionStatus") {
@@ -443,10 +592,6 @@ export function ActionLogsPage() {
           setSearch(v);
           setPage(1);
         }}
-        filteredCount={flatRows.length}
-        onExport={handleExport}
-        onDownloadToday={handleDownloadToday}
-        todayAllyCount={todayAlly.length}
         alertCount={allAlerts.length}
       />
 
@@ -471,6 +616,10 @@ export function ActionLogsPage() {
             totalCount={flatRows.length}
             retryingId={retryingId}
             onRetry={handleRetry}
+            filteredCount={flatRows.length}
+            todayAllyCount={todayAlly.length}
+            onExport={handleExport}
+            onDownloadToday={handleDownloadToday}
           />
 
           {totalPages > 1 ? (
