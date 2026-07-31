@@ -2,10 +2,12 @@
 
 import { Bell, ChevronRight, HelpCircle, Home, Settings } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Fragment } from "react";
 
 import { usePageTitle } from "@/components/layout/page-title-context";
 import { Button } from "@/components/ui/button";
+import { getRouteBreadcrumbs } from "@/lib/layout/route-breadcrumbs";
 import { cn } from "@/lib/utils";
 
 const topBarActions = [
@@ -15,8 +17,11 @@ const topBarActions = [
 ] as const;
 
 export function TopBar() {
+  const pathname = usePathname();
   const { breadcrumbs } = usePageTitle();
-  const hasBreadcrumbs = breadcrumbs.length > 0;
+  const displayBreadcrumbs =
+    breadcrumbs.length > 0 ? breadcrumbs : getRouteBreadcrumbs(pathname);
+  const hasBreadcrumbs = displayBreadcrumbs.length > 0;
 
   return (
     <header
@@ -30,8 +35,8 @@ export function TopBar() {
           aria-label="Breadcrumb"
           className="flex min-w-0 items-center gap-1.5 text-sm text-slate-500"
         >
-          {breadcrumbs.map((item, index) => {
-            const isLast = index === breadcrumbs.length - 1;
+          {displayBreadcrumbs.map((item, index) => {
+            const isLast = index === displayBreadcrumbs.length - 1;
             const isHomeLink = item.label === "Home" && item.href === "/";
 
             return (

@@ -848,7 +848,7 @@ function ordinalDaySuffix(day: number): string {
   }
 }
 
-/** Consistent alert row timestamp — e.g. "30th Jun, 08:00am". */
+/** Consistent alert row timestamp — e.g. "08:00am, 30th Jun". */
 export function formatAlertRowDateTime(iso: string): string {
   const d = new Date(iso);
   const day = d.getDate();
@@ -861,7 +861,7 @@ export function formatAlertRowDateTime(iso: string): string {
 
   const time = `${String(hours12).padStart(2, "0")}:${String(minutes).padStart(2, "0")}${period}`;
 
-  return `${day}${ordinalDaySuffix(day)} ${month}, ${time}`;
+  return `${time}, ${day}${ordinalDaySuffix(day)} ${month}`;
 }
 
 /** Row timestamp — same format for every alert type. */

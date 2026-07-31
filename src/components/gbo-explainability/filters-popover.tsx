@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronRight, Funnel, Search } from "lucide-react";
 
@@ -19,17 +20,25 @@ import {
   CORE_FILTER_SECTION_LABEL,
   countActiveCoreFilters,
   coreDraftValueForKey,
+  coreDraftBooleanForKey,
   flattenFilterSections,
   getWhoMadeChangeOptions,
   isAutomationActorFilter,
+  isBooleanCoreFilterKey,
+  isBooleanFilterDefinition,
+  getBooleanFilterLabel,
+  isFailureCategoryFilterActive,
   isUserFilterActive,
+  parseFailureCategoryFilterValues,
   parseUserFilterValues,
   patchCoreDraftForKey,
   pickCoreFilterDraft,
+  serializeFailureCategoryFilterValues,
   serializeUserFilterValues,
   type CoreFilterDefinition,
   type CoreFilterDraft,
   type CoreFilterKey,
+  type CoreFilterOption,
   type FilterDefinitionSection,
 } from "@/lib/gbo-explainability/core-filter-definitions";
 import {
@@ -79,7 +88,7 @@ function isCoreFilterApplied(
     case "user":
       return isUserFilterActive(draft.user);
     case "failureCategory":
-      return draft.failureCategory !== "all";
+      return isFailureCategoryFilterActive(draft.failureCategory);
     case "outOfBudgetOnly":
       return draft.outOfBudgetOnly;
     case "highDeviationOnly":
@@ -297,28 +306,30 @@ function FilterOptionCheckbox({ checked }: { checked: boolean }) {
   );
 }
 
-function MultiSelectUserOptionsPanel({
-  draft,
+function MultiSelectOptionsPanel({
+  options,
+  selectedValues,
   onChange,
+  renderOptionLeading,
 }: {
-  draft: CoreFilterDraft;
-  onChange: (user: string) => void;
+  options: CoreFilterOption[];
+  selectedValues: string[];
+  onChange: (values: string[]) => void;
+  renderOptionLeading?: (option: CoreFilterOption) => ReactNode;
 }) {
-  const options = getWhoMadeChangeOptions();
   const allValues = options.map((option) => option.value);
-  const selected = parseUserFilterValues(draft.user);
   const allSelected =
-    allValues.length > 0 && allValues.every((value) => selected.includes(value));
+    allValues.length > 0 && allValues.every((value) => selectedValues.includes(value));
 
   const toggleSelectAll = () => {
-    onChange(allSelected ? "all" : serializeUserFilterValues(allValues));
+    onChange(allSelected ? [] : allValues);
   };
 
   const toggleValue = (value: string) => {
-    const next = selected.includes(value)
-      ? selected.filter((item) => item !== value)
-      : [...selected, value];
-    onChange(serializeUserFilterValues(next));
+    const next = selectedValues.includes(value)
+      ? selectedValues.filter((item) => item !== value)
+      : [...selectedValues, value];
+    onChange(next);
   };
 
   return (
@@ -334,7 +345,7 @@ function MultiSelectUserOptionsPanel({
       </button>
 
       {options.map((option) => {
-        const isSelected = selected.includes(option.value);
+        const isSelected = selectedValues.includes(option.value);
 
         return (
           <button
@@ -345,11 +356,54 @@ function MultiSelectUserOptionsPanel({
             className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
           >
             <FilterOptionCheckbox checked={isSelected} />
-            <FilterOptionAvatar value={option.value} label={option.label} />
+            {renderOptionLeading?.(option)}
             <span className="min-w-0 truncate">{option.label}</span>
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function MultiSelectUserOptionsPanel({
+  draft,
+  onChange,
+}: {
+  draft: CoreFilterDraft;
+  onChange: (user: string) => void;
+}) {
+  return (
+    <MultiSelectOptionsPanel
+      options={getWhoMadeChangeOptions()}
+      selectedValues={parseUserFilterValues(draft.user)}
+      onChange={(values) => onChange(serializeUserFilterValues(values))}
+      renderOptionLeading={(option) => (
+        <FilterOptionAvatar value={option.value} label={option.label} />
+      )}
+    />
+  );
+}
+
+function BooleanFilterPanel({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto p-2">
+      <button
+        type="button"
+        onClick={() => onChange(!checked)}
+        aria-pressed={checked}
+        className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
+      >
+        <FilterOptionCheckbox checked={checked} />
+        <span className="min-w-0 truncate">{label}</span>
+      </button>
     </div>
   );
 }
@@ -363,6 +417,10 @@ function OptionsPanel({
   draft: CoreFilterDraft;
   onSelect: (value: string) => void;
 }) {
+  if (isBooleanCoreFilterKey(definition.key)) {
+    return null;
+  }
+
   const selected = coreDraftValueForKey(draft, definition.key);
 
   return (
@@ -629,11 +687,43 @@ export function FiltersPopover({
                   />
                 ) : activeDefinition.panel === "text" ? (
                   <EntityScopePanel draft={draft} onChange={setDraft} />
+                ) : isBooleanFilterDefinition(activeDefinition) ? (
+                  <BooleanFilterPanel
+                    label={
+                      activeDefinition.booleanLabel ??
+                      getBooleanFilterLabel(activeDefinition.key)
+                    }
+                    checked={coreDraftBooleanForKey(draft, activeDefinition.key)}
+                    onChange={(checked) =>
+                      setDraft((current) =>
+                        patchCoreDraftForKey(
+                          current,
+                          activeDefinition.key,
+                          checked ? "true" : "all",
+                        ),
+                      )
+                    }
+                  />
                 ) : activeDefinition.multiSelect && activeDefinition.key === "user" ? (
                   <MultiSelectUserOptionsPanel
                     draft={draft}
                     onChange={(user) =>
                       setDraft((current) => ({ ...current, user }))
+                    }
+                  />
+                ) : activeDefinition.multiSelect &&
+                  activeDefinition.key === "failureCategory" ? (
+                  <MultiSelectOptionsPanel
+                    options={activeDefinition.options ?? []}
+                    selectedValues={parseFailureCategoryFilterValues(
+                      draft.failureCategory,
+                    )}
+                    onChange={(values) =>
+                      setDraft((current) => ({
+                        ...current,
+                        failureCategory:
+                          serializeFailureCategoryFilterValues(values),
+                      }))
                     }
                   />
                 ) : (

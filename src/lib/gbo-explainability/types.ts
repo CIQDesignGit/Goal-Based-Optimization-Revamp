@@ -296,7 +296,7 @@ export type FilterState = {
   changeStatus: ChangeStatus | "all";
   setupStep: string;
   actionType: ActionType | "all";
-  failureCategory: FailureReasonCategory | "all";
+  failureCategory: string;
   outOfBudgetOnly: boolean;
   /** Setup changes with field deltas above the high-deviation threshold. */
   highDeviationOnly: boolean;

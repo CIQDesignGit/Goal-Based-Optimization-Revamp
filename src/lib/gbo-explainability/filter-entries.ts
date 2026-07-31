@@ -1,6 +1,10 @@
 import { mapEntryToAlertRole } from "./aggregate-alerts";
 import { countHighDeviationsInEntry } from "./alert-signals";
-import { isAutomationActorFilter, parseUserFilterValues } from "./core-filter-definitions";
+import {
+  isAutomationActorFilter,
+  parseFailureCategoryFilterValues,
+  parseUserFilterValues,
+} from "./core-filter-definitions";
 import {
   filterActionLogRows,
   filterActionLogRowsByRetailer,
@@ -93,11 +97,16 @@ export function filterEntries(
       return false;
     }
 
-    if (
-      filters.failureCategory !== "all" &&
-      entry.failure?.category !== filters.failureCategory
-    ) {
-      return false;
+    if (filters.failureCategory !== "all") {
+      const selectedCategories = parseFailureCategoryFilterValues(
+        filters.failureCategory,
+      );
+      if (selectedCategories.length > 0) {
+        const category = entry.failure?.category;
+        if (!category || !selectedCategories.includes(category)) {
+          return false;
+        }
+      }
     }
 
     if (filters.outOfBudgetOnly && entry.automationType !== "out-of-budget") {

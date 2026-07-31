@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState, useTransition } from "react";
 
 import { ActionLogsEmptyState } from "@/components/gbo-explainability/action-logs-empty-state";
 import { ActionLogTable } from "@/components/gbo-explainability/action-log-table";
@@ -23,7 +23,8 @@ import {
   actionTypeLabel,
   budgetLevelLabel,
   changeStatusLabel,
-  failureCategoryLabel,
+  failureCategoryChipValueLabel,
+  isFailureCategoryFilterActive,
   parseUserFilterValues,
   userFilterChipValueLabel,
   retailerFilterChipLabel,
@@ -343,14 +344,14 @@ function chipsFromFilters(
     );
   }
 
-  if (filters.failureCategory !== "all") {
+  if (isFailureCategoryFilterActive(filters.failureCategory)) {
     chips.push(
       filterChip({
         id: "failureCategory",
         key: "failureCategory",
         value: filters.failureCategory,
         categoryLabel: "Failure reason",
-        valueLabel: failureCategoryLabel(filters.failureCategory),
+        valueLabel: failureCategoryChipValueLabel(filters.failureCategory),
         scope: "detail",
       }),
     );
@@ -419,15 +420,18 @@ export function ActionLogsPage() {
   const search = view === "alerts" ? alertsSearch : actionLogSearch;
   const setSearch = view === "alerts" ? setAlertsSearch : setActionLogSearch;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setBreadcrumbs([
       { label: "Home", href: "/" },
       { label: "Advertising" },
       { label: "Optimization", href: "/" },
       { label: view === "alerts" ? "Alerts" : "Action Log" },
     ]);
-    return () => setBreadcrumbs([]);
   }, [view, setBreadcrumbs]);
+
+  useEffect(() => {
+    return () => setBreadcrumbs([]);
+  }, [setBreadcrumbs]);
 
   const chips = useMemo(
     () => chipsFromFilters(filters, view),

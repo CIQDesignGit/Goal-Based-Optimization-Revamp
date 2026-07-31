@@ -6,6 +6,7 @@ import type {
   LogEntry,
 } from "./types";
 
+import { formatAlertRowDateTime } from "./aggregate-alerts";
 import { failureCategoryLabel } from "./core-filter-definitions";
 
 const ACTION_TYPE_LABELS: Record<ActionType, string> = {
@@ -230,11 +231,7 @@ export function sortActionLogRowsNewestFirst(rows: ActionLogRow[]): ActionLogRow
 }
 
 export function formatActionLogDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return formatAlertRowDateTime(iso);
 }
 
 function failureForRow(row: ActionLogRow): FailureInfo | undefined {

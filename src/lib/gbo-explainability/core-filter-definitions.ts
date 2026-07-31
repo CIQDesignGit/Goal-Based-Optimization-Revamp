@@ -8,7 +8,6 @@ import type {
   ActionStatus,
   ActionType,
   ChangeStatus,
-  FailureReasonCategory,
   FilterState,
 } from "./types";
 
@@ -46,6 +45,10 @@ export type CoreFilterDefinition = {
   panel?: "text";
   /** Allows multiple option values (stored comma-separated on FilterState.user). */
   multiSelect?: boolean;
+  /** Single on/off toggle (e.g. flagged-only filters). */
+  boolean?: boolean;
+  /** Checkbox label when `boolean` is true. */
+  booleanLabel?: string;
 };
 
 export type FilterDefinitionSection = {
@@ -83,10 +86,6 @@ const FAILURE_CATEGORY_OPTIONS: CoreFilterOption[] = [
   { value: "retailer-api", label: "Retailer-side" },
   { value: "logic", label: "Logic error" },
   { value: "validation", label: "Validation" },
-];
-
-const FLAGGED_ONLY_OPTIONS: CoreFilterOption[] = [
-  { value: "true", label: "Flagged only" },
 ];
 
 const BUDGET_LEVEL_OPTIONS: CoreFilterOption[] = [
@@ -151,7 +150,8 @@ const CORE_ACTION_LOG_DEFINITIONS: CoreFilterDefinition[] = [
   {
     key: "highDeviationOnly",
     label: "High deviation",
-    options: FLAGGED_ONLY_OPTIONS,
+    boolean: true,
+    booleanLabel: "Flagged only",
   },
   { key: "user", label: "Type", options: WHO_MADE_CHANGE_OPTIONS, multiSelect: true },
   { key: "actionType", label: "Action", options: ACTION_TYPE_OPTIONS },
@@ -159,11 +159,13 @@ const CORE_ACTION_LOG_DEFINITIONS: CoreFilterDefinition[] = [
     key: "failureCategory",
     label: "Failure reason",
     options: FAILURE_CATEGORY_OPTIONS,
+    multiSelect: true,
   },
   {
     key: "outOfBudgetOnly",
     label: "Out of budget",
-    options: FLAGGED_ONLY_OPTIONS,
+    boolean: true,
+    booleanLabel: "Flagged only",
   },
 ];
 
@@ -306,10 +308,7 @@ export function patchCoreDraftForKey(
     case "changeStatus":
       return { ...draft, changeStatus: value as ChangeStatus | "all" };
     case "failureCategory":
-      return {
-        ...draft,
-        failureCategory: value as FailureReasonCategory | "all",
-      };
+      return { ...draft, failureCategory: value };
     case "outOfBudgetOnly":
       return { ...draft, outOfBudgetOnly: value === "true" };
     case "highDeviationOnly":
@@ -317,6 +316,33 @@ export function patchCoreDraftForKey(
     default:
       return { ...draft, [key]: value };
   }
+}
+
+export function isBooleanCoreFilterKey(
+  key: CoreFilterKey,
+): key is "highDeviationOnly" | "outOfBudgetOnly" {
+  return key === "highDeviationOnly" || key === "outOfBudgetOnly";
+}
+
+export function coreDraftBooleanForKey(
+  draft: CoreFilterDraft,
+  key: "highDeviationOnly" | "outOfBudgetOnly",
+): boolean {
+  return draft[key];
+}
+
+export function getBooleanFilterLabel(
+  key: "highDeviationOnly" | "outOfBudgetOnly",
+): string {
+  return key === "outOfBudgetOnly" ? "Flagged only" : "Flagged only";
+}
+
+export function isBooleanFilterDefinition(
+  definition: CoreFilterDefinition,
+): definition is CoreFilterDefinition & {
+  key: "highDeviationOnly" | "outOfBudgetOnly";
+} {
+  return isBooleanCoreFilterKey(definition.key);
 }
 
 export function personLabel(value: string): string {
@@ -389,7 +415,7 @@ export function countActiveCoreFilters(
     if (filters.highDeviationOnly) count += 1;
     if (isUserFilterActive(filters.user)) count += 1;
     if (filters.actionType !== "all") count += 1;
-    if (filters.failureCategory !== "all") count += 1;
+    if (isFailureCategoryFilterActive(filters.failureCategory)) count += 1;
     if (filters.outOfBudgetOnly) count += 1;
   }
 
@@ -402,7 +428,7 @@ export function countActiveCoreFilters(
     if (filters.highDeviationOnly) count += 1;
     if (isUserFilterActive(filters.user)) count += 1;
     if (filters.actionType !== "all") count += 1;
-    if (filters.failureCategory !== "all") count += 1;
+    if (isFailureCategoryFilterActive(filters.failureCategory)) count += 1;
     if (filters.outOfBudgetOnly) count += 1;
     if (filters.entityType !== "all") count += 1;
     if (filters.campaignType !== "all") count += 1;
@@ -448,6 +474,32 @@ export function failureCategoryLabel(value: string): string {
     FAILURE_CATEGORY_OPTIONS.find((option) => option.value === value)?.label ??
     value.replace(/-/g, " ")
   );
+}
+
+const FILTER_LIST_DELIMITER = ",";
+
+/** Parse comma-separated failure-category values; `"all"` yields an empty list. */
+export function parseFailureCategoryFilterValues(value: string): string[] {
+  if (value === "all" || value.trim() === "") return [];
+  return value.split(FILTER_LIST_DELIMITER).filter(Boolean);
+}
+
+/** Serialize selected failure categories; empty list becomes `"all"`. */
+export function serializeFailureCategoryFilterValues(values: string[]): string {
+  if (values.length === 0) return "all";
+  return values.join(FILTER_LIST_DELIMITER);
+}
+
+export function isFailureCategoryFilterActive(value: string): boolean {
+  return parseFailureCategoryFilterValues(value).length > 0;
+}
+
+/** Chip value for failure reason — e.g. "Business rule" or "Business rule +2". */
+export function failureCategoryChipValueLabel(failureCategoryFilter: string): string {
+  const values = parseFailureCategoryFilterValues(failureCategoryFilter);
+  if (values.length === 0) return "";
+  if (values.length === 1) return failureCategoryLabel(values[0]);
+  return `${failureCategoryLabel(values[0])} +${values.length - 1}`;
 }
 
 export function budgetLevelLabel(value: string): string {
