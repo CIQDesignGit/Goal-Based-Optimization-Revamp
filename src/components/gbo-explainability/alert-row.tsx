@@ -1,16 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ArrowRight, ChevronDown } from "lucide-react";
 
 import { ActorLabel } from "@/components/gbo-explainability/actor-label";
 import { AlertRowDetails } from "@/components/gbo-explainability/alert-row-details";
 import { ClaimSentence } from "@/components/gbo-explainability/claim-sentence";
 import { AlertSignalTags } from "@/components/gbo-explainability/alert-signal-tags";
+import { Button } from "@/components/ui/button";
 import {
   alertRowTimestampValue,
   formatAlertRowTimestamp,
-  formatAlertSubtitle,
   formatAlertTitle,
 } from "@/lib/gbo-explainability/aggregate-alerts";
 import type { AlertSummary } from "@/lib/gbo-explainability/types";
@@ -21,55 +21,13 @@ type AlertRowProps = {
   onClick: () => void;
 };
 
-/** Fixed actor column — category label with accent bar; claim text stays aligned. */
+/** Fixed actor column — label area plus 60px right padding before claim text. */
 const ALERT_ROW_GRID =
-  "grid w-full grid-cols-[5rem_minmax(0,1fr)_auto] items-start gap-x-4 px-5 py-4 sm:grid-cols-[5.25rem_minmax(0,1fr)_auto]";
+  "grid w-full grid-cols-[12rem_minmax(0,1fr)_auto] items-start gap-x-0 px-5 py-4";
 
-/** Subtitle with styled contributor names for Manual alerts. */
+/** Second line — signal tags only (failures, conflicts, high deviation). */
 function AlertRowSubtitle({ alert }: { alert: AlertSummary }) {
-  if (alert.manualContributors && alert.manualContributors.length > 0) {
-    if (alert.actionCount === 1 && alert.manualContributors.length === 1) {
-      const contributor = alert.manualContributors[0];
-      return (
-        <p className="truncate text-xs leading-relaxed text-slate-500">
-          <span className="font-medium text-slate-700">{contributor.name}</span>
-          {contributor.email ? ` (${contributor.email})` : null}
-          {" · "}
-          {alert.entityName}
-        </p>
-      );
-    }
-
-    if (alert.manualContributors.length > 1) {
-      return (
-        <p className="truncate text-xs leading-relaxed text-slate-500">
-          {alert.manualContributors.map((contributor, index) => (
-            <span key={contributor.id}>
-              {index > 0 ? ", " : null}
-              <span className="font-medium text-slate-700">{contributor.name}</span>
-              {contributor.email ? ` (${contributor.email})` : null}
-            </span>
-          ))}
-        </p>
-      );
-    }
-
-    const contributor = alert.manualContributors[0];
-    return (
-      <p className="truncate text-xs leading-relaxed text-slate-500">
-        <span className="font-medium text-slate-700">{contributor.name}</span>
-        {contributor.email ? ` (${contributor.email})` : null}
-        {" — "}
-        {contributor.changeSummary}
-      </p>
-    );
-  }
-
-  return (
-    <p className="truncate text-xs leading-relaxed text-slate-500">
-      {formatAlertSubtitle(alert)}
-    </p>
-  );
+  return <AlertSignalTags alert={alert} />;
 }
 
 export function AlertRow({ alert, onClick }: AlertRowProps) {
@@ -90,7 +48,7 @@ export function AlertRow({ alert, onClick }: AlertRowProps) {
         <ActorLabel
           actor={alert.actor}
           manualContributors={alert.manualContributors}
-          className="mt-0.5 justify-self-start"
+          className="mt-0.5 w-full justify-self-start pr-15"
         />
 
         <button
@@ -99,14 +57,11 @@ export function AlertRow({ alert, onClick }: AlertRowProps) {
           aria-expanded={expanded}
           className="min-w-0 space-y-2 text-left"
         >
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
-            <ClaimSentence
-              claim={formatAlertTitle(alert)}
-              summarySource={alert.summarySource}
-              className="min-w-0 flex-1"
-            />
-            <AlertSignalTags alert={alert} />
-          </div>
+          <ClaimSentence
+            claim={formatAlertTitle(alert)}
+            summarySource={alert.summarySource}
+            className="min-w-0"
+          />
           <AlertRowSubtitle alert={alert} />
         </button>
 
@@ -117,25 +72,36 @@ export function AlertRow({ alert, onClick }: AlertRowProps) {
           >
             {formatAlertRowTimestamp(alert)}
           </time>
-          <button
-            type="button"
-            onClick={toggleExpanded}
-            aria-expanded={expanded}
-            aria-label={expanded ? "Collapse alert details" : "Expand alert details"}
-            className={cn(
-              "shrink-0 rounded-md p-1 text-slate-400 transition-colors",
-              "hover:bg-slate-100 hover:text-slate-600",
-              expanded && "bg-slate-100 text-slate-600",
-            )}
-          >
-            <ChevronDown
-              className={cn(
-                "size-4 transition-transform duration-200",
-                expanded && "rotate-180",
-              )}
-              aria-hidden
-            />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={toggleExpanded}
+              aria-expanded={expanded}
+              aria-label={expanded ? "Collapse alert details" : "Expand alert details"}
+              className="size-9 shrink-0 text-slate-500"
+            >
+              <ChevronDown
+                className={cn(
+                  "size-4 transition-transform duration-200",
+                  expanded && "rotate-180",
+                )}
+                aria-hidden
+              />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onClick}
+              aria-label="View in Action Log"
+              title="View in Action Log"
+              className="size-9 shrink-0 text-slate-500"
+            >
+              <ArrowRight className="size-4" aria-hidden />
+            </Button>
+          </div>
         </div>
       </div>
 

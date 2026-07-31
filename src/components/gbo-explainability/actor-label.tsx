@@ -55,7 +55,7 @@ export function ActorLabel({
       <div className="min-w-0">
         <span
           className={cn(
-            "block truncate text-xs font-semibold leading-snug tracking-tight",
+            "block truncate text-base font-medium leading-snug tracking-tight",
             ACTOR_LABEL_TEXT[actor.kind],
           )}
         >

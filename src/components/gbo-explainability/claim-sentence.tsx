@@ -9,17 +9,16 @@ type ClaimSentenceProps = {
   className?: string;
 };
 
-/** Primary row claim text. Templated fallbacks use muted styling. */
+/** Primary row claim text. */
 export function ClaimSentence({
   claim,
-  summarySource,
+  summarySource: _summarySource,
   className,
 }: ClaimSentenceProps) {
   return (
     <p
       className={cn(
-        "text-sm font-medium leading-snug tracking-tight text-slate-900",
-        summarySource === "template" && "text-slate-600",
+        "text-base font-normal leading-snug tracking-tight text-slate-700",
         className,
       )}
     >

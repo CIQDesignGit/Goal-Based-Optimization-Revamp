@@ -18,9 +18,9 @@ import { Button } from "@/components/ui/button";
 import type { AlertSummary } from "@/lib/gbo-explainability/types";
 import { cn } from "@/lib/utils";
 
-/** Aligns expanded content with the alert row actor column. */
+/** Aligns expanded content with the alert row actor column (12rem incl. 60px padding). */
 const ALERT_DETAILS_GRID =
-  "grid grid-cols-1 items-start gap-x-4 px-5 py-6 sm:grid-cols-[5.25rem_minmax(0,1fr)]";
+  "grid grid-cols-1 items-start gap-x-0 px-5 py-6 sm:grid-cols-[12rem_minmax(0,1fr)]";
 
 type AlertRowDetailsProps = {
   alert: AlertSummary;
@@ -168,10 +168,7 @@ export function AlertRowDetails({
   onViewActionLog,
 }: AlertRowDetailsProps) {
   const manualContributors = alert.manualContributors;
-  const showManualChanges =
-    manualContributors &&
-    (manualContributors.length > 1 ||
-      manualContributors.some((contributor) => contributor.claims.length > 1));
+  const showManualChanges = Boolean(manualContributors?.length);
   const singleContributor =
     manualContributors?.length === 1 ? manualContributors[0] : null;
 
@@ -180,10 +177,12 @@ export function AlertRowDetails({
       <div className={ALERT_DETAILS_GRID}>
         <div aria-hidden className="hidden sm:block" />
         <div className="space-y-7">
-          <AlertAiSummary
-            id={`${alert.id}-ai-summary`}
-            summary={alert.aiSummary}
-          />
+          {alert.role !== "human" ? (
+            <AlertAiSummary
+              id={`${alert.id}-ai-summary`}
+              summary={alert.aiSummary}
+            />
+          ) : null}
 
           {showManualChanges && manualContributors ? (
             <DetailSection
