@@ -413,7 +413,7 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     },
   },
 
-  // --- Setup: Emily's manual change today (single Save & Launch) ---
+  // --- Setup: Emily's Save & Launch today (3 changes in one session) ---
   {
     id: "setup-sess-001",
     tab: "setup",
@@ -425,13 +425,15 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     },
     status: "success",
     actionType: "setup-change",
-    claim: "Raised monthly budget for JBC Fresh",
+    claim: "3 setup changes — Updated",
     reason: "Save & Launch session",
-    impact: "Monthly budget increased to close pacing gap",
+    impact: "Budget, goal, and optimizer settings updated for JBC Fresh",
     summarySource: "human",
     entityName: "JBC Fresh",
     entityId: "brand-jbc-fresh",
     scopeLevel: "Brand",
+    isSessionGroup: true,
+    sessionSummary: "3 setup changes — Updated",
     changeStatus: "updated",
     setupStep: "Goals & Budgets",
     conflictCount: 1,
@@ -478,19 +480,85 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
           category: "budget",
           timestamp: 1,
         },
+        {
+          id: "setup-sess-001-b",
+          step: "goals-budgets",
+          scopeId: "jbc-fresh",
+          scopeName: "JBC Fresh",
+          field: "aggressiveness",
+          fieldLabel: "Aggressiveness",
+          from: "Moderate",
+          to: "Aggressive",
+          category: "goal",
+          timestamp: 2,
+        },
+        {
+          id: "setup-sess-001-c",
+          step: "optimizer",
+          scopeId: "jbc-fresh",
+          scopeName: "JBC Fresh",
+          field: "bidOptimization",
+          fieldLabel: "Bid optimization",
+          from: "None",
+          to: "Ally AI",
+          category: "optimizer",
+          timestamp: 3,
+        },
       ],
     },
-    diffs: [
+    children: [
       {
-        field: "Monthly budget",
-        before: "$21.0k",
-        after: "$24.0k",
+        id: "setup-sess-001-a",
+        label: "Monthly budget",
         changeStatus: "updated",
+        entityName: "JBC Fresh",
+        entityId: "brand-jbc-fresh",
+        scopeLevel: "Brand",
+        diffs: [
+          {
+            field: "Monthly budget",
+            before: "$21.0k",
+            after: "$24.0k",
+            changeStatus: "updated",
+          },
+        ],
+      },
+      {
+        id: "setup-sess-001-b",
+        label: "Aggressiveness",
+        changeStatus: "updated",
+        entityName: "JBC Fresh",
+        entityId: "brand-jbc-fresh",
+        scopeLevel: "Brand",
+        diffs: [
+          {
+            field: "Aggressiveness",
+            before: "Moderate",
+            after: "Aggressive",
+            changeStatus: "updated",
+          },
+        ],
+      },
+      {
+        id: "setup-sess-001-c",
+        label: "Bid optimization",
+        changeStatus: "updated",
+        entityName: "JBC Fresh",
+        entityId: "brand-jbc-fresh",
+        scopeLevel: "Brand",
+        diffs: [
+          {
+            field: "Bid optimization",
+            before: "None",
+            after: "Ally AI",
+            changeStatus: "updated",
+          },
+        ],
       },
     ],
   },
 
-  // --- Setup: second manual session today (different person) ---
+  // --- Setup: Marcus's manual change today ---
   {
     id: "setup-manual-002",
     tab: "setup",
@@ -521,7 +589,7 @@ export const INITIAL_MOCK_ENTRIES: LogEntry[] = [
     ],
   },
 
-  // --- Setup: Priyal's manual change today (single Save & Launch) ---
+  // --- Setup: Priyal's manual change today ---
   {
     id: "setup-manual-003",
     tab: "setup",
