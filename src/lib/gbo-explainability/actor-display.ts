@@ -7,6 +7,24 @@ export const ACTOR_KIND_LABELS: Record<ActorKind, string> = {
   "day-parting": "Day Parting",
 };
 
+/** 4px corner radius — all actor / contributor avatars. */
+export const ACTOR_AVATAR_RADIUS = "rounded";
+
+/** Avatar sizes aligned to adjacent label line-height (font-size × leading-snug). */
+export const ACTOR_AVATAR_SIZES = {
+  /** text-sm + leading-snug → 14px × 1.375 */
+  sm: "size-[1.1875rem]",
+  /** text-base + leading-snug → 16px × 1.375 */
+  label: "size-[1.375rem]",
+} as const;
+
+export const ACTOR_AVATAR_TEXT = {
+  sm: "text-[9px] font-semibold leading-none",
+  label: "text-[10px] font-medium leading-none",
+} as const;
+
+export type ActorAvatarSize = keyof typeof ACTOR_AVATAR_SIZES;
+
 /** Single style for all manual profile avatars. */
 export const PROFILE_AVATAR_STYLE = {
   bg: "bg-slate-100",
@@ -16,7 +34,7 @@ export const PROFILE_AVATAR_STYLE = {
 /** Icon / avatar marks — aligned with ACTOR_LABEL_TEXT + ACTOR_ACCENT_BAR. */
 export const ACTOR_MARK_STYLE: Record<
   ActorKind,
-  { bg: string; text: string; ring?: string; shape?: "circle" | "rounded" }
+  { bg: string; text: string; ring?: string }
 > = {
   "ally-ai": {
     bg: "bg-violet-50",
@@ -27,7 +45,6 @@ export const ACTOR_MARK_STYLE: Record<
     bg: "bg-sky-50",
     text: "text-sky-600",
     ring: "ring-1 ring-sky-200",
-    shape: "rounded",
   },
   human: {
     bg: PROFILE_AVATAR_STYLE.bg,
@@ -67,14 +84,14 @@ export function getProfileInitials(name: string): string {
 }
 
 export const ACTOR_LABEL_TEXT: Record<ActorKind, string> = {
-  "ally-ai": "text-violet-700",
+  "ally-ai": "text-indigo-700",
   "rule-based": "text-sky-600",
   human: "text-slate-600",
   "day-parting": "text-pink-700",
 };
 
 export const ACTOR_ACCENT_BAR: Record<ActorKind, string> = {
-  "ally-ai": "bg-violet-500",
+  "ally-ai": "bg-indigo-500",
   "rule-based": "bg-sky-500",
   human: "bg-slate-400",
   "day-parting": "bg-pink-500",

@@ -4,6 +4,10 @@ import { Search, X } from "lucide-react";
 
 import { FiltersPopover } from "@/components/gbo-explainability/filters-popover";
 import { Input } from "@/components/ui/input";
+import {
+  explainabilityActionable,
+  explainabilityInputClass,
+} from "@/lib/gbo-explainability/actionable-styles";
 import type {
   ActiveFilterChip,
   FilterState,
@@ -69,7 +73,10 @@ export function ActionLogsToolbar({
                 ? "Search alerts"
                 : "Search by name or ID"
             }
-            className="border-slate-200/80 bg-white pl-9 text-sm shadow-xs placeholder:text-slate-400"
+            className={cn(
+              "border-slate-200/80 bg-white pl-9 text-sm shadow-xs placeholder:text-slate-400",
+              explainabilityInputClass,
+            )}
             aria-label={
               view === "alerts" ? "Search alerts" : "Search by entity"
             }
@@ -97,7 +104,10 @@ export function ActionLogsToolbar({
             <button
               type="button"
               onClick={onClearAll}
-              className="rounded-md px-2 py-1.5 text-xs font-medium text-brand-600 transition-colors hover:bg-brand-50 hover:text-brand-700"
+              className={cn(
+                "rounded-md px-2 py-1.5 text-xs font-medium",
+                explainabilityActionable.clearLink,
+              )}
             >
               Clear all
             </button>
@@ -121,7 +131,7 @@ function AppliedFilterChip({
       onClick={onRemove}
       className="inline-flex max-w-full items-stretch overflow-hidden rounded-lg border border-slate-200/90 bg-white text-xs shadow-xs transition-[border-color,box-shadow] hover:border-slate-300 hover:shadow-sm"
     >
-      <span className="flex shrink-0 items-center border-r border-slate-100 bg-slate-50/90 px-2.5 py-1.5 font-normal text-slate-500">
+      <span className="flex shrink-0 items-center px-2.5 py-1.5 font-normal text-slate-500">
         {chip.categoryLabel}
       </span>
       <span className="flex min-w-0 items-center gap-1.5 px-2.5 py-1.5">
@@ -160,7 +170,7 @@ function TabButton({
       className={cn(
         "-mb-px inline-flex items-center gap-2 border-b-2 px-1 pb-3 pt-0.5 text-sm transition-colors",
         active
-          ? "border-brand-500 font-semibold text-slate-900"
+          ? cn(explainabilityActionable.tabActive, "font-semibold text-slate-900")
           : "border-transparent font-medium text-slate-500 hover:border-slate-200 hover:text-slate-700",
       )}
     >

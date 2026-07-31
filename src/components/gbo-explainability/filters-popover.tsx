@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, ListFilter, Search } from "lucide-react";
+import { Check, ChevronRight, Funnel, Search } from "lucide-react";
 
+import { ActorMark } from "@/components/gbo-explainability/actor-mark";
+import { ContributorAvatar } from "@/components/gbo-explainability/manual-contributors-list";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,6 +12,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { explainabilityActionable, explainabilityInputClass } from "@/lib/gbo-explainability/actionable-styles";
 import {
   buildActionLogFilterSections,
   buildAlertsFilterDefinitions,
@@ -17,8 +20,13 @@ import {
   countActiveCoreFilters,
   coreDraftValueForKey,
   flattenFilterSections,
+  getWhoMadeChangeOptions,
+  isAutomationActorFilter,
+  isUserFilterActive,
+  parseUserFilterValues,
   patchCoreDraftForKey,
   pickCoreFilterDraft,
+  serializeUserFilterValues,
   type CoreFilterDefinition,
   type CoreFilterDraft,
   type CoreFilterKey,
@@ -32,6 +40,7 @@ import {
 import { MOCK_ACCOUNT_CONFIG, MOCK_ACCOUNT_META } from "@/lib/gbo-explainability/mock-data";
 import type {
   AccountOptimizerConfig,
+  ActorKind,
   FilterState,
   PageView,
 } from "@/lib/gbo-explainability/types";
@@ -68,7 +77,7 @@ function isCoreFilterApplied(
     case "setupStep":
       return draft.setupStep !== "all";
     case "user":
-      return draft.user !== "all";
+      return isUserFilterActive(draft.user);
     case "failureCategory":
       return draft.failureCategory !== "all";
     case "outOfBudgetOnly":
@@ -140,7 +149,7 @@ function DateRangePanel({
                   className={cn(
                     "flex w-full items-center rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-slate-50",
                     isSelected
-                      ? "bg-brand-50 font-medium text-brand-500"
+                      ? explainabilityActionable.optionSelected
                       : "text-slate-700",
                   )}
                 >
@@ -183,7 +192,7 @@ function DateRangePanel({
                 ),
               )
             }
-            className="border-slate-200 text-sm shadow-none"
+            className="border-slate-200 text-sm shadow-none focus-visible:border-slate-400 focus-visible:ring-slate-200/70"
           />
         </div>
         <div className="space-y-1.5">
@@ -206,13 +215,13 @@ function DateRangePanel({
                 ),
               )
             }
-            className="border-slate-200 text-sm shadow-none"
+            className="border-slate-200 text-sm shadow-none focus-visible:border-slate-400 focus-visible:ring-slate-200/70"
           />
         </div>
         <button
           type="button"
           onClick={() => onChange({ ...draft, dateFrom: "", dateTo: "" })}
-          className="text-xs font-medium text-brand-500 hover:underline"
+          className={cn("text-xs font-medium", explainabilityActionable.textLink)}
         >
           Clear date range
         </button>
@@ -240,15 +249,107 @@ function EntityScopePanel({
           onChange({ ...draft, entityScope: event.target.value })
         }
         placeholder="e.g. SP-Breakfast or camp-123"
-        className="border-slate-200 text-sm shadow-none"
+        className="border-slate-200 text-sm shadow-none focus-visible:border-slate-400 focus-visible:ring-slate-200/70"
       />
       <button
         type="button"
         onClick={() => onChange({ ...draft, entityScope: "" })}
-        className="self-start text-xs font-medium text-brand-500 hover:underline"
+        className={cn(
+          "self-start text-xs font-medium",
+          explainabilityActionable.textLink,
+        )}
       >
         Clear expression
       </button>
+    </div>
+  );
+}
+
+function FilterOptionAvatar({
+  value,
+  label,
+}: {
+  value: string;
+  label: string;
+}) {
+  if (isAutomationActorFilter(value)) {
+    const kind = value.slice("actor:".length) as ActorKind;
+    return <ActorMark kind={kind} size="sm" />;
+  }
+
+  const name = label.replace(/\s*\(deactivated\)\s*$/i, "").trim();
+  return <ContributorAvatar name={name} size="sm" />;
+}
+
+function FilterOptionCheckbox({ checked }: { checked: boolean }) {
+  return (
+    <span
+      className={cn(
+        "flex size-4 shrink-0 items-center justify-center rounded border transition-colors",
+        checked
+          ? "border-violet-500 bg-violet-500 text-white"
+          : "border-slate-300 bg-white",
+      )}
+      aria-hidden
+    >
+      {checked ? <Check className="size-3 stroke-[2.5]" /> : null}
+    </span>
+  );
+}
+
+function MultiSelectUserOptionsPanel({
+  draft,
+  onChange,
+}: {
+  draft: CoreFilterDraft;
+  onChange: (user: string) => void;
+}) {
+  const options = getWhoMadeChangeOptions();
+  const allValues = options.map((option) => option.value);
+  const selected = parseUserFilterValues(draft.user);
+  const allSelected =
+    allValues.length > 0 && allValues.every((value) => selected.includes(value));
+
+  const toggleSelectAll = () => {
+    onChange(allSelected ? "all" : serializeUserFilterValues(allValues));
+  };
+
+  const toggleValue = (value: string) => {
+    const next = selected.includes(value)
+      ? selected.filter((item) => item !== value)
+      : [...selected, value];
+    onChange(serializeUserFilterValues(next));
+  };
+
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto p-2">
+      <button
+        type="button"
+        onClick={toggleSelectAll}
+        aria-pressed={allSelected}
+        className="mb-1 flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-slate-50"
+      >
+        <FilterOptionCheckbox checked={allSelected} />
+        <span className="font-medium text-violet-500">Select all</span>
+      </button>
+
+      {options.map((option) => {
+        const isSelected = selected.includes(option.value);
+
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => toggleValue(option.value)}
+            aria-pressed={isSelected}
+            className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
+          >
+            <FilterOptionCheckbox checked={isSelected} />
+            <FilterOptionAvatar value={option.value} label={option.label} />
+            <span className="min-w-0 truncate">{option.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -272,7 +373,7 @@ function OptionsPanel({
         className={cn(
           "mb-1 flex w-full items-center rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-slate-50",
           selected === "all" || selected === ""
-            ? "bg-brand-50 font-medium text-brand-500"
+            ? explainabilityActionable.optionSelected
             : "text-slate-700",
         )}
       >
@@ -289,7 +390,7 @@ function OptionsPanel({
             className={cn(
               "flex w-full items-center rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-slate-50",
               isSelected
-                ? "bg-brand-50 font-medium text-brand-500"
+                ? explainabilityActionable.optionSelected
                 : "text-slate-700",
             )}
           >
@@ -337,19 +438,26 @@ function FilterNavSections({
                     className={cn(
                       "flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors",
                       isActive
-                        ? "bg-brand-50 font-medium text-brand-700"
+                        ? explainabilityActionable.navActive
                         : "text-slate-700 hover:bg-slate-100",
                     )}
                   >
                     <span className="truncate">{definition.label}</span>
                     <span className="flex shrink-0 items-center gap-1">
                       {isApplied && !isActive ? (
-                        <span className="size-1.5 rounded-full bg-brand-500" />
+                        <span
+                          className={cn(
+                            "size-1.5 rounded-full",
+                            explainabilityActionable.filterDot,
+                          )}
+                        />
                       ) : null}
                       <ChevronRight
                         className={cn(
                           "size-3.5",
-                          isActive ? "text-brand-600" : "text-slate-400",
+                          isActive
+                            ? explainabilityActionable.chevronActive
+                            : "text-slate-400",
                         )}
                         aria-hidden
                       />
@@ -445,13 +553,29 @@ export function FiltersPopover({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
-          <Button variant="outline" size="sm" className="gap-1.5 shadow-none" />
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label={
+              activeCount > 0
+                ? `Filters, ${activeCount} active`
+                : "Filters"
+            }
+            className={cn(
+              "relative size-9 shadow-none",
+              explainabilityActionable.slateFocus,
+            )}
+          />
         }
       >
-        <ListFilter className="size-3.5" />
-        Filters
+        <Funnel className="size-4" />
         {activeCount > 0 ? (
-          <span className="ml-0.5 rounded-full bg-brand-100 px-1.5 py-0.5 text-2xs font-semibold text-brand-600">
+          <span
+            className={cn(
+              "absolute -right-1 -top-1 flex min-w-4 items-center justify-center rounded-full px-1 py-0.5 text-[10px] font-semibold leading-none tabular-nums",
+              explainabilityActionable.countBadge,
+            )}
+          >
             {activeCount}
           </span>
         ) : null}
@@ -470,7 +594,10 @@ export function FiltersPopover({
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search for any filter"
-                  className="border-slate-200 pr-8 text-sm shadow-none"
+                  className={cn(
+                    "border-slate-200 pr-8 text-sm shadow-none",
+                    explainabilityInputClass,
+                  )}
                 />
               </div>
             </div>
@@ -502,6 +629,13 @@ export function FiltersPopover({
                   />
                 ) : activeDefinition.panel === "text" ? (
                   <EntityScopePanel draft={draft} onChange={setDraft} />
+                ) : activeDefinition.multiSelect && activeDefinition.key === "user" ? (
+                  <MultiSelectUserOptionsPanel
+                    draft={draft}
+                    onChange={(user) =>
+                      setDraft((current) => ({ ...current, user }))
+                    }
+                  />
                 ) : (
                   <OptionsPanel
                     definition={activeDefinition}
@@ -530,14 +664,14 @@ export function FiltersPopover({
           <Button
             variant="outline"
             size="sm"
-            className="shadow-none"
+            className={cn("shadow-none", explainabilityActionable.slateFocus)}
             onClick={handleCancel}
           >
             Cancel
           </Button>
           <Button
             size="sm"
-            className="bg-brand-500 text-white hover:bg-brand-600"
+            className={explainabilityActionable.primaryButton}
             onClick={handleApply}
           >
             Apply Filter

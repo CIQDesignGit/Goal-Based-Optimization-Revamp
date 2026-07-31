@@ -37,9 +37,9 @@ const SIGNAL_TONE_STYLES: Record<
     label: "text-amber-800",
   },
   deviation: {
-    container: "bg-violet-50 ring-1 ring-violet-100/80",
-    count: "bg-violet-200 text-violet-900",
-    label: "text-violet-800",
+    container: "bg-sky-50 ring-1 ring-sky-100/80",
+    count: "bg-sky-200 text-sky-900",
+    label: "text-sky-800",
   },
 };
 

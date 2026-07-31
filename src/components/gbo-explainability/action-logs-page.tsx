@@ -24,7 +24,8 @@ import {
   budgetLevelLabel,
   changeStatusLabel,
   failureCategoryLabel,
-  personLabel,
+  parseUserFilterValues,
+  userFilterChipValueLabel,
   retailerFilterChipLabel,
 } from "@/lib/gbo-explainability/core-filter-definitions";
 import {
@@ -186,16 +187,19 @@ function chipsFromFilters(
   }
 
   if (filters.user !== "all") {
-    chips.push(
-      filterChip({
-        id: "user",
-        key: "user",
-        value: filters.user,
-        categoryLabel: "Type",
-        valueLabel: personLabel(filters.user),
-        scope: "detail",
-      }),
-    );
+    const userValues = parseUserFilterValues(filters.user);
+    if (userValues.length > 0) {
+      chips.push(
+        filterChip({
+          id: "user",
+          key: "user",
+          value: filters.user,
+          categoryLabel: view === "alerts" ? "Type" : "User",
+          valueLabel: userFilterChipValueLabel(filters.user),
+          scope: "detail",
+        }),
+      );
+    }
   }
 
   if (filters.changeStatus !== "all") {
@@ -540,6 +544,10 @@ export function ActionLogsPage() {
     }
     if (chip.key === "actionStatus") {
       patchFilters({ actionStatus: "all" });
+      return;
+    }
+    if (chip.key === "user") {
+      patchFilters({ user: "all" });
       return;
     }
     patchFilters({ [chip.key]: "all" } as Partial<FilterState>);

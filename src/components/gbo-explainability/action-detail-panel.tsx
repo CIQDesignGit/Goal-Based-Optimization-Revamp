@@ -12,6 +12,7 @@ import {
   type ConditionDisplay,
 } from "@/lib/gbo-explainability/action-detail-fields";
 import { canAttemptRetry } from "@/lib/gbo-explainability/retry-policy";
+import { explainabilityActionable } from "@/lib/gbo-explainability/actionable-styles";
 import type {
   ActionLogRow,
   ActionStatus,
@@ -179,6 +180,7 @@ export function ActionDetailPanel({
           <Button
             variant="outline"
             size="sm"
+            className={explainabilityActionable.primaryOutlineButton}
             disabled={!retryDecision.ok || isRetrying}
             title={!retryDecision.ok ? retryDecision.reason : undefined}
             onClick={onRetry}

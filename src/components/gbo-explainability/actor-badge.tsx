@@ -13,7 +13,7 @@ const KIND_STYLES: Record<
   { className: string }
 > = {
   "ally-ai": {
-    className: "bg-brand-100 text-brand-700 border-brand-200",
+    className: "bg-indigo-100 text-indigo-700 border-indigo-200",
   },
   "rule-based": {
     className: "bg-info-100 text-info-700 border-info-200",

@@ -4,8 +4,12 @@ import Image from "next/image";
 import { Binary, Calendar } from "lucide-react";
 
 import {
+  ACTOR_AVATAR_RADIUS,
+  ACTOR_AVATAR_SIZES,
+  ACTOR_AVATAR_TEXT,
   ACTOR_MARK_STYLE,
   getProfileInitials,
+  type ActorAvatarSize,
 } from "@/lib/gbo-explainability/actor-display";
 import type { Actor, ActorKind } from "@/lib/gbo-explainability/types";
 import { cn } from "@/lib/utils";
@@ -14,8 +18,18 @@ type ActorMarkProps = {
   kind: ActorKind;
   /** Person name for manual actors — used for initials. */
   name?: string;
-  size?: "xs" | "sm" | "md";
+  size?: ActorAvatarSize;
   className?: string;
+};
+
+const ACTOR_MARK_ICON_SIZE: Record<ActorAvatarSize, string> = {
+  sm: "size-3",
+  label: "size-3.5",
+};
+
+const ACTOR_MARK_IMAGE_PX: Record<ActorAvatarSize, number> = {
+  sm: 19,
+  label: 22,
 };
 
 function actorKindFromType(actorType: string): ActorKind {
@@ -30,7 +44,7 @@ function actorKindFromType(actorType: string): ActorKind {
 type ConflictActorMarkProps = {
   actorType: string;
   actorName?: string;
-  size?: "xs" | "sm" | "md";
+  size?: ActorAvatarSize;
   className?: string;
 };
 
@@ -38,7 +52,7 @@ type ConflictActorMarkProps = {
 export function ConflictActorMark({
   actorType,
   actorName,
-  size = "xs",
+  size = "sm",
   className,
 }: ConflictActorMarkProps) {
   const kind = actorKindFromType(actorType);
@@ -53,22 +67,25 @@ export function ConflictActorMark({
       kind={kind}
       name={name}
       size={size}
-      className={cn("rounded", className)}
+      className={className}
     />
   );
 }
 
 /** Avatar / icon mark aligned with Action Log user column styling. */
-export function ActorMark({ kind, name, size = "md", className }: ActorMarkProps) {
-  const markSize =
-    size === "xs" ? "size-4" : size === "sm" ? "size-5" : "size-6";
-  const iconSize =
-    size === "xs" ? "size-2.5" : size === "sm" ? "size-3" : "size-3.5";
-  const imageSize = size === "xs" ? 16 : size === "sm" ? 20 : 24;
+export function ActorMark({
+  kind,
+  name,
+  size = "sm",
+  className,
+}: ActorMarkProps) {
+  const markSize = ACTOR_AVATAR_SIZES[size];
+  const iconSize = ACTOR_MARK_ICON_SIZE[size];
+  const imageSize = ACTOR_MARK_IMAGE_PX[size];
   const markClass = cn(
     "inline-flex shrink-0 items-center justify-center",
+    ACTOR_AVATAR_RADIUS,
     markSize,
-    ACTOR_MARK_STYLE[kind].shape === "rounded" ? "rounded-md" : "rounded-full",
     ACTOR_MARK_STYLE[kind].bg,
     ACTOR_MARK_STYLE[kind].text,
     ACTOR_MARK_STYLE[kind].ring,
@@ -106,15 +123,7 @@ export function ActorMark({ kind, name, size = "md", className }: ActorMarkProps
     case "human":
       return (
         <span
-          className={cn(
-            markClass,
-            size === "xs"
-              ? "text-[8px]"
-              : size === "sm"
-                ? "text-[9px]"
-                : "text-[10px]",
-            "font-semibold leading-none",
-          )}
+          className={cn(markClass, ACTOR_AVATAR_TEXT[size])}
           aria-hidden
         >
           {getProfileInitials(name ?? "Manual")}
@@ -126,10 +135,10 @@ export function ActorMark({ kind, name, size = "md", className }: ActorMarkProps
 /** Convenience wrapper for Action Log rows. */
 export function ActorMarkFromActor({
   actor,
-  size = "md",
+  size = "sm",
 }: {
   actor: Actor;
-  size?: "xs" | "sm" | "md";
+  size?: ActorAvatarSize;
 }) {
   return (
     <ActorMark

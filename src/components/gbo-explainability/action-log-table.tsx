@@ -32,7 +32,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { formatActionLogDate } from "@/lib/gbo-explainability/flatten-log-entries";
+import {
+  formatActionLogDate,
+  resolveFailureReason,
+} from "@/lib/gbo-explainability/flatten-log-entries";
+import { explainabilityActionable } from "@/lib/gbo-explainability/actionable-styles";
 import type { ActionLogRow, ActionStatus } from "@/lib/gbo-explainability/types";
 import { cn } from "@/lib/utils";
 
@@ -50,7 +54,7 @@ const TH_CLASS =
   "whitespace-nowrap px-4 py-2 text-[10px] font-medium tracking-wider text-slate-500 uppercase";
 
 const STICKY_USER_HEADER_CLASS = cn(
-  "sticky left-0 z-20 bg-slate-50/50",
+  "sticky left-0 z-20 bg-slate-50",
   TH_CLASS,
   USER_COLUMN_MIN_W,
   STICKY_USER_SHADOW,
@@ -58,10 +62,12 @@ const STICKY_USER_HEADER_CLASS = cn(
 
 function stickyUserCellClass(isSelected: boolean) {
   return cn(
-    "sticky left-0 z-10 whitespace-nowrap align-middle px-4 py-3",
+    "sticky left-0 z-10 whitespace-nowrap align-middle px-4 py-4",
     USER_COLUMN_MIN_W,
     STICKY_USER_SHADOW,
-    isSelected ? "bg-brand-50/80 group-hover:bg-brand-50/80" : "bg-white group-hover:bg-brand-25",
+    isSelected
+      ? "bg-violet-50 group-hover:bg-violet-50"
+      : "bg-white group-hover:bg-violet-50",
   );
 }
 
@@ -69,11 +75,13 @@ function bodyCellClass(isSelected: boolean, extra?: string) {
   return cn(
     TD_CELL,
     extra,
-    isSelected ? "bg-brand-50/60 group-hover:bg-brand-50/60" : "bg-white group-hover:bg-brand-25",
+    isSelected
+      ? explainabilityActionable.tableSelectedMuted
+      : cn("bg-white", explainabilityActionable.tableRowHover),
   );
 }
 
-const TD_CELL = "whitespace-nowrap align-middle truncate px-4 py-3";
+const TD_CELL = "whitespace-nowrap align-middle truncate px-4 py-4";
 const FIXED_COLUMN_200 = "min-w-[200px] w-[200px] max-w-[200px]";
 
 type ActionLogTableProps = {
@@ -123,12 +131,13 @@ export function ActionLogTable({
 
         <div className="overflow-hidden border-t border-slate-100/80">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[960px] border-separate border-spacing-0 text-sm">
+              <table className="w-full min-w-[1160px] border-separate border-spacing-0 text-sm">
                 <thead>
                   <tr className="border-b border-slate-100/80 bg-slate-50/50 text-left">
                     <th className={STICKY_USER_HEADER_CLASS}>User</th>
                     <th className={TH_CLASS}>Date</th>
                     <th className={TH_CLASS}>Status</th>
+                    <th className={cn(TH_CLASS, FIXED_COLUMN_200)}>Failure reason</th>
                     <th className={cn(TH_CLASS, FIXED_COLUMN_200)}>Source</th>
                     <th className={cn(TH_CLASS, FIXED_COLUMN_200)}>Action</th>
                     <th className={TH_CLASS}>Entity</th>
@@ -157,7 +166,7 @@ export function ActionLogTable({
                         }}
                         className={cn(
                           "group cursor-pointer border-b border-slate-100 transition-colors last:border-b-0",
-                          isSelected && "bg-brand-50/60",
+                          isSelected && "bg-violet-50/60",
                         )}
                       >
                         <td className={stickyUserCellClass(isSelected)}>
@@ -176,6 +185,14 @@ export function ActionLogTable({
                             status={row.status}
                             isRetrying={isRetrying}
                           />
+                        </td>
+                        <td
+                          className={bodyCellClass(
+                            isSelected,
+                            cn(FIXED_COLUMN_200, "text-xs text-slate-600 sm:text-sm"),
+                          )}
+                        >
+                          <FailureReasonCell row={row} />
                         </td>
                         <td
                           className={bodyCellClass(
@@ -263,6 +280,10 @@ export function ActionLogTable({
                       href="#"
                       isActive={pageNumber === page}
                       aria-label={`Go to page ${pageNumber}`}
+                      className={cn(
+                        pageNumber === page &&
+                          explainabilityActionable.paginationActive,
+                      )}
                       onClick={(event) => {
                         event.preventDefault();
                         onPageChange(pageNumber);
@@ -322,6 +343,20 @@ export function ActionLogTable({
         </SheetContent>
       </Sheet>
     </>
+  );
+}
+
+function FailureReasonCell({ row }: { row: ActionLogRow }) {
+  const reason = resolveFailureReason(row);
+
+  if (!reason) {
+    return <span className="text-slate-400">—</span>;
+  }
+
+  return (
+    <span className="line-clamp-2" title={reason}>
+      {reason}
+    </span>
   );
 }
 

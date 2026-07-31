@@ -12,6 +12,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { ExplainabilityPanel } from "@/components/gbo-explainability/explainability-panel";
+import { explainabilityActionable } from "@/lib/gbo-explainability/actionable-styles";
 import type { DemoPageState } from "@/lib/gbo-explainability/types";
 
 type EmptyKind =
@@ -101,10 +102,19 @@ export function ActionLogsEmptyState({
           </p>
         </div>
         {config.ctaHref ? (
-          <Button render={<Link href={config.ctaHref} />}>{config.ctaLabel}</Button>
+          <Button
+            className={explainabilityActionable.primaryButton}
+            render={<Link href={config.ctaHref} />}
+          >
+            {config.ctaLabel}
+          </Button>
         ) : null}
         {config.ctaAction === "clear-filters" && onClearFilters ? (
-          <Button variant="outline" onClick={onClearFilters}>
+          <Button
+            variant="outline"
+            className={explainabilityActionable.primaryOutlineButton}
+            onClick={onClearFilters}
+          >
             {config.ctaLabel}
           </Button>
         ) : null}

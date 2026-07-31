@@ -10,6 +10,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { explainabilityActionable } from "@/lib/gbo-explainability/actionable-styles";
+import { cn } from "@/lib/utils";
 
 const entryPoints = [
   {
@@ -40,21 +42,38 @@ export function SettingsHomeContent() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        {entryPoints.map(({ title, description, href, icon: Icon }) => (
+        {entryPoints.map(({ title, description, href, icon: Icon }) => {
+          const isExplainability = href === "/explainability-dashboard";
+
+          return (
           <Card key={href} className="transition-shadow hover:shadow-md">
             <CardHeader>
-              <div className="mb-3 flex size-10 items-center justify-center rounded-lg bg-brand-100 text-brand-500">
+              <div
+                className={cn(
+                  "mb-3 flex size-10 items-center justify-center rounded-lg",
+                  isExplainability
+                    ? "bg-violet-100 text-violet-500"
+                    : "bg-brand-100 text-brand-500",
+                )}
+              >
                 <Icon className="size-5" />
               </div>
               <CardTitle>{title}</CardTitle>
               <CardDescription>{description}</CardDescription>
-              <Button className="mt-4 w-full" render={<Link href={href} />}>
+              <Button
+                className={cn(
+                  "mt-4 w-full",
+                  isExplainability && explainabilityActionable.primaryButton,
+                )}
+                render={<Link href={href} />}
+              >
                 Open
                 <ArrowRight className="size-4" />
               </Button>
             </CardHeader>
           </Card>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -5,22 +5,19 @@ import {
   Activity,
   ArrowRight,
   GitCompare,
-  Sparkles,
   Users,
 } from "lucide-react";
 
 import { AlertConflictCard } from "@/components/gbo-explainability/alert-conflict-card";
+import { ActorMark } from "@/components/gbo-explainability/actor-mark";
 import {
   ContributorAvatar,
   ManualContributorsList,
 } from "@/components/gbo-explainability/manual-contributors-list";
 import { Button } from "@/components/ui/button";
+import { explainabilityActionable } from "@/lib/gbo-explainability/actionable-styles";
 import type { AlertSummary } from "@/lib/gbo-explainability/types";
 import { cn } from "@/lib/utils";
-
-/** Aligns expanded content with the alert row actor column (12rem incl. 60px padding). */
-const ALERT_DETAILS_GRID =
-  "grid grid-cols-1 items-start gap-x-0 px-5 py-6 sm:grid-cols-[12rem_minmax(0,1fr)]";
 
 type AlertRowDetailsProps = {
   alert: AlertSummary;
@@ -72,9 +69,6 @@ function DetailSection({
   );
 }
 
-/** Inner radius for the 1px gradient ring — matches outer rounded-lg. */
-const AI_SUMMARY_INNER_RADIUS = "rounded-[calc(var(--radius-lg)-1px)]";
-
 function AlertAiSummary({
   id,
   summary,
@@ -87,23 +81,16 @@ function AlertAiSummary({
       id={id}
       role="note"
       aria-label="Summary"
-      className="rounded-lg bg-linear-to-br from-brand-300/55 via-violet-200/45 to-sky-300/50 p-px shadow-xs"
+      className={explainabilityActionable.aiSummaryCard}
     >
-      <div className={cn("relative bg-white", AI_SUMMARY_INNER_RADIUS)}>
-        <div
-          className={cn(
-            "pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(219,234,254,0.45)_0%,transparent_58%),radial-gradient(ellipse_at_bottom_right,rgba(186,230,253,0.3)_0%,transparent_52%)]",
-            AI_SUMMARY_INNER_RADIUS,
-          )}
-          aria-hidden
-        />
-        <div className="relative flex gap-3 px-4 py-4">
-          <Sparkles
-            className="mt-0.5 size-4 shrink-0 text-brand-500"
-            aria-hidden
-          />
-          <p className="text-sm leading-relaxed text-slate-700">{summary}</p>
+      <div className="flex flex-col gap-3 px-4 py-4">
+        <div className="flex items-center gap-2.5">
+          <ActorMark kind="ally-ai" size="sm" className="shrink-0" />
+          <h4 className="text-sm font-semibold tracking-tight text-slate-800">
+            Summary
+          </h4>
         </div>
+        <p className="text-sm leading-relaxed text-slate-700">{summary}</p>
       </div>
     </div>
   );
@@ -119,9 +106,9 @@ function DeviationsPanel({
   deviations: AlertSummary["deviations"];
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-violet-100/80 bg-white shadow-xs">
+    <div className="overflow-hidden rounded-lg border border-sky-100/80 bg-white shadow-xs">
       <div
-        className="hidden gap-x-4 border-b border-violet-100/80 bg-violet-50/50 px-4 py-2 text-[10px] font-medium tracking-wider text-slate-500 uppercase sm:grid sm:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)_minmax(0,1.5fr)_4.5rem]"
+        className="hidden gap-x-4 border-b border-sky-100/80 bg-sky-50/80 px-4 py-2 text-[10px] font-medium tracking-wider text-slate-500 uppercase sm:grid sm:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)_minmax(0,1.5fr)_4.5rem]"
         aria-hidden
       >
         <span>Entity</span>
@@ -129,7 +116,7 @@ function DeviationsPanel({
         <span>Before → After</span>
         <span className="text-right">Change</span>
       </div>
-      <ul className="divide-y divide-violet-50">
+      <ul className="divide-y divide-sky-50">
         {deviations.map((deviation) => (
           <li
             key={deviation.id}
@@ -149,7 +136,7 @@ function DeviationsPanel({
                 className="size-3 shrink-0 text-slate-400"
                 aria-hidden
               />
-              <span className="rounded-md bg-violet-50 px-2 py-0.5 font-mono font-medium text-violet-900">
+              <span className="rounded-md bg-sky-50 px-2 py-0.5 font-mono font-medium text-sky-900">
                 {deviation.after}
               </span>
             </div>
@@ -173,19 +160,16 @@ export function AlertRowDetails({
     manualContributors?.length === 1 ? manualContributors[0] : null;
 
   return (
-    <div className="bg-slate-50/40">
-      <div className={ALERT_DETAILS_GRID}>
-        <div aria-hidden className="hidden sm:block" />
-        <div className="space-y-7">
-          {alert.role !== "human" ? (
-            <AlertAiSummary
-              id={`${alert.id}-ai-summary`}
-              summary={alert.aiSummary}
-            />
-          ) : null}
+    <div className="space-y-7 bg-slate-50/40 py-6">
+      {alert.role !== "human" ? (
+        <AlertAiSummary
+          id={`${alert.id}-ai-summary`}
+          summary={alert.aiSummary}
+        />
+      ) : null}
 
-          {showManualChanges && manualContributors ? (
-            <DetailSection
+      {showManualChanges && manualContributors ? (
+        <DetailSection
               title={
                 singleContributor ? (
                   <>
@@ -249,26 +233,25 @@ export function AlertRowDetails({
             <DetailSection
               title={`High deviations (${alert.deviations.length})`}
               icon={<Activity className="size-3.5" aria-hidden />}
-              iconClassName="bg-violet-50 text-violet-700"
+              iconClassName="bg-sky-50 text-sky-700"
               className="space-y-2.5"
             >
               <DeviationsPanel deviations={alert.deviations} />
             </DetailSection>
           ) : null}
 
-          <div className="border-t border-slate-200/60 pt-5">
-            <Button
-              type="button"
-              size="default"
-              className="gap-1.5 rounded-[8px] shadow-xs"
-              onClick={onViewActionLog}
-            >
-              View in Action Log
-              <ArrowRight className="size-3.5" aria-hidden />
-            </Button>
-          </div>
-        </div>
-      </div>
+      <Button
+        type="button"
+        size="default"
+        className={cn(
+          "gap-1.5 rounded-[8px] shadow-xs",
+          explainabilityActionable.primaryButton,
+        )}
+        onClick={onViewActionLog}
+      >
+        View in Action Log
+        <ArrowRight className="size-3.5" aria-hidden />
+      </Button>
     </div>
   );
 }

@@ -1,9 +1,12 @@
 import type {
   ActionLogRow,
   ActionType,
+  FailureInfo,
   LogActionDetail,
   LogEntry,
 } from "./types";
+
+import { failureCategoryLabel } from "./core-filter-definitions";
 
 const ACTION_TYPE_LABELS: Record<ActionType, string> = {
   "bid-change": "Bid change",
@@ -232,4 +235,19 @@ export function formatActionLogDate(iso: string): string {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function failureForRow(row: ActionLogRow): FailureInfo | undefined {
+  return row.detail?.failure ?? row.parentEntry.failure;
+}
+
+/** Plain-language failure reason for Action Log table cells. */
+export function resolveFailureReason(row: ActionLogRow): string | null {
+  const failure = failureForRow(row);
+  if (!failure) return null;
+
+  const message = failure.message.trim();
+  if (message) return message;
+
+  return failureCategoryLabel(failure.category);
 }

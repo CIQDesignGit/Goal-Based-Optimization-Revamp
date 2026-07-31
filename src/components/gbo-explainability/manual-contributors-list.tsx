@@ -1,8 +1,12 @@
 "use client";
 
 import {
+  ACTOR_AVATAR_RADIUS,
+  ACTOR_AVATAR_SIZES,
+  ACTOR_AVATAR_TEXT,
   getProfileInitials,
   PROFILE_AVATAR_STYLE,
+  type ActorAvatarSize,
 } from "@/lib/gbo-explainability/actor-display";
 import type { ManualContributorSummary } from "@/lib/gbo-explainability/types";
 import { cn } from "@/lib/utils";
@@ -16,15 +20,23 @@ type ManualContributorsListProps = {
 
 type ContributorAvatarProps = {
   name: string;
+  size?: ActorAvatarSize;
   className?: string;
 };
 
 /** Initials avatar for manual contributors — reused in list rows and section headers. */
-export function ContributorAvatar({ name, className }: ContributorAvatarProps) {
+export function ContributorAvatar({
+  name,
+  size = "sm",
+  className,
+}: ContributorAvatarProps) {
   return (
     <span
       className={cn(
-        "flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-medium ring-1 ring-slate-200/80",
+        "flex shrink-0 items-center justify-center ring-1 ring-slate-200/80",
+        ACTOR_AVATAR_RADIUS,
+        ACTOR_AVATAR_SIZES[size],
+        ACTOR_AVATAR_TEXT[size],
         PROFILE_AVATAR_STYLE.bg,
         PROFILE_AVATAR_STYLE.text,
         className,

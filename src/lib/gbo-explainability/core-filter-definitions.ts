@@ -44,6 +44,8 @@ export type CoreFilterDefinition = {
   options?: CoreFilterOption[];
   /** Renders a free-text panel instead of option buttons. */
   panel?: "text";
+  /** Allows multiple option values (stored comma-separated on FilterState.user). */
+  multiSelect?: boolean;
 };
 
 export type FilterDefinitionSection = {
@@ -151,7 +153,7 @@ const CORE_ACTION_LOG_DEFINITIONS: CoreFilterDefinition[] = [
     label: "High deviation",
     options: FLAGGED_ONLY_OPTIONS,
   },
-  { key: "user", label: "Type", options: WHO_MADE_CHANGE_OPTIONS },
+  { key: "user", label: "Type", options: WHO_MADE_CHANGE_OPTIONS, multiSelect: true },
   { key: "actionType", label: "Action", options: ACTION_TYPE_OPTIONS },
   {
     key: "failureCategory",
@@ -175,7 +177,7 @@ export function buildCoreFilterDefinitions(): CoreFilterDefinition[] {
       options: OPTIMIZER_TYPE_OPTIONS,
     },
     { key: "setupStep", label: "Step", options: SETUP_STEP_OPTIONS },
-    { key: "user", label: "User", options: WHO_MADE_CHANGE_OPTIONS },
+    { key: "user", label: "User", options: WHO_MADE_CHANGE_OPTIONS, multiSelect: true },
   ];
 }
 
@@ -333,6 +335,36 @@ export function isAutomationActorFilter(value: string): boolean {
   return value.startsWith("actor:");
 }
 
+const USER_FILTER_DELIMITER = ",";
+
+/** Parse comma-separated user filter values; `"all"` yields an empty list. */
+export function parseUserFilterValues(value: string): string[] {
+  if (value === "all" || value.trim() === "") return [];
+  return value.split(USER_FILTER_DELIMITER).filter(Boolean);
+}
+
+/** Serialize selected user values; empty list becomes `"all"`. */
+export function serializeUserFilterValues(values: string[]): string {
+  if (values.length === 0) return "all";
+  return values.join(USER_FILTER_DELIMITER);
+}
+
+export function isUserFilterActive(value: string): boolean {
+  return parseUserFilterValues(value).length > 0;
+}
+
+/** Chip value when one or more users/types are selected — e.g. "Emily C." or "Emily C. +3". */
+export function userFilterChipValueLabel(userFilter: string): string {
+  const values = parseUserFilterValues(userFilter);
+  if (values.length === 0) return "";
+  if (values.length === 1) return personLabel(values[0]);
+  return `${personLabel(values[0])} +${values.length - 1}`;
+}
+
+export function getWhoMadeChangeOptions(): CoreFilterOption[] {
+  return WHO_MADE_CHANGE_OPTIONS;
+}
+
 export function countActiveCoreFilters(
   filters: FilterState,
   view: "alerts" | "action-log",
@@ -355,7 +387,7 @@ export function countActiveCoreFilters(
     if (filters.changeStatus !== "all") count += 1;
     if (filters.setupStep !== "all") count += 1;
     if (filters.highDeviationOnly) count += 1;
-    if (filters.user !== "all") count += 1;
+    if (isUserFilterActive(filters.user)) count += 1;
     if (filters.actionType !== "all") count += 1;
     if (filters.failureCategory !== "all") count += 1;
     if (filters.outOfBudgetOnly) count += 1;
@@ -368,7 +400,7 @@ export function countActiveCoreFilters(
     if (filters.changeStatus !== "all") count += 1;
     if (filters.setupStep !== "all") count += 1;
     if (filters.highDeviationOnly) count += 1;
-    if (filters.user !== "all") count += 1;
+    if (isUserFilterActive(filters.user)) count += 1;
     if (filters.actionType !== "all") count += 1;
     if (filters.failureCategory !== "all") count += 1;
     if (filters.outOfBudgetOnly) count += 1;

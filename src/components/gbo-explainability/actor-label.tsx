@@ -1,7 +1,12 @@
 "use client";
 
+import { Users } from "lucide-react";
+
+import { ActorMark } from "@/components/gbo-explainability/actor-mark";
+import { ContributorAvatar } from "@/components/gbo-explainability/manual-contributors-list";
 import {
-  ACTOR_ACCENT_BAR,
+  ACTOR_AVATAR_RADIUS,
+  ACTOR_AVATAR_SIZES,
   ACTOR_LABEL_TEXT,
   getActorLabel,
   getActorTooltip,
@@ -26,7 +31,45 @@ function buildManualTooltip(contributors: ManualContributorSummary[]): string {
     .join("\n");
 }
 
-/** Slim category label for alert rows — accent bar + text, not a chip or avatar. */
+function ActorLabelAvatar({
+  actor,
+  manualContributors,
+}: {
+  actor: Actor;
+  manualContributors?: ManualContributorSummary[];
+}) {
+  const contributors = manualContributors ?? [];
+  const singleContributor =
+    contributors.length === 1 ? contributors[0] : null;
+
+  if (actor.kind === "human") {
+    if (contributors.length > 1) {
+      return (
+        <span
+          className={cn(
+            "flex shrink-0 items-center justify-center bg-slate-100 text-slate-600 ring-1 ring-slate-200",
+            ACTOR_AVATAR_RADIUS,
+            ACTOR_AVATAR_SIZES.sm,
+          )}
+          aria-hidden
+        >
+          <Users className="size-3" />
+        </span>
+      );
+    }
+
+    return (
+      <ContributorAvatar
+        name={singleContributor?.name ?? actor.label}
+        size="sm"
+      />
+    );
+  }
+
+  return <ActorMark kind={actor.kind} size="sm" />;
+}
+
+/** Actor column for alert rows — avatar + label. */
 export function ActorLabel({
   actor,
   manualContributors,
@@ -42,20 +85,17 @@ export function ActorLabel({
 
   return (
     <div
-      className={cn("flex min-w-0 items-stretch gap-2", className)}
+      className={cn("flex w-full min-w-0 items-center gap-2", className)}
       title={tooltip}
     >
-      <span
-        className={cn(
-          "mt-0.5 w-0.5 shrink-0 self-stretch rounded-full",
-          ACTOR_ACCENT_BAR[actor.kind],
-        )}
-        aria-hidden
+      <ActorLabelAvatar
+        actor={actor}
+        manualContributors={manualContributors}
       />
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <span
           className={cn(
-            "block truncate text-base font-medium leading-snug tracking-tight",
+            "block truncate text-sm font-medium leading-snug tracking-tight",
             ACTOR_LABEL_TEXT[actor.kind],
           )}
         >

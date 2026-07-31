@@ -1,6 +1,6 @@
 import { mapEntryToAlertRole } from "./aggregate-alerts";
 import { countHighDeviationsInEntry } from "./alert-signals";
-import { isAutomationActorFilter } from "./core-filter-definitions";
+import { isAutomationActorFilter, parseUserFilterValues } from "./core-filter-definitions";
 import {
   filterActionLogRows,
   filterActionLogRowsByRetailer,
@@ -51,20 +51,24 @@ export function filterEntries(
     }
 
     if (filters.user !== "all") {
-      if (isAutomationActorFilter(filters.user)) {
-        const role = filters.user.slice("actor:".length) as AlertRole;
-        if (mapEntryToAlertRole(entry) !== role) return false;
-      } else {
-        const who =
-          entry.actor.kind === "human"
-            ? (entry.actor.email ?? entry.actor.label)
-            : entry.actor.label;
-        if (
-          who.toLowerCase() !== filters.user.toLowerCase() &&
-          entry.actor.label.toLowerCase() !== filters.user.toLowerCase()
-        ) {
-          return false;
-        }
+      const selectedUsers = parseUserFilterValues(filters.user);
+      if (selectedUsers.length > 0) {
+        const matchesUser = selectedUsers.some((userValue) => {
+          if (isAutomationActorFilter(userValue)) {
+            const role = userValue.slice("actor:".length) as AlertRole;
+            return mapEntryToAlertRole(entry) === role;
+          }
+
+          const who =
+            entry.actor.kind === "human"
+              ? (entry.actor.email ?? entry.actor.label)
+              : entry.actor.label;
+          return (
+            who.toLowerCase() === userValue.toLowerCase() ||
+            entry.actor.label.toLowerCase() === userValue.toLowerCase()
+          );
+        });
+        if (!matchesUser) return false;
       }
     }
 

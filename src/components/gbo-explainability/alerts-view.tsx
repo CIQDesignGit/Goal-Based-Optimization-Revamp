@@ -18,6 +18,7 @@ import {
   formatAlertDateSeparator,
   groupAlertsByDate,
 } from "@/lib/gbo-explainability/aggregate-alerts";
+import { explainabilityActionable } from "@/lib/gbo-explainability/actionable-styles";
 import type { AlertSummary } from "@/lib/gbo-explainability/types";
 import { cn } from "@/lib/utils";
 
@@ -93,6 +94,10 @@ export function AlertsView({
                     href="#"
                     isActive={pageNumber === page}
                     aria-label={`Go to page ${pageNumber}`}
+                    className={cn(
+                      pageNumber === page &&
+                        explainabilityActionable.paginationActive,
+                    )}
                     onClick={(event) => {
                       event.preventDefault();
                       onPageChange(pageNumber);
