@@ -7,17 +7,35 @@ import {
   ExplainabilityPanelHeader,
 } from "@/components/gbo-explainability/explainability-panel";
 import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
   formatAlertDateSeparator,
   groupAlertsByDate,
 } from "@/lib/gbo-explainability/aggregate-alerts";
 import type { AlertSummary } from "@/lib/gbo-explainability/types";
+import { cn } from "@/lib/utils";
 
 type AlertsViewProps = {
   alerts: AlertSummary[];
+  page: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
   onAlertClick: (alert: AlertSummary) => void;
 };
 
-export function AlertsView({ alerts, onAlertClick }: AlertsViewProps) {
+export function AlertsView({
+  alerts,
+  page,
+  totalPages,
+  onPageChange,
+  onAlertClick,
+}: AlertsViewProps) {
   if (alerts.length === 0) {
     return <ActionLogsEmptyState kind="no-activity" />;
   }
@@ -49,6 +67,60 @@ export function AlertsView({ alerts, onAlertClick }: AlertsViewProps) {
           </section>
         ))}
       </div>
+
+      <footer className="border-t border-slate-100/80 bg-slate-50/60 px-5 py-2">
+        <Pagination aria-label="Alerts pagination" className="mx-0 w-auto justify-end">
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                href="#"
+                aria-disabled={page <= 1}
+                tabIndex={page <= 1 ? -1 : undefined}
+                className={cn(page <= 1 && "pointer-events-none opacity-40")}
+                onClick={(event) => {
+                  event.preventDefault();
+                  if (page > 1) onPageChange(page - 1);
+                }}
+              />
+            </PaginationItem>
+
+            {Array.from({ length: totalPages }, (_, index) => {
+              const pageNumber = index + 1;
+
+              return (
+                <PaginationItem key={pageNumber}>
+                  <PaginationLink
+                    href="#"
+                    isActive={pageNumber === page}
+                    aria-label={`Go to page ${pageNumber}`}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      onPageChange(pageNumber);
+                    }}
+                  >
+                    {pageNumber}
+                  </PaginationLink>
+                </PaginationItem>
+              );
+            })}
+
+            <PaginationItem>
+              <PaginationNext
+                href="#"
+                aria-disabled={page >= totalPages}
+                tabIndex={page >= totalPages ? -1 : undefined}
+                className={cn(
+                  page >= totalPages && "pointer-events-none opacity-40",
+                )}
+                onClick={(event) => {
+                  event.preventDefault();
+                  if (page < totalPages) onPageChange(page + 1);
+                }}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      </footer>
     </ExplainabilityPanel>
   );
 }

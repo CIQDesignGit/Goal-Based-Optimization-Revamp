@@ -451,8 +451,20 @@ export function ActionLogsPage() {
     return sortActionLogRowsNewestFirst(byRetailer);
   }, [filteredEntries, filters]);
 
-  const totalPages = Math.max(1, Math.ceil(flatRows.length / PAGE_SIZE));
+  const actionLogTotalPages = Math.max(
+    1,
+    Math.ceil(flatRows.length / PAGE_SIZE),
+  );
   const pageRows = flatRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const alertsTotalPages = Math.max(
+    1,
+    Math.ceil(filteredAlerts.length / PAGE_SIZE),
+  );
+  const pageAlerts = filteredAlerts.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE,
+  );
 
   const filtered = useMemo(
     () => sortNewestFirst(filteredEntries),
@@ -601,7 +613,13 @@ export function ActionLogsPage() {
             onClearFilters={hasActiveNarrowing ? clearAll : undefined}
           />
         ) : (
-          <AlertsView alerts={filteredAlerts} onAlertClick={handleAlertClick} />
+          <AlertsView
+            alerts={pageAlerts}
+            page={page}
+            totalPages={alertsTotalPages}
+            onPageChange={setPage}
+            onAlertClick={handleAlertClick}
+          />
         )
       ) : flatRows.length === 0 ? (
         <ActionLogsEmptyState
@@ -614,7 +632,7 @@ export function ActionLogsPage() {
             rows={pageRows}
             totalCount={flatRows.length}
             page={page}
-            totalPages={totalPages}
+            totalPages={actionLogTotalPages}
             onPageChange={setPage}
             retryingId={retryingId}
             onRetry={handleRetry}

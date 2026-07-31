@@ -2,15 +2,18 @@
 
 import type { ReactNode } from "react";
 import {
-  ArrowLeftRight,
+  Activity,
   ArrowRight,
+  GitCompare,
   Sparkles,
-  TrendingUp,
   Users,
 } from "lucide-react";
 
 import { AlertConflictCard } from "@/components/gbo-explainability/alert-conflict-card";
-import { ManualContributorsList } from "@/components/gbo-explainability/manual-contributors-list";
+import {
+  ContributorAvatar,
+  ManualContributorsList,
+} from "@/components/gbo-explainability/manual-contributors-list";
 import { Button } from "@/components/ui/button";
 import type { AlertSummary } from "@/lib/gbo-explainability/types";
 import { cn } from "@/lib/utils";
@@ -25,9 +28,10 @@ type AlertRowDetailsProps = {
 };
 
 type DetailSectionProps = {
-  title: string;
+  title: ReactNode;
   icon: ReactNode;
   iconClassName: string;
+  iconShape?: "square" | "avatar";
   titleId?: string;
   children: ReactNode;
   className?: string;
@@ -37,6 +41,7 @@ function DetailSection({
   title,
   icon,
   iconClassName,
+  iconShape = "square",
   titleId,
   children,
   className,
@@ -46,7 +51,10 @@ function DetailSection({
       <div className="flex items-center gap-2.5">
         <span
           className={cn(
-            "flex size-7 shrink-0 items-center justify-center rounded-lg",
+            "flex shrink-0 items-center justify-center",
+            iconShape === "avatar"
+              ? "bg-transparent p-0"
+              : "size-7 rounded-lg",
             iconClassName,
           )}
         >
@@ -64,8 +72,8 @@ function DetailSection({
   );
 }
 
-/** Inner radius for the 1px gradient ring — matches outer rounded-xl. */
-const AI_SUMMARY_INNER_RADIUS = "rounded-[calc(var(--radius-xl)-1px)]";
+/** Inner radius for the 1px gradient ring — matches outer rounded-lg. */
+const AI_SUMMARY_INNER_RADIUS = "rounded-[calc(var(--radius-lg)-1px)]";
 
 function AlertAiSummary({
   id,
@@ -79,7 +87,7 @@ function AlertAiSummary({
       id={id}
       role="note"
       aria-label="Summary"
-      className="rounded-xl bg-linear-to-br from-brand-300/55 via-violet-200/45 to-sky-300/50 p-px shadow-xs"
+      className="rounded-lg bg-linear-to-br from-brand-300/55 via-violet-200/45 to-sky-300/50 p-px shadow-xs"
     >
       <div className={cn("relative bg-white", AI_SUMMARY_INNER_RADIUS)}>
         <div
@@ -159,6 +167,14 @@ export function AlertRowDetails({
   alert,
   onViewActionLog,
 }: AlertRowDetailsProps) {
+  const manualContributors = alert.manualContributors;
+  const showManualChanges =
+    manualContributors &&
+    (manualContributors.length > 1 ||
+      manualContributors.some((contributor) => contributor.claims.length > 1));
+  const singleContributor =
+    manualContributors?.length === 1 ? manualContributors[0] : null;
+
   return (
     <div className="bg-slate-50/40">
       <div className={ALERT_DETAILS_GRID}>
@@ -169,21 +185,53 @@ export function AlertRowDetails({
             summary={alert.aiSummary}
           />
 
-          {alert.manualContributors && alert.manualContributors.length > 0 ? (
+          {showManualChanges && manualContributors ? (
             <DetailSection
-              title={`Manual changes by person (${alert.manualContributors.length})`}
-              icon={<Users className="size-3.5" aria-hidden />}
-              iconClassName="bg-slate-100 text-slate-600"
+              title={
+                singleContributor ? (
+                  <>
+                    Changes done by {singleContributor.name}
+                    {singleContributor.email ? (
+                      <span className="font-normal text-slate-400">
+                        {" "}
+                        · {singleContributor.email}
+                      </span>
+                    ) : null}
+                    {singleContributor.deactivated ? (
+                      <span className="font-normal text-slate-400">
+                        {" "}
+                        (deactivated)
+                      </span>
+                    ) : null}
+                  </>
+                ) : (
+                  `Manual changes by person (${manualContributors.length})`
+                )
+              }
+              icon={
+                singleContributor ? (
+                  <ContributorAvatar name={singleContributor.name} />
+                ) : (
+                  <Users className="size-3.5" aria-hidden />
+                )
+              }
+              iconShape={singleContributor ? "avatar" : "square"}
+              iconClassName={
+                singleContributor ? "" : "bg-slate-100 text-slate-600"
+              }
               className="space-y-2.5"
             >
-              <ManualContributorsList contributors={alert.manualContributors} />
+              <ManualContributorsList
+                contributors={manualContributors}
+                hideIdentity={Boolean(singleContributor)}
+              />
             </DetailSection>
           ) : null}
 
           {alert.conflicts.length > 0 ? (
             <DetailSection
               title={`Overrides (${alert.conflicts.length})`}
-              icon={<ArrowLeftRight className="size-3.5" aria-hidden />}
+              icon={<GitCompare className="size-3.5" aria-hidden />}
               iconClassName="bg-amber-50 text-amber-700"
             >
               <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-xs">
@@ -201,7 +249,7 @@ export function AlertRowDetails({
           {alert.deviations.length > 0 ? (
             <DetailSection
               title={`High deviations (${alert.deviations.length})`}
-              icon={<TrendingUp className="size-3.5" aria-hidden />}
+              icon={<Activity className="size-3.5" aria-hidden />}
               iconClassName="bg-violet-50 text-violet-700"
               className="space-y-2.5"
             >

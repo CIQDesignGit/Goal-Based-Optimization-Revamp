@@ -117,7 +117,7 @@ export function AiGoalOptimizerHeader() {
             render={<Link href="/explainability-dashboard" />}
           >
             <History className="size-4" />
-            Update History
+            Alerts
           </Button>
         </div>
       </div>

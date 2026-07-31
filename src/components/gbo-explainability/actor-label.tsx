@@ -32,7 +32,8 @@ export function ActorLabel({
   manualContributors,
   className,
 }: ActorLabelProps) {
-  const label = getActorLabel(actor);
+  const label =
+    actor.kind === "human" ? actor.label : getActorLabel(actor);
   const contributorCount = manualContributors?.length ?? 0;
   const tooltip =
     contributorCount > 0
@@ -54,21 +55,12 @@ export function ActorLabel({
       <div className="min-w-0">
         <span
           className={cn(
-            "block text-xs font-semibold leading-snug tracking-tight",
+            "block truncate text-xs font-semibold leading-snug tracking-tight",
             ACTOR_LABEL_TEXT[actor.kind],
           )}
         >
           {label}
         </span>
-        {contributorCount > 1 ? (
-          <span className="mt-0.5 block text-[10px] font-medium leading-snug text-muted-foreground">
-            {contributorCount} people
-          </span>
-        ) : contributorCount === 1 ? (
-          <span className="mt-0.5 block truncate text-[10px] leading-snug text-muted-foreground">
-            {manualContributors![0].name}
-          </span>
-        ) : null}
       </div>
     </div>
   );

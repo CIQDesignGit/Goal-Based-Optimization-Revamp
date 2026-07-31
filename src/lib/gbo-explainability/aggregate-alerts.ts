@@ -239,11 +239,24 @@ function buildManualContributors(entries: LogEntry[]): ManualContributorSummary[
     });
 }
 
+function countManualChanges(entries: LogEntry[]): number {
+  return entries.reduce(
+    (total, entry) => total + explodeManualChangeUnits(entry).length,
+    0,
+  );
+}
+
 function buildManualGroupClaim(
   entries: LogEntry[],
   contributors: ManualContributorSummary[],
 ): string {
-  if (entries.length === 1) {
+  const changeCount = countManualChanges(entries);
+
+  if (changeCount === 1) {
+    for (const entry of entries) {
+      const units = explodeManualChangeUnits(entry);
+      if (units.length === 1) return units[0].claim;
+    }
     return entryClaim(entries[0]);
   }
 
@@ -257,10 +270,10 @@ function buildManualGroupClaim(
       : `${contributors.length} people`;
 
   if (failureCount > 0) {
-    return `${peopleLabel} made ${entries.length} manual changes — ${failureCount} with failures`;
+    return `${peopleLabel} made ${changeCount} manual changes — ${failureCount} with failures`;
   }
 
-  return `${peopleLabel} made ${entries.length} manual changes today`;
+  return `${peopleLabel} made ${changeCount} manual changes today`;
 }
 
 function entryClaim(entry: LogEntry): string {
@@ -701,6 +714,7 @@ function summarizeRoleDay(
   date: string,
   role: AlertRole,
   entries: LogEntry[],
+  id?: string,
 ): AlertSummary {
   const sorted = [...entries].sort(compareEntriesNewestFirst);
   const newest = sorted[0];
@@ -718,15 +732,17 @@ function summarizeRoleDay(
     conflicts,
     deviations,
   );
+  const actionCount =
+    role === "human" ? countManualChanges(sorted) : sorted.length;
 
   return {
-    id: `${date}:${role}`,
+    id: id ?? `${date}:${role}`,
     date,
     timestamp: newest.timestamp,
     role,
     entryId: newest.id,
     entryIds: sorted.map((entry) => entry.id),
-    actionCount: sorted.length,
+    actionCount,
     failureCount,
     conflictCount,
     highDeviationCount,
@@ -745,15 +761,28 @@ function summarizeRoleDay(
 }
 
 /**
- * Daily digest for the Alerts tab — one card per (calendar day, actor type).
- * Manual changes from every person on that day roll up into a single alert.
+ * Daily digest for the Alerts tab.
+ * Manual changes group into one card per person per day; other actor types roll up by day.
  */
 export function aggregateAlerts(entries: LogEntry[]): AlertSummary[] {
   const groups = new Map<string, LogEntry[]>();
+  const manualGroups = new Map<string, LogEntry[]>();
 
   for (const entry of entries) {
-    const date = toLocalIsoDate(entry.timestamp);
     const role = mapEntryToAlertRole(entry);
+    const date = toLocalIsoDate(entry.timestamp);
+
+    if (role === "human") {
+      const key = `${date}:${personKey(entry)}`;
+      const bucket = manualGroups.get(key);
+      if (bucket) {
+        bucket.push(entry);
+      } else {
+        manualGroups.set(key, [entry]);
+      }
+      continue;
+    }
+
     const key = `${date}:${role}`;
     const bucket = groups.get(key);
     if (bucket) {
@@ -763,12 +792,17 @@ export function aggregateAlerts(entries: LogEntry[]): AlertSummary[] {
     }
   }
 
-  const alerts = [...groups.entries()].map(([key, groupEntries]) => {
+  const manualAlerts = [...manualGroups.entries()].map(([key, groupEntries]) => {
+    const date = toLocalIsoDate(groupEntries[0].timestamp);
+    return summarizeRoleDay(date, "human", groupEntries, key);
+  });
+
+  const groupedAlerts = [...groups.entries()].map(([key, groupEntries]) => {
     const [date, role] = key.split(":") as [string, AlertRole];
     return summarizeRoleDay(date, role, groupEntries);
   });
 
-  return alerts.sort(compareAlerts);
+  return [...manualAlerts, ...groupedAlerts].sort(compareAlerts);
 }
 
 export function alertRoleLabel(role: AlertRole): string {
@@ -800,26 +834,49 @@ export function formatAlertRowDate(date: string): string {
   });
 }
 
-/** Row timestamp — strategies show last-updated wording. */
-export function formatAlertRowTimestamp(
-  alert: Pick<AlertSummary, "role" | "date">,
-): string {
-  if (alert.role === "day-parting" || alert.role === "rule-based") {
-    return `Last updated · ${formatAlertRowDate(alert.date)}`;
+function ordinalDaySuffix(day: number): string {
+  if (day >= 11 && day <= 13) return "th";
+  switch (day % 10) {
+    case 1:
+      return "st";
+    case 2:
+      return "nd";
+    case 3:
+      return "rd";
+    default:
+      return "th";
   }
+}
 
-  return formatAlertRowDate(alert.date);
+/** Consistent alert row timestamp — e.g. "30th June 2026 08:00am". */
+export function formatAlertRowDateTime(iso: string): string {
+  const d = new Date(iso);
+  const day = d.getDate();
+  const month = d.toLocaleDateString(undefined, { month: "long" });
+  const year = d.getFullYear();
+
+  const hours24 = d.getHours();
+  const minutes = d.getMinutes();
+  const period = hours24 >= 12 ? "pm" : "am";
+  const hours12 = hours24 % 12 || 12;
+
+  const time = `${String(hours12).padStart(2, "0")}:${String(minutes).padStart(2, "0")}${period}`;
+
+  return `${day}${ordinalDaySuffix(day)} ${month} ${year} ${time}`;
+}
+
+/** Row timestamp — same format for every alert type. */
+export function formatAlertRowTimestamp(
+  alert: Pick<AlertSummary, "timestamp">,
+): string {
+  return formatAlertRowDateTime(alert.timestamp);
 }
 
 /** `dateTime` value for the alert row timestamp. */
 export function alertRowTimestampValue(
-  alert: Pick<AlertSummary, "role" | "date" | "timestamp">,
+  alert: Pick<AlertSummary, "timestamp">,
 ): string {
-  if (alert.role === "day-parting" || alert.role === "rule-based") {
-    return alert.timestamp;
-  }
-
-  return alert.date;
+  return alert.timestamp;
 }
 
 /** Section header label for date separators in the Alerts feed. */
@@ -851,7 +908,7 @@ export function groupAlertsByDate(
   for (const group of groups) {
     group.alerts.sort(
       (a, b) =>
-        ALERT_ROLE_ORDER.indexOf(a.role) - ALERT_ROLE_ORDER.indexOf(b.role),
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
     );
   }
 
