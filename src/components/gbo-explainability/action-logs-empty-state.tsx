@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ExplainabilityPanel } from "@/components/gbo-explainability/explainability-panel";
 import type { DemoPageState } from "@/lib/gbo-explainability/types";
 
 type EmptyKind =
@@ -86,24 +87,28 @@ export function ActionLogsEmptyState({
   const Icon = config.icon;
 
   return (
-    <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-      <div className="flex size-12 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
-        <Icon className="size-6" aria-hidden />
+    <ExplainabilityPanel>
+      <div className="flex flex-col items-center justify-center gap-4 px-6 py-20 text-center">
+        <div className="flex size-14 items-center justify-center rounded-2xl bg-linear-to-br from-slate-50 to-slate-100 text-slate-500 ring-1 ring-slate-200/80">
+          <Icon className="size-6" aria-hidden />
+        </div>
+        <div className="max-w-md space-y-1.5">
+          <h2 className="text-base font-semibold tracking-tight text-slate-800">
+            {config.title}
+          </h2>
+          <p className="text-sm leading-relaxed text-slate-500">
+            {config.description}
+          </p>
+        </div>
+        {config.ctaHref ? (
+          <Button render={<Link href={config.ctaHref} />}>{config.ctaLabel}</Button>
+        ) : null}
+        {config.ctaAction === "clear-filters" && onClearFilters ? (
+          <Button variant="outline" onClick={onClearFilters}>
+            {config.ctaLabel}
+          </Button>
+        ) : null}
       </div>
-      <div className="max-w-md space-y-1">
-        <h2 className="text-base font-semibold text-foreground">
-          {config.title}
-        </h2>
-        <p className="text-sm text-muted-foreground">{config.description}</p>
-      </div>
-      {config.ctaHref ? (
-        <Button render={<Link href={config.ctaHref} />}>{config.ctaLabel}</Button>
-      ) : null}
-      {config.ctaAction === "clear-filters" && onClearFilters ? (
-        <Button variant="outline" onClick={onClearFilters}>
-          {config.ctaLabel}
-        </Button>
-      ) : null}
-    </div>
+    </ExplainabilityPanel>
   );
 }

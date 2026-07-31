@@ -3,7 +3,6 @@
 import { Search, X } from "lucide-react";
 
 import { FiltersPopover } from "@/components/gbo-explainability/filters-popover";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import type {
   ActiveFilterChip,
@@ -38,11 +37,11 @@ export function ActionLogsToolbar({
   alertCount,
 }: ActionLogsToolbarProps) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div
         role="tablist"
         aria-label="Explainability views"
-        className="flex gap-1 border-b border-border"
+        className="flex gap-6 border-b border-slate-200"
       >
         <TabButton
           active={view === "alerts"}
@@ -59,9 +58,9 @@ export function ActionLogsToolbar({
         </TabButton>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2.5">
         <div className="relative w-full min-w-[18rem] shrink-0 sm:w-[18rem]">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-slate-400" />
           <Input
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
@@ -70,7 +69,7 @@ export function ActionLogsToolbar({
                 ? "Search alerts"
                 : "Search by name or ID"
             }
-            className="pl-8 text-sm"
+            className="border-slate-200/80 bg-white pl-9 text-sm shadow-xs placeholder:text-slate-400"
             aria-label={
               view === "alerts" ? "Search alerts" : "Search by entity"
             }
@@ -98,7 +97,7 @@ export function ActionLogsToolbar({
             <button
               type="button"
               onClick={onClearAll}
-              className="text-xs font-medium text-brand-500 hover:underline"
+              className="rounded-md px-2 py-1.5 text-xs font-medium text-brand-600 transition-colors hover:bg-brand-50 hover:text-brand-700"
             >
               Clear all
             </button>
@@ -120,13 +119,13 @@ function AppliedFilterChip({
     <button
       type="button"
       onClick={onRemove}
-      className="inline-flex max-w-full items-stretch overflow-hidden rounded-lg border border-slate-200 bg-white text-xs shadow-xs transition-[border-color,box-shadow] hover:border-slate-300 hover:shadow-sm"
+      className="inline-flex max-w-full items-stretch overflow-hidden rounded-lg border border-slate-200/90 bg-white text-xs shadow-xs transition-[border-color,box-shadow] hover:border-slate-300 hover:shadow-sm"
     >
-      <span className="flex shrink-0 items-center bg-slate-50 px-2.5 py-1.5 font-normal text-slate-600">
+      <span className="flex shrink-0 items-center border-r border-slate-100 bg-slate-50/90 px-2.5 py-1.5 font-normal text-slate-500">
         {chip.categoryLabel}
       </span>
-      <span className="flex min-w-0 items-center gap-1.5 px-2 py-1.5">
-        <span className="truncate font-medium text-slate-900">
+      <span className="flex min-w-0 items-center gap-1.5 px-2.5 py-1.5">
+        <span className="truncate font-medium text-slate-800">
           {chip.valueLabel}
         </span>
         <span
@@ -159,21 +158,23 @@ function TabButton({
       aria-selected={active}
       onClick={onClick}
       className={cn(
-        "-mb-px inline-flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+        "-mb-px inline-flex items-center gap-2 border-b-2 px-1 pb-3 pt-0.5 text-sm transition-colors",
         active
-          ? "border-brand-500 text-foreground"
-          : "border-transparent text-muted-foreground hover:text-foreground",
+          ? "border-brand-500 font-semibold text-slate-900"
+          : "border-transparent font-medium text-slate-500 hover:border-slate-200 hover:text-slate-700",
       )}
     >
       {children}
       {badge !== undefined ? (
-        <Badge
-          variant={active ? "default" : "secondary"}
-          className="min-w-5 px-1.5"
+        <span
+          className={cn(
+            "text-xs font-medium tabular-nums",
+            active ? "text-slate-500" : "text-slate-400",
+          )}
           aria-label={`${badge} alert${badge === 1 ? "" : "s"}`}
         >
           {badge}
-        </Badge>
+        </span>
       ) : null}
     </button>
   );

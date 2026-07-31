@@ -123,7 +123,7 @@ function DateRangePanel({
   };
 
   return (
-    <div className="flex flex-1 flex-col overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="border-b border-slate-100 p-2">
         <p className="px-2 py-1 text-xs font-medium text-slate-500">
           Quick ranges
@@ -229,7 +229,7 @@ function EntityScopePanel({
   onChange: (next: CoreFilterDraft) => void;
 }) {
   return (
-    <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
       <p className="text-xs text-slate-500">
         Filter by keyword, campaign, or SKU name or ID. Matches are
         case-insensitive.
@@ -265,7 +265,7 @@ function OptionsPanel({
   const selected = coreDraftValueForKey(draft, definition.key);
 
   return (
-    <div className="flex-1 overflow-y-auto p-2">
+    <div className="min-h-0 flex-1 overflow-y-auto p-2">
       <button
         type="button"
         onClick={() => onSelect("all")}
@@ -337,7 +337,7 @@ function FilterNavSections({
                     className={cn(
                       "flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors",
                       isActive
-                        ? "bg-brand-500 text-white"
+                        ? "bg-brand-50 font-medium text-brand-700"
                         : "text-slate-700 hover:bg-slate-100",
                     )}
                   >
@@ -349,7 +349,7 @@ function FilterNavSections({
                       <ChevronRight
                         className={cn(
                           "size-3.5",
-                          isActive ? "text-white/90" : "text-slate-400",
+                          isActive ? "text-brand-600" : "text-slate-400",
                         )}
                         aria-hidden
                       />
@@ -402,9 +402,9 @@ export function FiltersPopover({
     if (open) {
       setDraft(pickCoreFilterDraft(filters));
       setQuery("");
-      setActiveKey(null);
+      setActiveKey(definitions[0]?.key ?? null);
     }
-  }, [open, filters]);
+  }, [open, filters, definitions]);
 
   const filteredSections = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -461,9 +461,9 @@ export function FiltersPopover({
         align="start"
         className="w-[min(42rem,calc(100vw-2rem))] gap-0 overflow-hidden rounded-xl p-0 shadow-lg ring-1 ring-slate-200"
       >
-        <div className="flex min-h-[22rem]">
-          <div className="flex w-[15.5rem] shrink-0 flex-col border-r border-slate-200 bg-white">
-            <div className="border-b border-slate-200 p-3">
+        <div className="flex max-h-[min(28rem,calc(100vh-8rem))] min-h-[22rem] overflow-hidden">
+          <div className="flex min-h-0 w-[15.5rem] shrink-0 flex-col border-r border-slate-200 bg-white">
+            <div className="shrink-0 border-b border-slate-200 p-3">
               <div className="relative">
                 <Search className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-slate-400" />
                 <Input
@@ -475,7 +475,7 @@ export function FiltersPopover({
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-2">
+            <div className="min-h-0 flex-1 overflow-y-auto p-2">
               <FilterNavSections
                 sections={sections}
                 filteredSections={filteredSections}
@@ -486,7 +486,7 @@ export function FiltersPopover({
             </div>
           </div>
 
-          <div className="flex min-w-0 flex-1 flex-col bg-white">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white">
             {activeDefinition ? (
               <>
                 <div className="border-b border-slate-200 px-4 py-3">

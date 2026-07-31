@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 
 /** Aligns expanded content with the alert row actor column. */
 const ALERT_DETAILS_GRID =
-  "grid grid-cols-1 items-start gap-x-3 px-3 py-5 sm:grid-cols-[4.75rem_minmax(0,1fr)] sm:gap-x-4 sm:px-4";
+  "grid grid-cols-1 items-start gap-x-4 px-5 py-6 sm:grid-cols-[5.25rem_minmax(0,1fr)]";
 
 type AlertRowDetailsProps = {
   alert: AlertSummary;
@@ -43,10 +43,10 @@ function DetailSection({
 }: DetailSectionProps) {
   return (
     <section className={cn("space-y-3", className)}>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2.5">
         <span
           className={cn(
-            "flex size-6 shrink-0 items-center justify-center rounded-md",
+            "flex size-7 shrink-0 items-center justify-center rounded-lg",
             iconClassName,
           )}
         >
@@ -54,7 +54,7 @@ function DetailSection({
         </span>
         <h4
           id={titleId}
-          className="text-sm font-semibold text-foreground"
+          className="text-sm font-semibold tracking-tight text-slate-800"
         >
           {title}
         </h4>
@@ -79,7 +79,7 @@ function AlertAiSummary({
       id={id}
       role="note"
       aria-label="Summary"
-      className="rounded-xl bg-linear-to-br from-brand-300/55 via-violet-200/45 to-sky-300/50 p-px"
+      className="rounded-xl bg-linear-to-br from-brand-300/55 via-violet-200/45 to-sky-300/50 p-px shadow-xs"
     >
       <div className={cn("relative bg-white", AI_SUMMARY_INNER_RADIUS)}>
         <div
@@ -89,12 +89,12 @@ function AlertAiSummary({
           )}
           aria-hidden
         />
-        <div className="relative flex gap-2.5 px-4 py-3.5">
+        <div className="relative flex gap-3 px-4 py-4">
           <Sparkles
             className="mt-0.5 size-4 shrink-0 text-brand-500"
             aria-hidden
           />
-          <p className="text-sm leading-relaxed text-slate-800">{summary}</p>
+          <p className="text-sm leading-relaxed text-slate-700">{summary}</p>
         </div>
       </div>
     </div>
@@ -111,9 +111,9 @@ function DeviationsPanel({
   deviations: AlertSummary["deviations"];
 }) {
   return (
-    <div className="overflow-hidden rounded-md border border-violet-100 bg-background">
+    <div className="overflow-hidden rounded-lg border border-violet-100/80 bg-white shadow-xs">
       <div
-        className="hidden gap-x-4 border-b border-violet-100 bg-violet-50/60 px-3 py-1.5 text-2xs font-medium tracking-wide text-muted-foreground uppercase sm:grid sm:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)_minmax(0,1.5fr)_4.5rem]"
+        className="hidden gap-x-4 border-b border-violet-100/80 bg-violet-50/50 px-4 py-2 text-[10px] font-medium tracking-wider text-slate-500 uppercase sm:grid sm:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)_minmax(0,1.5fr)_4.5rem]"
         aria-hidden
       >
         <span>Entity</span>
@@ -121,31 +121,31 @@ function DeviationsPanel({
         <span>Before → After</span>
         <span className="text-right">Change</span>
       </div>
-      <ul className="divide-y divide-violet-100">
+      <ul className="divide-y divide-violet-50">
         {deviations.map((deviation) => (
           <li
             key={deviation.id}
-            className="grid grid-cols-1 gap-x-4 gap-y-1.5 px-3 py-2 sm:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)_minmax(0,1.5fr)_4.5rem] sm:items-center"
+            className="grid grid-cols-1 gap-x-4 gap-y-1.5 px-4 py-3 sm:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)_minmax(0,1.5fr)_4.5rem] sm:items-center"
           >
-            <p className="truncate text-sm font-medium text-foreground">
+            <p className="truncate text-sm font-medium text-slate-800">
               {deviation.entityName}
             </p>
-            <p className="truncate text-xs text-muted-foreground sm:text-sm">
+            <p className="truncate text-xs text-slate-500 sm:text-sm">
               {deviation.field}
             </p>
             <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs sm:text-sm">
-              <span className="rounded bg-slate-50 px-1.5 py-0.5 font-mono text-muted-foreground">
+              <span className="rounded-md bg-slate-50 px-2 py-0.5 font-mono text-slate-500">
                 {deviation.before}
               </span>
               <ArrowRight
-                className="size-3 shrink-0 text-muted-foreground"
+                className="size-3 shrink-0 text-slate-400"
                 aria-hidden
               />
-              <span className="rounded bg-violet-50 px-1.5 py-0.5 font-mono font-medium text-violet-900">
+              <span className="rounded-md bg-violet-50 px-2 py-0.5 font-mono font-medium text-violet-900">
                 {deviation.after}
               </span>
             </div>
-            <span className="shrink-0 justify-self-start text-xs text-muted-foreground sm:justify-self-end sm:text-right">
+            <span className="shrink-0 justify-self-start text-xs font-medium tabular-nums text-slate-500 sm:justify-self-end sm:text-right">
               {formatPercentChange(deviation.percentChange)}
             </span>
           </li>
@@ -160,10 +160,10 @@ export function AlertRowDetails({
   onViewActionLog,
 }: AlertRowDetailsProps) {
   return (
-    <div className="bg-white">
+    <div className="bg-slate-50/40">
       <div className={ALERT_DETAILS_GRID}>
         <div aria-hidden className="hidden sm:block" />
-        <div className="space-y-6">
+        <div className="space-y-7">
           <AlertAiSummary
             id={`${alert.id}-ai-summary`}
             summary={alert.aiSummary}
@@ -174,7 +174,7 @@ export function AlertRowDetails({
               title={`Manual changes by person (${alert.manualContributors.length})`}
               icon={<Users className="size-3.5" aria-hidden />}
               iconClassName="bg-slate-100 text-slate-600"
-              className="space-y-2"
+              className="space-y-2.5"
             >
               <ManualContributorsList contributors={alert.manualContributors} />
             </DetailSection>
@@ -186,8 +186,8 @@ export function AlertRowDetails({
               icon={<ArrowLeftRight className="size-3.5" aria-hidden />}
               iconClassName="bg-amber-50 text-amber-700"
             >
-              <div className="overflow-hidden rounded-md border border-border bg-background">
-                <ul className="divide-y divide-border">
+              <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-xs">
+                <ul className="divide-y divide-slate-100">
                   {alert.conflicts.map((conflict) => (
                     <li key={conflict.id}>
                       <AlertConflictCard conflict={conflict} />
@@ -203,17 +203,17 @@ export function AlertRowDetails({
               title={`High deviations (${alert.deviations.length})`}
               icon={<TrendingUp className="size-3.5" aria-hidden />}
               iconClassName="bg-violet-50 text-violet-700"
-              className="space-y-2"
+              className="space-y-2.5"
             >
               <DeviationsPanel deviations={alert.deviations} />
             </DetailSection>
           ) : null}
 
-          <div className="pt-4">
+          <div className="border-t border-slate-200/60 pt-5">
             <Button
               type="button"
               size="default"
-              className="gap-1.5 rounded-[8px]"
+              className="gap-1.5 rounded-[8px] shadow-xs"
               onClick={onViewActionLog}
             >
               View in Action Log

@@ -64,7 +64,7 @@ function ChangeValues({ side }: { side: ConflictActorChange }) {
 
   if (after) {
     return (
-      <span className="rounded bg-brand-50 px-1 py-px font-mono text-sm font-semibold text-brand-800">
+      <span className="rounded-md bg-brand-50 px-1.5 py-0.5 font-mono text-sm font-medium text-brand-800">
         Set to {after}
       </span>
     );
@@ -110,9 +110,9 @@ function ActorChangeSide({ side }: ActorChangeSideProps) {
 export function AlertConflictCard({ conflict }: AlertConflictCardProps) {
   return (
     <div className="px-4 py-3.5">
-      <p className="mb-4 truncate text-sm font-semibold text-slate-700">
+      <p className="mb-4 truncate text-sm font-medium text-slate-800">
         {conflict.entityName}
-        <span className="ml-1.5 inline-flex rounded bg-slate-100 px-1.5 py-0.5 text-xs font-normal text-slate-700">
+        <span className="ml-1.5 inline-flex rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-normal text-slate-600">
           {conflict.field}
         </span>
       </p>

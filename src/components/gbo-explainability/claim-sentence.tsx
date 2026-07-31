@@ -18,7 +18,7 @@ export function ClaimSentence({
   return (
     <p
       className={cn(
-        "text-sm font-medium leading-snug text-foreground",
+        "text-sm font-medium leading-snug tracking-tight text-slate-900",
         summarySource === "template" && "text-slate-600",
         className,
       )}

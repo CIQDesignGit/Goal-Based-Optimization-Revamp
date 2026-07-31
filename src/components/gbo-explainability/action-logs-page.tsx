@@ -7,7 +7,6 @@ import { ActionLogTable } from "@/components/gbo-explainability/action-log-table
 import { ActionLogsToolbar } from "@/components/gbo-explainability/action-logs-toolbar";
 import { AlertsView } from "@/components/gbo-explainability/alerts-view";
 import { usePageTitle } from "@/components/layout/page-title-context";
-import { Button } from "@/components/ui/button";
 import {
   aggregateAlerts,
   alertRoleLabel,
@@ -57,7 +56,7 @@ import type {
   PageView,
 } from "@/lib/gbo-explainability/types";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 15;
 
 function buildDefaultAlertsFilters(): FilterState {
   return {
@@ -614,6 +613,9 @@ export function ActionLogsPage() {
           <ActionLogTable
             rows={pageRows}
             totalCount={flatRows.length}
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
             retryingId={retryingId}
             onRetry={handleRetry}
             filteredCount={flatRows.length}
@@ -621,30 +623,6 @@ export function ActionLogsPage() {
             onExport={handleExport}
             onDownloadToday={handleDownloadToday}
           />
-
-          {totalPages > 1 ? (
-            <div className="flex items-center justify-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                Previous
-              </Button>
-              <span className="text-xs text-muted-foreground">
-                Page {page} of {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next
-              </Button>
-            </div>
-          ) : null}
         </>
       )}
     </div>

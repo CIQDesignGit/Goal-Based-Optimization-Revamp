@@ -1,7 +1,7 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
-import { AlertCircle, Gauge, GitCompare } from "lucide-react";
+import { Activity, AlertCircle, GitCompare } from "lucide-react";
 
 import {
   conflictLabel,
@@ -31,21 +31,21 @@ const SIGNAL_TONE_STYLES: Record<
   }
 > = {
   failure: {
-    container: "bg-error-50",
+    container: "bg-error-50 ring-1 ring-error-100/80",
     icon: "text-error-600",
-    count: "bg-error-200 text-error-800",
+    count: "bg-error-100 text-error-800",
     label: "text-error-700",
   },
   conflict: {
-    container: "bg-amber-50",
+    container: "bg-amber-50 ring-1 ring-amber-100/80",
     icon: "text-amber-600",
-    count: "bg-amber-200 text-amber-900",
+    count: "bg-amber-100 text-amber-900",
     label: "text-amber-800",
   },
   deviation: {
-    container: "bg-violet-50",
+    container: "bg-violet-50 ring-1 ring-violet-100/80",
     icon: "text-violet-600",
-    count: "bg-violet-200 text-violet-900",
+    count: "bg-violet-100 text-violet-900",
     label: "text-violet-800",
   },
 };
@@ -58,7 +58,7 @@ type SignalTagProps = {
   title: string;
 };
 
-/** Compact signal chip — icon, count pill, and label without an outer border. */
+/** Compact signal chip — icon, count pill, and label. */
 function SignalTag({ tone, count, label, icon: Icon, title }: SignalTagProps) {
   const styles = SIGNAL_TONE_STYLES[tone];
 
@@ -67,20 +67,20 @@ function SignalTag({ tone, count, label, icon: Icon, title }: SignalTagProps) {
       title={title}
       aria-label={`${count} ${label}`}
       className={cn(
-        "inline-flex h-6 items-center gap-1 rounded-md px-1.5",
+        "inline-flex h-6 items-center gap-1.5 rounded-md px-2",
         styles.container,
       )}
     >
       <Icon className={cn("size-3 shrink-0", styles.icon)} aria-hidden />
       <span
-        className={cn("text-xs leading-none font-medium", styles.label)}
+        className={cn("text-[11px] leading-none font-medium", styles.label)}
         aria-hidden
       >
         {label}
       </span>
       <span
         className={cn(
-          "inline-flex min-w-[1.125rem] items-center justify-center rounded-sm px-1 py-0.5 text-2xs leading-none font-semibold tabular-nums",
+          "inline-flex min-w-[1.125rem] items-center justify-center rounded px-1 py-0.5 text-[10px] leading-none font-semibold tabular-nums",
           styles.count,
         )}
         aria-hidden
@@ -126,7 +126,7 @@ export function AlertSignalTags({ alert, className }: AlertSignalTagsProps) {
           tone="deviation"
           count={alert.highDeviationCount}
           label={highDeviationLabel(alert.highDeviationCount)}
-          icon={Gauge}
+          icon={Activity}
           title="Field values changed by more than 12.5% from their prior value"
         />
       ) : null}

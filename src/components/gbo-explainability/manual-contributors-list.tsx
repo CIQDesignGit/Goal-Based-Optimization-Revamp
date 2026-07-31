@@ -22,16 +22,16 @@ export function ManualContributorsList({
   return (
     <ul
       className={cn(
-        "divide-y divide-border overflow-hidden rounded-md border border-border bg-background",
+        "divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-xs",
         className,
       )}
     >
       {contributors.map((contributor) => (
-        <li key={contributor.id} className="px-2.5 py-2">
-          <div className="flex min-w-0 items-start gap-2">
+        <li key={contributor.id} className="px-4 py-3">
+          <div className="flex min-w-0 items-start gap-2.5">
             <span
               className={cn(
-                "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold",
+                "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-medium ring-1 ring-slate-200/80",
                 PROFILE_AVATAR_STYLE.bg,
                 PROFILE_AVATAR_STYLE.text,
               )}
@@ -40,27 +40,27 @@ export function ManualContributorsList({
               {getProfileInitials(contributor.name)}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-xs leading-tight text-foreground">
+              <p className="text-sm leading-tight text-slate-800">
                 <span className="font-medium">{contributor.name}</span>
                 {contributor.email ? (
-                  <span className="font-normal text-muted-foreground">
+                  <span className="font-normal text-slate-400">
                     {" "}
                     · {contributor.email}
                   </span>
                 ) : null}
                 {contributor.deactivated ? (
-                  <span className="font-normal text-muted-foreground">
+                  <span className="font-normal text-slate-400">
                     {" "}
                     (deactivated)
                   </span>
                 ) : null}
               </p>
 
-              <ul className="mt-1.5 space-y-1">
+              <ul className="mt-2 space-y-1.5">
                 {contributor.claims.map((claim, index) => (
                   <li
                     key={`${contributor.id}-${index}`}
-                    className="text-xs leading-snug text-muted-foreground before:mr-1.5 before:text-slate-400 before:content-['•']"
+                    className="text-sm leading-snug text-slate-600"
                   >
                     {claim}
                   </li>
