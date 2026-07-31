@@ -288,7 +288,7 @@ function TargetPicker({
                 type="button"
                 aria-label={`Add ${campaign.name}`}
                 onClick={() => onToggle(campaign.id)}
-                className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-brand-600"
+                className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-brand-500"
               >
                 <Plus className="size-3.5" />
               </button>
@@ -344,7 +344,7 @@ function TargetPicker({
                 className={cn(
                   "inline-flex size-6 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-white/70",
                   status === "removed"
-                    ? "hover:text-brand-600"
+                    ? "hover:text-brand-500"
                     : "hover:text-error-600",
                 )}
               >
@@ -448,7 +448,7 @@ export function HourlyBidderPanel({
           {/* RULE — set strategy scope */}
           <section className="space-y-2">
             <div>
-              <h3 className="text-xs font-bold tracking-wide text-brand-600 uppercase">
+              <h3 className="text-xs font-bold tracking-wide text-brand-500 uppercase">
                 Rule
               </h3>
               <p className="text-sm text-slate-500">
@@ -471,7 +471,7 @@ export function HourlyBidderPanel({
           {/* Target — finalize campaign target list */}
           <section className="space-y-2">
             <div>
-              <h3 className="text-xs font-bold tracking-wide text-brand-600 uppercase">
+              <h3 className="text-xs font-bold tracking-wide text-brand-500 uppercase">
                 Target
               </h3>
               <p className="text-sm text-slate-500">
@@ -526,7 +526,7 @@ export function HourlyBidderPanel({
               disabled={!canSave}
               onClick={handleConfirm}
               className={cn(
-                "min-w-36 gap-1.5 bg-brand-600 text-white hover:bg-brand-700",
+                "min-w-36 gap-1.5 bg-brand-500 text-white hover:bg-brand-600",
                 !canSave && "cursor-not-allowed opacity-50",
               )}
             >
@@ -662,7 +662,7 @@ export function ClearDraftStrategiesButton({
         >
           <AlertDialogCancel
             variant="link"
-            className="h-auto px-0 text-brand-600 no-underline hover:text-brand-700 hover:no-underline"
+            className="h-auto px-0 text-brand-500 no-underline hover:text-brand-600 hover:no-underline"
           >
             Cancel
           </AlertDialogCancel>
@@ -719,7 +719,7 @@ export function DayPartingTile({
             />
             <span className="truncate font-medium text-slate-700">{label}</span>
             <Pencil
-              className="size-3.5 shrink-0 text-brand-600 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+              className="size-3.5 shrink-0 text-brand-500 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
               aria-hidden
             />
           </button>

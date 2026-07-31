@@ -1,10 +1,11 @@
 import { mapEntryToAlertRole } from "./aggregate-alerts";
+import { isAutomationActorFilter } from "./core-filter-definitions";
 import {
   filterActionLogRows,
   filterActionLogRowsByRetailer,
   flattenLogEntries,
 } from "./flatten-log-entries";
-import type { FilterState, LogEntry } from "./types";
+import type { AlertRole, FilterState, LogEntry } from "./types";
 
 function startOfDay(isoDate: string): Date {
   return new Date(`${isoDate}T00:00:00`);
@@ -49,15 +50,20 @@ export function filterEntries(
     }
 
     if (filters.user !== "all") {
-      const who =
-        entry.actor.kind === "human"
-          ? (entry.actor.email ?? entry.actor.label)
-          : entry.actor.label;
-      if (
-        who.toLowerCase() !== filters.user.toLowerCase() &&
-        entry.actor.label.toLowerCase() !== filters.user.toLowerCase()
-      ) {
-        return false;
+      if (isAutomationActorFilter(filters.user)) {
+        const role = filters.user.slice("actor:".length) as AlertRole;
+        if (mapEntryToAlertRole(entry) !== role) return false;
+      } else {
+        const who =
+          entry.actor.kind === "human"
+            ? (entry.actor.email ?? entry.actor.label)
+            : entry.actor.label;
+        if (
+          who.toLowerCase() !== filters.user.toLowerCase() &&
+          entry.actor.label.toLowerCase() !== filters.user.toLowerCase()
+        ) {
+          return false;
+        }
       }
     }
 

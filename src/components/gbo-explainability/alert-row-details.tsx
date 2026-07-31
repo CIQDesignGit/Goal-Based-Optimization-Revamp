@@ -212,9 +212,8 @@ export function AlertRowDetails({
           <div className="pt-4">
             <Button
               type="button"
-              variant="outline"
-              size="sm"
-              className="gap-1.5 border-brand-200 bg-background text-brand-700 hover:border-brand-300 hover:bg-brand-50"
+              size="default"
+              className="gap-1.5 rounded-[8px]"
               onClick={onViewActionLog}
             >
               View in Action Log

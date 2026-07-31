@@ -270,7 +270,7 @@ function SetupWizardContent() {
                         className={cn(
                           "flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold",
                           isDone && "bg-success-500 text-white",
-                          isCurrent && "bg-brand-600 text-white",
+                          isCurrent && "bg-brand-500 text-white",
                           !isDone &&
                             !isCurrent &&
                             "bg-slate-200 text-slate-500",

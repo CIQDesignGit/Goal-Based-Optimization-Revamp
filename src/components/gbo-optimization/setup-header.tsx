@@ -126,7 +126,7 @@ export function SetupHeader({
           />
           <button
             type="button"
-            className="flex min-w-0 items-center gap-1 truncate font-medium text-brand-600 underline decoration-dashed underline-offset-4"
+            className="flex min-w-0 items-center gap-1 truncate font-medium text-brand-500 underline decoration-dashed underline-offset-4"
           >
             <span className="truncate">Setup for Amazon Retail</span>
             <ChevronDown className="size-4 shrink-0" />
@@ -164,7 +164,7 @@ export function SetupHeader({
         <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
           <Button
             variant="link"
-            className="hidden h-auto shrink-0 px-0 text-brand-600 hover:text-brand-700 sm:inline-flex"
+            className="hidden h-auto shrink-0 px-0 text-brand-500 hover:text-brand-500 sm:inline-flex"
             render={<Link href="/" />}
           >
             Exit Setup
@@ -174,7 +174,7 @@ export function SetupHeader({
             disabled={isPrimaryDisabled}
             aria-busy={isLaunching}
             className={cn(
-              "shrink-0 gap-1.5 bg-brand-600 text-white hover:bg-brand-700",
+              "shrink-0 gap-1.5 bg-brand-500 text-white hover:bg-brand-500",
               isPrimaryDisabled && "cursor-not-allowed opacity-50",
             )}
           >

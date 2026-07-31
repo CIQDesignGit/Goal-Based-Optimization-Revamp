@@ -8,15 +8,18 @@
 
 ## Confirmed Figma Variables
 
-These values were extracted directly from the Figma variable library:
+These values are aligned with the live token set in `src/app/globals.css`:
 
 | Figma Variable Name   | Hex Value   | Role                        |
 | --------------------- | ----------- | --------------------------- |
-| `Purple/500`          | `#875BF7`   | Brand primary               |
-| `Purple/200`          | `#DDD6FE`   | Brand light / accent        |
-| `Warning/600`         | `#DC6803`   | Warning text / icon         |
-| `Warning/100`         | `#FEF0C7`   | Warning background          |
+| `Blue/500`            | `#3B82F6`   | Brand primary (default)     |
+| `Blue/600`            | `#2563EB`   | Primary hover / `--primary` |
+| `Blue/100`            | `#DBEAFE`   | Brand light / accent        |
+| `Warning/600`         | `#D97706`   | Warning text / icon         |
+| `Warning/100`         | `#FEF3C7`   | Warning background          |
 | `Base/White`          | `#FFFFFF`   | Base white / background     |
+
+> **Primary color is blue** (Tailwind blue scale). Use `bg-primary`, `bg-brand-500`, or `bg-brand-600` in components — not purple.
 
 ---
 
@@ -76,23 +79,23 @@ These values were extracted directly from the Figma variable library:
 
 ## Color System
 
-### Brand — Purple
-> Seed: `Purple/500 = #875BF7` and `Purple/200 = #DDD6FE` from Figma.
-> Full palette derived from those anchor values.
+### Brand — Blue
+> Canonical primary: Tailwind blue scale, defined in `globals.css`.
+> Seeds: `Blue/500 = #3B82F6` and `Blue/600 = #2563EB`.
 
 | Token              | Tailwind Class      | Hex       | Usage                              |
 | ------------------ | ------------------- | --------- | ---------------------------------- |
-| `--color-brand-50` | `bg-brand-50`       | `#faf5ff` | Hover backgrounds                  |
-| `--color-brand-100`| `bg-brand-100`      | `#f3e8ff` | Light tints                        |
-| `--color-brand-200`| `bg-brand-200`      | `#ddd6fe` | **Figma Purple/200** — Accent bg   |
-| `--color-brand-300`| `bg-brand-300`      | `#c4b5fd` | Subtle UI elements                 |
-| `--color-brand-400`| `bg-brand-400`      | `#a78bfa` | Light mode interactive states      |
-| `--color-brand-500`| `bg-brand-500`      | `#875bf7` | **Figma Purple/500** — PRIMARY     |
-| `--color-brand-600`| `bg-brand-600`      | `#7c3aed` | Hover on primary                   |
-| `--color-brand-700`| `bg-brand-700`      | `#6d28d9` | Active/pressed on primary          |
-| `--color-brand-800`| `bg-brand-800`      | `#5b21b6` | Dark text on light backgrounds     |
-| `--color-brand-900`| `bg-brand-900`      | `#4c1d95` | Very dark brand                    |
-| `--color-brand-950`| `bg-brand-950`      | `#2e1065` | Darkest brand (dark mode text)     |
+| `--color-brand-25` | `bg-brand-25`       | `#f5f9ff` | Lightest tint                      |
+| `--color-brand-50` | `bg-brand-50`       | `#eff6ff` | Hover backgrounds                  |
+| `--color-brand-100`| `bg-brand-100`      | `#dbeafe` | Light tints / accent bg            |
+| `--color-brand-200`| `bg-brand-200`      | `#bfdbfe` | Subtle accent backgrounds          |
+| `--color-brand-300`| `bg-brand-300`      | `#93c5fd` | Subtle UI elements                 |
+| `--color-brand-400`| `bg-brand-400`      | `#60a5fa` | Light mode interactive states      |
+| `--color-brand-500`| `bg-brand-500`      | `#3b82f6` | **PRIMARY** — buttons, links, actions |
+| `--color-brand-600`| `bg-brand-600`      | `#2563eb` | Hover on primary actions            |
+| `--color-brand-700`| `bg-brand-700`      | `#1d4ed8` | Active/pressed on primary          |
+| `--color-brand-800`| `bg-brand-800`      | `#1e40af` | Dark text on light backgrounds     |
+| `--color-brand-900`| `bg-brand-900`      | `#1e3a8a` | Very dark brand                    |
 
 ### Warning — Amber
 > Seeds: `Warning/100 = #FEF0C7` and `Warning/600 = #DC6803` from Figma.
@@ -158,18 +161,20 @@ Use `bg-primary`, `text-foreground`, etc. in components.
 
 | CSS Variable             | Light Mode Value  | Dark Mode Value   | Tailwind Class              |
 | ------------------------ | ----------------- | ----------------- | --------------------------- |
-| `--primary`              | `#875bf7`         | `#a78bfa`         | `bg-primary`                |
-| `--primary-foreground`   | `#ffffff`         | `#2e1065`         | `text-primary-foreground`   |
+| `--primary`              | `#3b82f6`         | `#3b82f6`         | `bg-primary` / `bg-brand-500` |
+| `--primary-foreground`   | `#ffffff`         | `#ffffff`         | `text-primary-foreground`   |
 | `--secondary`            | neutral-100       | neutral-700       | `bg-secondary`              |
-| `--accent`               | `#ddd6fe`         | brand-900         | `bg-accent`                 |
-| `--accent-foreground`    | `#4c1d95`         | brand-200         | `text-accent-foreground`    |
+| `--accent`               | `#eff6ff`         | brand-900 tint    | `bg-accent`                 |
+| `--accent-foreground`    | `#3b82f6`         | `#ffffff`         | `text-accent-foreground`    |
 | `--background`           | `#ffffff`         | neutral-900       | `bg-background`             |
 | `--foreground`           | neutral-900       | neutral-50        | `text-foreground`           |
 | `--muted`                | neutral-100       | neutral-700       | `bg-muted`                  |
 | `--muted-foreground`     | neutral-500       | neutral-400       | `text-muted-foreground`     |
 | `--border`               | neutral-200       | white/10%         | `border-border`             |
-| `--ring`                 | `#875bf7`         | `#a78bfa`         | `outline-ring`              |
+| `--ring`                 | `#3b82f6`         | `#3b82f6`         | `outline-ring`              |
 | `--destructive`          | error-500         | error-400         | `bg-destructive`            |
+
+> Semantic tokens use **oklch** in `globals.css`; hex values above are the nearest brand-blue equivalents for reference.
 
 ---
 
@@ -239,8 +244,8 @@ shadow-md:   0 4px 6px -1px rgb(0 0 0 / 0.10), 0 2px 4px -2px rgb(0 0 0 / 0.06)
 shadow-lg:   0 10px 15px -3px rgb(0 0 0 / 0.10), 0 4px 6px -4px rgb(0 0 0 / 0.06)
 shadow-xl:   0 20px 25px -5px rgb(0 0 0 / 0.10), 0 8px 10px -6px rgb(0 0 0 / 0.04)
 shadow-2xl:  0 25px 50px -12px rgb(0 0 0 / 0.25)
-shadow-brand: 0 4px 14px 0 rgb(135 91 247 / 0.35)
-shadow-brand-lg: 0 8px 28px 0 rgb(135 91 247 / 0.40)
+shadow-brand: 0 4px 14px 0 rgb(37 99 235 / 0.25)
+shadow-brand-lg: 0 8px 24px 0 rgb(37 99 235 / 0.35)
 shadow-inner: inset 0 2px 4px 0 rgb(0 0 0 / 0.06)
 ```
 
@@ -252,11 +257,11 @@ Used in data visualisations (charts, graphs, dashboards).
 
 | Variable      | Light Mode  | Dark Mode   |
 | ------------- | ----------- | ----------- |
-| `--chart-1`   | `#875bf7`   | `#a78bfa`   |
-| `--chart-2`   | `#3b82f6`   | `#60a5fa`   |
-| `--chart-3`   | `#22c55e`   | `#4ade80`   |
-| `--chart-4`   | `#dc6803`   | `#fcb519`   |
-| `--chart-5`   | `#ef4444`   | `#f87171`   |
+| `--chart-1`   | `#2563eb`   | `#3b82f6`   |
+| `--chart-2`   | `#3b82f6`   | `#34d399`   |
+| `--chart-3`   | `#6366f1`   | `#fbbf24`   |
+| `--chart-4`   | `#10b981`   | `#3b82f6`   |
+| `--chart-5`   | `#f59e0b`   | `#6366f1`   |
 
 ---
 
@@ -266,8 +271,8 @@ Used in data visualisations (charts, graphs, dashboards).
 
 **Semantic tokens** (light/dark aware — preferred for components):
 ```tsx
-// Uses --primary which switches between #875bf7 (light) and #a78bfa (dark)
-<button className="bg-primary text-primary-foreground">Click me</button>
+// Uses brand-500 (#3b82f6) for primary actions
+<button className="bg-brand-500 hover:bg-brand-600 text-primary-foreground">Click me</button>
 
 // Muted text
 <p className="text-muted-foreground">Helper text</p>
@@ -275,7 +280,7 @@ Used in data visualisations (charts, graphs, dashboards).
 
 **Brand palette** (always the same value regardless of dark mode):
 ```tsx
-// Always #875bf7 — use when you need a fixed brand color
+// Always #3b82f6 — use when you need a fixed brand color
 <span className="text-brand-500">Brand highlight</span>
 
 // Brand button with glow shadow
@@ -323,7 +328,8 @@ app/
 
 ## Notes & Next Steps
 
+- **Primary color is blue** (`brand-500` / `brand-600`). Prefer `bg-primary` or `brand-*` tokens — do not use purple values from older Figma exports.
 - The Figma file is marked **"In Progress"** — new tokens will be added as the design evolves.
-- When new Figma variables are published, update `globals.css` `@theme` block and this file.
+- When Figma variables change, update `globals.css` `@theme` block and this file together.
 - Components (buttons, inputs, cards, etc.) will be documented in a separate `component-specs.md` once the component library is ready.
 - Dark mode is fully wired — toggle the `.dark` class on `<html>` to activate.

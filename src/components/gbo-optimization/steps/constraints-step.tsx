@@ -683,7 +683,7 @@ function PercentConstraintCell({
           <div className="flex items-center gap-3 text-sm">
             <button
               type="button"
-              className="font-medium text-brand-600 hover:underline"
+              className="font-medium text-brand-500 hover:underline"
               onMouseDown={(event) => {
                 event.preventDefault();
                 onConfirmPending();
@@ -1298,7 +1298,7 @@ export function ConstraintsStep() {
                 "gap-1.5",
                 showHistoricalData
                   ? "bg-muted text-foreground"
-                  : "text-brand-600",
+                  : "text-brand-500",
               )}
               aria-pressed={showHistoricalData}
               onClick={() => setShowHistoricalData((current) => !current)}

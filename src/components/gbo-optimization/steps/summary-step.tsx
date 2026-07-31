@@ -73,7 +73,7 @@ export function SummaryStep() {
             type="checkbox"
             checked={summaryReviewed}
             onChange={(event) => setSummaryReviewed(event.target.checked)}
-            className="mt-0.5 size-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+            className="mt-0.5 size-4 shrink-0 rounded border-slate-300 text-brand-500 focus:ring-brand-500"
           />
           <div className="space-y-1">
             <Label className="cursor-pointer text-sm font-medium text-slate-900">

@@ -32,7 +32,7 @@ function ScheduleStrip({
               mult === 0 && "bg-slate-100",
               mult > 0 && mult < 1.2 && "bg-brand-200",
               mult >= 1.2 && mult < 1.4 && "bg-brand-400",
-              mult >= 1.4 && "bg-brand-600",
+              mult >= 1.4 && "bg-brand-500",
             )}
           />
         ))}

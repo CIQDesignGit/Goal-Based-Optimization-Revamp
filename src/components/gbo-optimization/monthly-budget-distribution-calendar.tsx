@@ -252,7 +252,7 @@ export function MonthlyBudgetDistributionCalendar({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         className={cn(
-          "inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-brand-600 underline-offset-4 hover:underline",
+          "inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-brand-500 underline-offset-4 hover:underline",
           className,
         )}
       >

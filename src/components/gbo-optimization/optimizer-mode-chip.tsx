@@ -266,7 +266,7 @@ export function OptimizerModeChip({
                   </span>
                   {isSelected ? (
                     <Check
-                      className="mt-0.5 size-4 shrink-0 text-brand-600"
+                      className="mt-0.5 size-4 shrink-0 text-brand-500"
                       aria-hidden
                     />
                   ) : (

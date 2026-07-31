@@ -7,7 +7,6 @@ import { FiltersPopover } from "@/components/gbo-explainability/filters-popover"
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import type {
-  AccountOptimizerConfig,
   ActiveFilterChip,
   FilterState,
   PageView,
@@ -24,7 +23,6 @@ type ActionLogsToolbarProps = {
   onClearAll: () => void;
   search: string;
   onSearchChange: (value: string) => void;
-  config: AccountOptimizerConfig;
   filteredCount: number;
   onExport: () => void;
   onDownloadToday: () => void;
@@ -42,7 +40,6 @@ export function ActionLogsToolbar({
   onClearAll,
   search,
   onSearchChange,
-  config,
   filteredCount,
   onExport,
   onDownloadToday,
@@ -90,8 +87,8 @@ export function ActionLogsToolbar({
             />
           </div>
           <FiltersPopover
+            view={view}
             filters={filters}
-            config={config}
             onChange={onFiltersChange}
           />
         </div>
@@ -118,7 +115,7 @@ export function ActionLogsToolbar({
           <button
             type="button"
             onClick={onClearAll}
-            className="text-xs font-medium text-brand-700 hover:underline"
+            className="text-xs font-medium text-brand-500 hover:underline"
           >
             Clear all
           </button>

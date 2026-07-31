@@ -43,7 +43,7 @@ export function SettingsHomeContent() {
         {entryPoints.map(({ title, description, href, icon: Icon }) => (
           <Card key={href} className="transition-shadow hover:shadow-md">
             <CardHeader>
-              <div className="mb-3 flex size-10 items-center justify-center rounded-lg bg-brand-100 text-brand-600">
+              <div className="mb-3 flex size-10 items-center justify-center rounded-lg bg-brand-100 text-brand-500">
                 <Icon className="size-5" />
               </div>
               <CardTitle>{title}</CardTitle>

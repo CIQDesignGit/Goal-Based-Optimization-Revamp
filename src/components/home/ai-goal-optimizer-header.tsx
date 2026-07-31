@@ -104,7 +104,7 @@ export function AiGoalOptimizerHeader() {
           <Button
             variant="outline"
             size="lg"
-            className="h-9 gap-2 rounded-md border-brand-500 bg-white px-4 text-brand-600 shadow-none hover:bg-brand-50 hover:text-brand-700"
+            className="h-9 gap-2 rounded-md border-brand-500 bg-white px-4 text-brand-500 shadow-none hover:bg-brand-50 hover:text-brand-600"
             render={<Link href="/gbo-optimization" />}
           >
             <PencilLine className="size-4" />

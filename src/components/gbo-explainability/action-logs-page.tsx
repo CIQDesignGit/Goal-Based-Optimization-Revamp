@@ -20,6 +20,11 @@ import {
   filterTodaysAllyAi,
 } from "@/lib/gbo-explainability/export-csv";
 import {
+  actionTypeLabel,
+  optimizerTypeLabel,
+  personLabel,
+} from "@/lib/gbo-explainability/core-filter-definitions";
+import {
   buildDefaultFilters,
   defaultDateRange,
   filterEntries,
@@ -31,7 +36,6 @@ import {
 } from "@/lib/gbo-explainability/filter-entries";
 import {
   INITIAL_MOCK_ENTRIES,
-  MOCK_ACCOUNT_CONFIG,
 } from "@/lib/gbo-explainability/mock-data";
 import {
   filterActionLogRows,
@@ -69,8 +73,46 @@ function filterChip(
   return { ...chip, label };
 }
 
-function chipsFromFilters(filters: FilterState): ActiveFilterChip[] {
+function formatDateChipValue(dateFrom: string, dateTo: string): string {
+  if (dateFrom === dateTo) {
+    return formatAlertDate(dateFrom);
+  }
+  return `${formatAlertDate(dateFrom)} – ${formatAlertDate(dateTo)}`;
+}
+
+function isDefaultAlertsDateRange(filters: FilterState): boolean {
+  const defaults = defaultDateRange();
+  return (
+    filters.dateFrom === defaults.dateFrom && filters.dateTo === defaults.dateTo
+  );
+}
+
+function chipsFromFilters(
+  filters: FilterState,
+  view: PageView,
+): ActiveFilterChip[] {
   const chips: ActiveFilterChip[] = [];
+  const isAlertDrill =
+    hasDateFilter(filters) &&
+    filters.dateFrom === filters.dateTo &&
+    filters.actorRole !== "all";
+  const showDateChip =
+    hasDateFilter(filters) &&
+    !isAlertDrill &&
+    !(view === "alerts" && isDefaultAlertsDateRange(filters));
+
+  if (showDateChip) {
+    chips.push(
+      filterChip({
+        id: "dateRange",
+        key: "dateRange",
+        value: `${filters.dateFrom}:${filters.dateTo}`,
+        categoryLabel: "Date",
+        valueLabel: formatDateChipValue(filters.dateFrom, filters.dateTo),
+        scope: "common",
+      }),
+    );
+  }
 
   if (filters.actionStatus !== "all") {
     chips.push(
@@ -110,8 +152,8 @@ function chipsFromFilters(filters: FilterState): ActiveFilterChip[] {
         id: "user",
         key: "user",
         value: filters.user,
-        categoryLabel: "Person",
-        valueLabel: filters.user,
+        categoryLabel: "Who made the change",
+        valueLabel: personLabel(filters.user),
         scope: "detail",
       }),
     );
@@ -152,8 +194,20 @@ function chipsFromFilters(filters: FilterState): ActiveFilterChip[] {
         key: "actionType",
         value: filters.actionType,
         categoryLabel: "Action",
-        valueLabel:
-          filters.actionType.replace(/-/g, " ").replace(/^\w/, (c) => c.toUpperCase()),
+        valueLabel: actionTypeLabel(filters.actionType),
+        scope: "detail",
+      }),
+    );
+  }
+
+  if (filters.strategy !== "all") {
+    chips.push(
+      filterChip({
+        id: "optimizerType",
+        key: "strategy",
+        value: filters.strategy,
+        categoryLabel: "Optimizer type",
+        valueLabel: optimizerTypeLabel(filters.strategy),
         scope: "detail",
       }),
     );
@@ -185,65 +239,7 @@ function chipsFromFilters(filters: FilterState): ActiveFilterChip[] {
     );
   }
 
-  const retailerChips: Array<{
-    id: string;
-    key: keyof FilterState;
-    categoryLabel: string;
-    value: string;
-  }> = [
-    {
-      id: "entityType",
-      key: "entityType",
-      categoryLabel: "Entity Type",
-      value: filters.entityType,
-    },
-    {
-      id: "campaignType",
-      key: "campaignType",
-      categoryLabel: "Campaign Type",
-      value: filters.campaignType,
-    },
-    {
-      id: "matchType",
-      key: "matchType",
-      categoryLabel: "Match Type",
-      value: filters.matchType,
-    },
-    { id: "source", key: "source", categoryLabel: "Source", value: filters.source },
-    {
-      id: "objective",
-      key: "objective",
-      categoryLabel: "Objective",
-      value: filters.objective,
-    },
-    {
-      id: "strategy",
-      key: "strategy",
-      categoryLabel: "Strategy",
-      value: filters.strategy,
-    },
-  ];
-
-  for (const chip of retailerChips) {
-    if (chip.value !== "all") {
-      chips.push(
-        filterChip({
-          id: chip.id,
-          key: chip.key,
-          value: chip.value,
-          categoryLabel: chip.categoryLabel,
-          valueLabel: chip.value,
-          scope: "detail",
-        }),
-      );
-    }
-  }
-
-  if (
-    hasDateFilter(filters) &&
-    filters.dateFrom === filters.dateTo &&
-    filters.actorRole !== "all"
-  ) {
+  if (isAlertDrill && filters.actorRole !== "all") {
     chips.push(
       filterChip({
         id: "alertDrill",
@@ -260,7 +256,6 @@ function chipsFromFilters(filters: FilterState): ActiveFilterChip[] {
 }
 
 export function ActionLogsPage() {
-  const config = MOCK_ACCOUNT_CONFIG;
   const { setBreadcrumbs } = usePageTitle();
 
   const [entries, setEntries] = useState<LogEntry[]>(INITIAL_MOCK_ENTRIES);
@@ -291,7 +286,10 @@ export function ActionLogsPage() {
     return () => setBreadcrumbs([]);
   }, [view, setBreadcrumbs]);
 
-  const chips = useMemo(() => chipsFromFilters(filters), [filters]);
+  const chips = useMemo(
+    () => chipsFromFilters(filters, view),
+    [filters, view],
+  );
 
   const allAlerts = useMemo(() => aggregateAlerts(entries), [entries]);
 
@@ -367,6 +365,15 @@ export function ActionLogsPage() {
       return;
     }
 
+    if (chip.id === "dateRange") {
+      patchFilters(
+        view === "alerts"
+          ? defaultDateRange()
+          : { dateFrom: "", dateTo: "" },
+      );
+      return;
+    }
+
     if (chip.key === "outOfBudgetOnly") {
       patchFilters({ outOfBudgetOnly: false });
       return;
@@ -436,7 +443,6 @@ export function ActionLogsPage() {
           setSearch(v);
           setPage(1);
         }}
-        config={config}
         filteredCount={flatRows.length}
         onExport={handleExport}
         onDownloadToday={handleDownloadToday}

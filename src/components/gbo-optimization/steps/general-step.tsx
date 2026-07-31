@@ -82,14 +82,14 @@ function RadioIndicator({
       className={cn(
         "flex shrink-0 items-center justify-center rounded-full border-2",
         compact ? "size-3.5" : "mt-0.5 size-4",
-        selected ? "border-brand-600" : "border-slate-300",
+        selected ? "border-brand-500" : "border-slate-300",
       )}
       aria-hidden
     >
       {selected ? (
         <span
           className={cn(
-            "rounded-full bg-brand-600",
+            "rounded-full bg-brand-500",
             compact ? "size-1.5" : "size-2",
           )}
         />
@@ -269,7 +269,7 @@ export function GeneralStep() {
                       "flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors",
                       isRuleBased && "cursor-not-allowed opacity-50",
                       isSelected
-                        ? "border-brand-600 bg-brand-50"
+                        ? "border-brand-500 bg-brand-50"
                         : "border-slate-200 bg-white hover:bg-slate-50",
                     )}
                   >
@@ -323,7 +323,7 @@ export function GeneralStep() {
                   className={cn(
                     "flex gap-3 rounded-lg border p-4 text-left transition-colors",
                     isSelected
-                      ? "border-brand-600 bg-brand-50"
+                      ? "border-brand-500 bg-brand-50"
                       : "border-slate-200 bg-white hover:bg-slate-50",
                   )}
                 >
@@ -497,7 +497,7 @@ export function GeneralStep() {
                   className={cn(
                     "flex gap-3 rounded-lg border p-4 text-left transition-colors",
                     isSelected
-                      ? "border-brand-600 bg-brand-50"
+                      ? "border-brand-500 bg-brand-50"
                       : "border-slate-200 bg-white hover:bg-slate-50",
                   )}
                   title={clearsSov ? "SOV goals will be cleared" : undefined}
@@ -562,7 +562,7 @@ export function GeneralStep() {
                       className={cn(
                         "flex items-start gap-2 rounded-md border px-2.5 py-2 text-left transition-colors",
                         isSelected
-                          ? "border-brand-600 bg-brand-50"
+                          ? "border-brand-500 bg-brand-50"
                           : "border-slate-200 bg-white hover:bg-slate-50",
                       )}
                     >

@@ -381,6 +381,229 @@ function aggregateGroupStatus(
   return "partial";
 }
 
+function ensureSentence(text: string): string {
+  const trimmed = text.trim();
+  return trimmed.endsWith(".") ? trimmed : `${trimmed}.`;
+}
+
+function summarizeEntityPhrase(entities: string[]): string {
+  if (entities.length === 1) return entities[0];
+  if (entities.length === 2) return `${entities[0]} and ${entities[1]}`;
+  return `${entities.slice(0, -1).join(", ")}, and ${entities.at(-1)}`;
+}
+
+function formatRuleTrigger(entry: LogEntry): string | null {
+  const trigger = entry.actor.triggerOrRule?.trim();
+  if (trigger) return trigger;
+
+  const reason = entry.reason.trim();
+  if (reason.toLowerCase().startsWith("rule:")) {
+    return reason.slice(5).trim();
+  }
+
+  return null;
+}
+
+function formatPrimaryDiff(entry: LogEntry): string | null {
+  const diff = entry.diffs?.[0];
+  if (!diff) return null;
+
+  const before = diff.before?.trim() ?? "";
+  const after = diff.after?.trim() ?? "";
+
+  if (before && after) {
+    return `${diff.field} changed from ${before} to ${after}`;
+  }
+  if (after) {
+    return `${diff.field} set to ${after}`;
+  }
+  if (before) {
+    return `${diff.field} cleared from ${before}`;
+  }
+
+  return null;
+}
+
+function formatScheduleChange(entry: LogEntry): string | null {
+  const before = entry.dayParting?.before?.label?.trim();
+  const after = entry.dayParting?.after?.label?.trim();
+  if (!before || !after || before === after) return null;
+  return `from ${before} to ${after}`;
+}
+
+function appendSignalNotes(base: string, signalParts: string[]): string {
+  if (signalParts.length === 0) return base;
+  return `${base} ${signalParts.join("; ")}.`;
+}
+
+/** Richer digest for rule-based alerts — includes rule, diff, and impact. */
+function buildRuleBasedAiSummary(
+  entries: LogEntry[],
+  signalParts: string[],
+): string {
+  const sorted = [...entries].sort(compareEntriesNewestFirst);
+
+  if (sorted.length === 1) {
+    const entry = sorted[0];
+    const rule = formatRuleTrigger(entry);
+    const diff = formatPrimaryDiff(entry);
+    const claim = entry.claim.trim();
+    const sentences: string[] = [];
+
+    if (rule && !claim.toLowerCase().includes(rule.toLowerCase())) {
+      sentences.push(ensureSentence(`${rule}: ${claim}`));
+    } else {
+      sentences.push(ensureSentence(claim));
+    }
+
+    const reason = entry.reason.trim().replace(/^Rule:\s*/i, "").trim();
+    if (
+      reason &&
+      reason !== rule &&
+      !sentences.join(" ").toLowerCase().includes(reason.toLowerCase())
+    ) {
+      sentences.push(ensureSentence(reason));
+    }
+
+    if (diff && !sentences.join(" ").includes(diff)) {
+      sentences.push(ensureSentence(diff));
+    }
+
+    if (entry.impact && !sentences.join(" ").includes(entry.impact.trim())) {
+      sentences.push(ensureSentence(entry.impact));
+    }
+
+    return appendSignalNotes(sentences.join(" "), signalParts);
+  }
+
+  const entities = [
+    ...new Set(sorted.map((entry) => entry.entityName)),
+  ];
+  const rules = [
+    ...new Set(
+      sorted
+        .map((entry) => formatRuleTrigger(entry))
+        .filter((rule): rule is string => Boolean(rule)),
+    ),
+  ];
+  const failureCount = sorted.filter((entry) =>
+    isFailureStatus(entry.status),
+  ).length;
+
+  const rulePhrase =
+    rules.length === 0
+      ? ""
+      : rules.length === 1
+        ? `, triggered by ${rules[0]}`
+        : `, triggered by ${rules.length} rules (${summarizeEntityPhrase(rules)})`;
+
+  let base = `${sorted.length} rule-based actions on ${summarizeEntityPhrase(entities)}${rulePhrase}. Latest: ${sorted[0].claim.trim()}`;
+
+  const latestDiff = formatPrimaryDiff(sorted[0]);
+  if (latestDiff) {
+    base += `. ${latestDiff}`;
+  }
+
+  const impacts = [
+    ...new Set(
+      sorted
+        .map((entry) => entry.impact?.trim())
+        .filter((impact): impact is string => Boolean(impact)),
+    ),
+  ];
+  if (impacts.length === 1) {
+    base += `. ${impacts[0]}`;
+  } else if (impacts.length > 1) {
+    base += `. ${impacts.length} actions with estimated impact`;
+  }
+
+  if (failureCount > 0) {
+    base += `. ${failureCount} action${failureCount === 1 ? "" : "s"} failed`;
+  }
+
+  return appendSignalNotes(ensureSentence(base), signalParts);
+}
+
+/** Richer digest for day-parting alerts — includes schedule shift and intent. */
+function buildDayPartingAiSummary(
+  entries: LogEntry[],
+  signalParts: string[],
+): string {
+  const sorted = [...entries].sort(compareEntriesNewestFirst);
+
+  if (sorted.length === 1) {
+    const entry = sorted[0];
+    const entity = entry.campaignName ?? entry.entityName;
+    const trigger =
+      entry.actor.triggerOrRule?.trim() ?? "Day-parting update";
+    const scheduleChange = formatScheduleChange(entry);
+    const sentences: string[] = [];
+
+    if (scheduleChange) {
+      sentences.push(
+        ensureSentence(
+          `${trigger} for ${entity} shifted the bid window ${scheduleChange}`,
+        ),
+      );
+    } else {
+      sentences.push(ensureSentence(entry.claim.trim()));
+    }
+
+    const reason = entry.reason.trim();
+    if (
+      reason &&
+      !sentences.join(" ").toLowerCase().includes(reason.toLowerCase())
+    ) {
+      sentences.push(ensureSentence(reason));
+    }
+
+    if (entry.impact && !sentences.join(" ").includes(entry.impact.trim())) {
+      sentences.push(ensureSentence(entry.impact));
+    }
+
+    return appendSignalNotes(sentences.join(" "), signalParts);
+  }
+
+  const entities = [
+    ...new Set(
+      sorted.map((entry) => entry.campaignName ?? entry.entityName),
+    ),
+  ];
+  const scheduleChanges = sorted
+    .map((entry) => formatScheduleChange(entry))
+    .filter((change): change is string => Boolean(change));
+  const failureCount = sorted.filter((entry) =>
+    isFailureStatus(entry.status),
+  ).length;
+
+  let base = `${sorted.length} day-parting schedule updates on ${summarizeEntityPhrase(entities)}`;
+
+  if (scheduleChanges.length === 1) {
+    base += `. One window shifted ${scheduleChanges[0]}`;
+  } else if (scheduleChanges.length > 1) {
+    base += `. ${scheduleChanges.length} bid windows adjusted`;
+  }
+
+  base += `. Latest: ${sorted[0].claim.trim()}`;
+
+  const impacts = [
+    ...new Set(
+      sorted
+        .map((entry) => entry.impact?.trim())
+        .filter((impact): impact is string => Boolean(impact)),
+    ),
+  ];
+  if (impacts.length === 1) {
+    base += `. ${impacts[0]}`;
+  }
+
+  if (failureCount > 0) {
+    base += `. ${failureCount} update${failureCount === 1 ? "" : "s"} failed`;
+  }
+
+  return appendSignalNotes(ensureSentence(base), signalParts);
+}
+
 /** Daily digest copy for the expanded alert panel. */
 function buildAlertAiSummary(
   role: AlertRole,
@@ -403,6 +626,14 @@ function buildAlertAiSummary(
     signalParts.push(
       `${deviations.length} field update${deviations.length === 1 ? "" : "s"} exceeded the 12.5% deviation threshold`,
     );
+  }
+
+  if (role === "rule-based") {
+    return buildRuleBasedAiSummary(sorted, signalParts);
+  }
+
+  if (role === "day-parting") {
+    return buildDayPartingAiSummary(sorted, signalParts);
   }
 
   if (sorted.length === 1) {

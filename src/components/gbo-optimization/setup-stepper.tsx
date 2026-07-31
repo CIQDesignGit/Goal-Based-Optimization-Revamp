@@ -42,7 +42,7 @@ function StepIcon({
   if (status === "current") {
     return (
       <span
-        className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-semibold text-white"
+        className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-semibold text-white"
         aria-hidden
       >
         {stepNumber}
@@ -73,7 +73,7 @@ function StepLabel({
     <span
       className={cn(
         "hidden whitespace-nowrap text-sm font-medium lg:inline",
-        status === "current" && "text-brand-600",
+        status === "current" && "text-brand-500",
         status === "completed" && "text-slate-800",
         status === "upcoming" && "text-slate-600",
         className,
@@ -137,7 +137,7 @@ export function SetupStepper({
 
               {isCurrent && (
                 <span
-                  className="absolute inset-x-1 bottom-0 h-0.5 rounded-full bg-brand-600"
+                  className="absolute inset-x-1 bottom-0 h-0.5 rounded-full bg-brand-500"
                   aria-hidden
                 />
               )}

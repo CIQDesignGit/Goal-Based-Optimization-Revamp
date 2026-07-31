@@ -298,7 +298,7 @@ function OrganizationChangeSection({
       <div className="border-b border-brand-100 bg-brand-50 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <AlertTriangle
-            className="size-4 shrink-0 text-brand-600"
+            className="size-4 shrink-0 text-brand-500"
             aria-hidden
           />
           <h3
@@ -1201,7 +1201,7 @@ function ImpactMatrixRow({
               type="button"
               aria-expanded={!collapsed}
               onClick={onToggle}
-              className="flex min-w-0 items-start gap-2 text-left hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+              className="flex min-w-0 items-start gap-2 text-left hover:text-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
             >
               {labelContent}
             </button>
@@ -1437,7 +1437,7 @@ function LineItemChangesWidget({
                 <Icon
                   className={cn(
                     "size-3.5 shrink-0",
-                    isSelected ? "text-brand-600" : "text-slate-400",
+                    isSelected ? "text-brand-500" : "text-slate-400",
                   )}
                   aria-hidden
                 />

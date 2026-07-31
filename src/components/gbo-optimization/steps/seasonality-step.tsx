@@ -175,7 +175,7 @@ export function SeasonalityStep() {
           className={cn(
             "inline-flex h-8 items-center rounded-md border bg-white px-3 font-sans text-sm font-medium transition-colors",
             isEntireBusiness
-              ? "border-brand-600 bg-brand-25 text-slate-900"
+              ? "border-brand-500 bg-brand-25 text-slate-900"
               : "border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900",
           )}
         >
@@ -269,7 +269,7 @@ export function SeasonalityStep() {
                     value="absolute"
                     checked={chartMode === "absolute"}
                     onChange={() => setChartMode("absolute")}
-                    className="size-4 border-slate-300 text-brand-600 focus:ring-2 focus:ring-brand-500/30"
+                    className="size-4 border-slate-300 text-brand-500 focus:ring-2 focus:ring-brand-500/30"
                   />
                   Absolute
                 </Label>
@@ -280,7 +280,7 @@ export function SeasonalityStep() {
                     value="cumulative"
                     checked={chartMode === "cumulative"}
                     onChange={() => setChartMode("cumulative")}
-                    className="size-4 border-slate-300 text-brand-600 focus:ring-2 focus:ring-brand-500/30"
+                    className="size-4 border-slate-300 text-brand-500 focus:ring-2 focus:ring-brand-500/30"
                   />
                   Cumulative
                 </Label>

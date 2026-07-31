@@ -692,7 +692,7 @@ function BudgetModeToggle({
         className={cn(
           "h-full rounded px-2.5 text-xs font-medium transition-colors",
           value === "percent"
-            ? "bg-white text-brand-600 shadow-sm"
+            ? "bg-white text-brand-500 shadow-sm"
             : "text-slate-500 hover:text-slate-700",
         )}
       >
@@ -704,7 +704,7 @@ function BudgetModeToggle({
         className={cn(
           "h-full rounded px-2.5 text-xs font-medium transition-colors",
           value === "absolute"
-            ? "bg-white text-brand-600 shadow-sm"
+            ? "bg-white text-brand-500 shadow-sm"
             : "text-slate-500 hover:text-slate-700",
         )}
       >
@@ -854,7 +854,7 @@ function SeasonalityEventFormRow({
           <Button
             type="button"
             onClick={onSave}
-            className="h-10 bg-brand-600 px-5 text-white hover:bg-brand-700"
+            className="h-10 bg-brand-500 px-5 text-white hover:bg-brand-600"
           >
             Save
           </Button>
@@ -935,7 +935,7 @@ function CustomEventsSection({
         variant="link"
         onClick={onAddEvent}
         className={cn(
-          "h-auto w-fit gap-1.5 px-0 text-brand-600 hover:text-brand-700",
+          "h-auto w-fit gap-1.5 px-0 text-brand-500 hover:text-brand-600",
           rows.length > 0 && "mt-3",
         )}
       >

@@ -40,7 +40,7 @@ export function SidebarNav() {
                   className={cn(
                     "flex size-10 items-center justify-center rounded-lg transition-colors",
                     isActive
-                      ? "bg-brand-100 text-brand-600"
+                      ? "bg-brand-100 text-brand-500"
                       : "text-neutral-400 hover:bg-neutral-100",
                   )}
                 >

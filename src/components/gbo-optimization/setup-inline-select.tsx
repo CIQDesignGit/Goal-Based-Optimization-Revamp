@@ -153,7 +153,7 @@ export function SetupInlineSelect({
               : "min-w-0 max-w-full",
             showInlineLabel &&
               (isActive
-                ? "border-brand-600 bg-brand-25"
+                ? "border-brand-500 bg-brand-25"
                 : "border-slate-200 bg-white"),
             triggerClassName,
           )}
