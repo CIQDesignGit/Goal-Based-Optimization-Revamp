@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import Image from "next/image";
 import {
   Activity,
-  ArrowRight,
   GitCompare,
   Users,
 } from "lucide-react";
@@ -12,7 +11,6 @@ import {
 import { AlertConflictCard } from "@/components/gbo-explainability/alert-conflict-card";
 import { ChangeRow } from "@/components/gbo-explainability/change-row";
 import { ManualContributorsList } from "@/components/gbo-explainability/manual-contributors-list";
-import { Button } from "@/components/ui/button";
 import { explainabilityActionable } from "@/lib/gbo-explainability/actionable-styles";
 import {
   detailChangeRowItem,
@@ -27,7 +25,6 @@ import { cn } from "@/lib/utils";
 
 type AlertRowDetailsProps = {
   alert: AlertSummary;
-  onViewActionLog: () => void;
 };
 
 type DetailSectionProps = {
@@ -158,19 +155,15 @@ function buildManualSubtitle(
   );
 }
 
-export function AlertRowDetails({
-  alert,
-  onViewActionLog,
-}: AlertRowDetailsProps) {
+export function AlertRowDetails({ alert }: AlertRowDetailsProps) {
   const manualContributors = alert.manualContributors;
   const showManualChanges = Boolean(manualContributors?.length);
   const singleContributor =
     manualContributors?.length === 1 ? manualContributors[0] : null;
 
   return (
-    <div className="bg-slate-50/40 pt-5 pb-0">
-      <div className="space-y-3 px-0">
-        {alert.role !== "human" ? (
+    <div className="space-y-4">
+      {alert.role !== "human" ? (
           <AlertAiSummary
             id={alertSectionId(alert.id, "summary")}
             summary={alert.aiSummary}
@@ -222,25 +215,6 @@ export function AlertRowDetails({
             <DeviationsPanel deviations={alert.deviations} />
           </DetailSection>
         ) : null}
-      </div>
-
-      <footer
-        id={alertSectionId(alert.id, "actions")}
-        className="mt-4 flex scroll-mt-4 justify-start py-3 pr-4"
-      >
-        <Button
-          type="button"
-          size="default"
-          className={cn(
-            "gap-1.5 rounded-[8px] shadow-xs",
-            explainabilityActionable.primaryButton,
-          )}
-          onClick={onViewActionLog}
-        >
-          View in Action Log
-          <ArrowRight className="size-3.5" aria-hidden />
-        </Button>
-      </footer>
     </div>
   );
 }

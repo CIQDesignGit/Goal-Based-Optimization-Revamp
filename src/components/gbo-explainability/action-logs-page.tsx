@@ -469,9 +469,10 @@ export function ActionLogsPage() {
     1,
     Math.ceil(filteredAlerts.length / PAGE_SIZE),
   );
-  const pageAlerts = filteredAlerts.slice(
-    (page - 1) * PAGE_SIZE,
-    page * PAGE_SIZE,
+  const pageAlerts = useMemo(
+    () =>
+      filteredAlerts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filteredAlerts, page],
   );
 
   const filtered = useMemo(
@@ -601,45 +602,47 @@ export function ActionLogsPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full flex-col gap-6">
-      <ActionLogsToolbar
-        view={view}
-        onViewChange={handleViewChange}
-        filters={filters}
-        onFiltersChange={patchFilters}
-        chips={chips}
-        onRemoveChip={removeChip}
-        onClearAll={clearAll}
-        search={search}
-        onSearchChange={(v) => {
-          setSearch(v);
-          setPage(1);
-        }}
-        alertCount={allAlerts.length}
-      />
+    <div className="flex h-full min-h-0 flex-col bg-slate-50/50">
+      <div className="shrink-0 border-b border-slate-200/80 bg-white py-1.5">
+        <ActionLogsToolbar
+          view={view}
+          onViewChange={handleViewChange}
+          filters={filters}
+          onFiltersChange={patchFilters}
+          chips={chips}
+          onRemoveChip={removeChip}
+          onClearAll={clearAll}
+          search={search}
+          onSearchChange={(v) => {
+            setSearch(v);
+            setPage(1);
+          }}
+          alertCount={allAlerts.length}
+        />
+      </div>
 
-      {view === "alerts" ? (
-        filteredAlerts.length === 0 ? (
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {view === "alerts" ? (
+          filteredAlerts.length === 0 ? (
+            <ActionLogsEmptyState
+              kind={hasActiveNarrowing ? "no-results" : "no-activity"}
+              onClearFilters={hasActiveNarrowing ? clearAll : undefined}
+            />
+          ) : (
+            <AlertsView
+              alerts={pageAlerts}
+              page={page}
+              totalPages={alertsTotalPages}
+              onPageChange={setPage}
+              onAlertClick={handleAlertClick}
+            />
+          )
+        ) : flatRows.length === 0 ? (
           <ActionLogsEmptyState
             kind={hasActiveNarrowing ? "no-results" : "no-activity"}
             onClearFilters={hasActiveNarrowing ? clearAll : undefined}
           />
         ) : (
-          <AlertsView
-            alerts={pageAlerts}
-            page={page}
-            totalPages={alertsTotalPages}
-            onPageChange={setPage}
-            onAlertClick={handleAlertClick}
-          />
-        )
-      ) : flatRows.length === 0 ? (
-        <ActionLogsEmptyState
-          kind={hasActiveNarrowing ? "no-results" : "no-activity"}
-          onClearFilters={hasActiveNarrowing ? clearAll : undefined}
-        />
-      ) : (
-        <>
           <ActionLogTable
             rows={pageRows}
             totalCount={flatRows.length}
@@ -653,8 +656,8 @@ export function ActionLogsPage() {
             onExport={handleExport}
             onDownloadToday={handleDownloadToday}
           />
-        </>
-      )}
+        )}
+      </div>
     </div>
   );
 }

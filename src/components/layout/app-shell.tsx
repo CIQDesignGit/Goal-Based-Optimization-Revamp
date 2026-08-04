@@ -14,6 +14,10 @@ type AppShellProps = {
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const isSetupFlow = pathname.startsWith("/gbo-optimization");
+  const isExplainabilityDashboard = pathname.startsWith(
+    "/explainability-dashboard",
+  );
+  const isFullBleedPage = isSetupFlow || isExplainabilityDashboard;
   const isHomePage = pathname === "/";
 
   return (
@@ -27,9 +31,11 @@ export function AppShell({ children }: AppShellProps) {
             <main
               className={cn(
                 "flex flex-1 flex-col",
-                isSetupFlow || isHomePage
+                isFullBleedPage
                   ? "min-h-0 overflow-hidden p-0"
-                  : "overflow-y-auto p-6",
+                  : isHomePage
+                    ? "overflow-y-auto p-0"
+                    : "overflow-y-auto p-6",
                 isHomePage && "overflow-y-auto",
               )}
             >
@@ -40,7 +46,9 @@ export function AppShell({ children }: AppShellProps) {
           <main
             className={cn(
               "flex flex-1 flex-col",
-              isSetupFlow ? "min-h-0 overflow-hidden p-0" : "overflow-y-auto p-6",
+              isFullBleedPage
+                ? "min-h-0 overflow-hidden p-0"
+                : "overflow-y-auto p-6",
             )}
           >
             {children}

@@ -88,7 +88,7 @@ export function ActionLogsEmptyState({
   const Icon = config.icon;
 
   return (
-    <ExplainabilityPanel>
+    <ExplainabilityPanel variant="flush" className="items-center justify-center">
       <div className="flex flex-col items-center justify-center gap-4 px-6 py-20 text-center">
         <div className="flex size-14 items-center justify-center rounded-2xl bg-linear-to-br from-slate-50 to-slate-100 text-slate-500 ring-1 ring-slate-200/80">
           <Icon className="size-6" aria-hidden />

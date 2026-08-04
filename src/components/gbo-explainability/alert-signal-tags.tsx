@@ -1,5 +1,8 @@
 "use client";
 
+import type { LucideIcon } from "lucide-react";
+import { Activity, AlertCircle, GitCompare } from "lucide-react";
+
 import {
   conflictLabel,
   failureLabel,
@@ -24,27 +27,25 @@ type SignalTone = "failure" | "conflict" | "deviation";
 const SIGNAL_TONE_STYLES: Record<
   SignalTone,
   {
-    container: string;
-    count: string;
-    label: string;
+    icon: LucideIcon;
+    iconClass: string;
   }
 > = {
   failure: {
-    container: "bg-error-50 ring-1 ring-error-100/80",
-    count: "bg-error-200 text-error-800",
-    label: "text-error-700",
+    icon: AlertCircle,
+    iconClass: "text-error-600",
   },
   conflict: {
-    container: "bg-amber-50 ring-1 ring-amber-100/80",
-    count: "bg-amber-200 text-amber-900",
-    label: "text-amber-800",
+    icon: GitCompare,
+    iconClass: "text-amber-600",
   },
   deviation: {
-    container: "bg-sky-50 ring-1 ring-sky-100/80",
-    count: "bg-sky-200 text-sky-900",
-    label: "text-sky-800",
+    icon: Activity,
+    iconClass: "text-sky-600",
   },
 };
+
+const SIGNAL_COUNT = "text-[10px] font-semibold leading-none tabular-nums text-slate-700";
 
 type SignalTagProps = {
   tone: SignalTone;
@@ -55,7 +56,7 @@ type SignalTagProps = {
   onNavigate?: (targetSectionId: string) => void;
 };
 
-/** Compact signal chip — label and count pill. */
+/** Compact signal chip — slate shell, colored icon + count badge. */
 function SignalTag({
   tone,
   count,
@@ -65,28 +66,27 @@ function SignalTag({
   onNavigate,
 }: SignalTagProps) {
   const styles = SIGNAL_TONE_STYLES[tone];
+  const Icon = styles.icon;
+
   const className = cn(
-    "inline-flex h-6 items-center gap-1.5 rounded-full pl-2.5 pr-1.5",
-    styles.container,
+    "inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-1.5 py-1",
     onNavigate &&
-      "cursor-pointer transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40",
+      "cursor-pointer transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40",
   );
 
   const content = (
     <>
+      <Icon
+        className={cn("size-3 shrink-0", styles.iconClass)}
+        aria-hidden
+      />
       <span
-        className={cn("text-xs leading-none font-medium", styles.label)}
+        className="text-xs leading-none text-slate-600"
         aria-hidden
       >
         {label}
       </span>
-      <span
-        className={cn(
-          "inline-flex min-w-[1.125rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] leading-none font-semibold tabular-nums",
-          styles.count,
-        )}
-        aria-hidden
-      >
+      <span className={cn("inline-flex shrink-0 font-semibold", SIGNAL_COUNT)} aria-hidden>
         {count}
       </span>
     </>

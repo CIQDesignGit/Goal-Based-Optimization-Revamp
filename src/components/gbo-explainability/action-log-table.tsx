@@ -115,7 +115,7 @@ export function ActionLogTable({
 
   return (
     <>
-      <ExplainabilityPanel>
+      <ExplainabilityPanel variant="flush">
         <ExplainabilityPanelHeader
           title="Total actions"
           description={`Showing ${rows.length} of ${totalCount} actions · newest first`}
@@ -129,7 +129,7 @@ export function ActionLogTable({
           }
         />
 
-        <div className="overflow-hidden border-t border-slate-100/80">
+        <div className="min-h-0 flex-1 overflow-auto border-t border-slate-100/80">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1160px] border-separate border-spacing-0 text-sm">
                 <thead>
@@ -253,7 +253,7 @@ export function ActionLogTable({
             </div>
         </div>
 
-        <footer className="border-t border-slate-100/80 bg-slate-50/60 px-5 py-2">
+        <footer className="shrink-0 border-t border-slate-100/80 bg-slate-50/60 px-4 py-2 md:px-5">
           <Pagination aria-label="Action log pagination" className="mx-0 w-auto justify-end">
             <PaginationContent>
               <PaginationItem>

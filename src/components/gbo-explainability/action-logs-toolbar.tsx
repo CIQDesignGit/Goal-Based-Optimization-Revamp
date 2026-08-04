@@ -41,11 +41,11 @@ export function ActionLogsToolbar({
   alertCount,
 }: ActionLogsToolbarProps) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-1.5">
       <div
         role="tablist"
         aria-label="Explainability views"
-        className="flex gap-6 border-b border-slate-200"
+        className="flex gap-6 border-b border-slate-200 px-4 md:px-5"
       >
         <TabButton
           active={view === "alerts"}
@@ -62,7 +62,7 @@ export function ActionLogsToolbar({
         </TabButton>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2.5">
+      <div className="flex flex-wrap items-center gap-2.5 px-4 md:px-5">
         <div className="relative w-full min-w-[18rem] shrink-0 sm:w-[18rem]">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-slate-400" />
           <Input

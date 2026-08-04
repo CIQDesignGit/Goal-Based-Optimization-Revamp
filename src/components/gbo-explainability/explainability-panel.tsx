@@ -2,18 +2,25 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
-/** Shared card shell for Alerts feed and Action Log table — keeps both views visually aligned. */
+type ExplainabilityPanelProps = {
+  children: ReactNode;
+  className?: string;
+  /** card = inset panel; flush = edge-to-edge workspace shell */
+  variant?: "card" | "flush";
+};
+
+/** Shared shell for Alerts feed and Action Log table — keeps both views visually aligned. */
 export function ExplainabilityPanel({
   children,
   className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
+  variant = "card",
+}: ExplainabilityPanelProps) {
   return (
     <section
       className={cn(
-        "overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm",
+        variant === "card"
+          ? "overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm"
+          : "flex h-full min-h-0 flex-col overflow-hidden rounded-none border-0 bg-white shadow-none",
         className,
       )}
     >

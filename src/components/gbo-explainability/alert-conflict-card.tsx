@@ -53,7 +53,7 @@ function ConflictSide({ side }: ConflictSideProps) {
           className="row-start-1 self-center"
         />
 
-        <p className={cn("row-start-1 min-w-0 truncate", explainabilityType.l3)}>
+        <p className="row-start-1 min-w-0 truncate text-sm font-medium text-slate-600">
           {displayActor(side)}
         </p>
 
