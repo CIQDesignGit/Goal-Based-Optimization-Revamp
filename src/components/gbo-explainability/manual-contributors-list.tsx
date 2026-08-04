@@ -9,6 +9,10 @@ import {
   PROFILE_AVATAR_STYLE,
   type ActorAvatarSize,
 } from "@/lib/gbo-explainability/actor-display";
+import {
+  detailChangeRowItem,
+  detailChangeRowList,
+} from "@/lib/gbo-explainability/detail-layout";
 import { explainabilityType } from "@/lib/gbo-explainability/explainability-typography";
 import { parseChangeClaim } from "@/lib/gbo-explainability/parse-change-claim";
 import type { ManualContributorSummary } from "@/lib/gbo-explainability/types";
@@ -83,9 +87,9 @@ export function ManualContributorsList({
       {contributors.map((contributor) => (
         <li key={contributor.id}>
           {hideIdentity ? (
-            <ul className="divide-y divide-slate-100">
+            <ul className={detailChangeRowList}>
               {contributor.claims.map((claim, index) => (
-                <li key={`${contributor.id}-${index}`}>
+                <li key={`${contributor.id}-${index}`} className={detailChangeRowItem}>
                   <ManualChangeClaimRow claim={claim} />
                 </li>
               ))}
@@ -109,9 +113,9 @@ export function ManualContributorsList({
                   ) : null}
                 </div>
               </div>
-              <ul className="divide-y divide-slate-100">
+              <ul className={detailChangeRowList}>
                 {contributor.claims.map((claim, index) => (
-                  <li key={`${contributor.id}-${index}`}>
+                  <li key={`${contributor.id}-${index}`} className={detailChangeRowItem}>
                     <ManualChangeClaimRow claim={claim} />
                   </li>
                 ))}

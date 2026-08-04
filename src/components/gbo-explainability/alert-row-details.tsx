@@ -15,6 +15,10 @@ import { ManualContributorsList } from "@/components/gbo-explainability/manual-c
 import { Button } from "@/components/ui/button";
 import { explainabilityActionable } from "@/lib/gbo-explainability/actionable-styles";
 import {
+  detailChangeRowItem,
+  detailChangeRowList,
+} from "@/lib/gbo-explainability/detail-layout";
+import {
   alertSectionId,
   explainabilityType,
 } from "@/lib/gbo-explainability/explainability-typography";
@@ -117,9 +121,9 @@ function DeviationsPanel({
   deviations: AlertSummary["deviations"];
 }) {
   return (
-    <ul className="divide-y divide-slate-100">
+    <ul className={detailChangeRowList}>
       {deviations.map((deviation) => (
-        <li key={deviation.id}>
+        <li key={deviation.id} className={detailChangeRowItem}>
           <ChangeRow
             entityName={deviation.entityName}
             field={deviation.field}

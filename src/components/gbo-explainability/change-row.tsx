@@ -1,6 +1,11 @@
 import type { ReactNode } from "react";
+import { ArrowRight } from "lucide-react";
 
-import { ChangeValueDisplay } from "@/components/gbo-explainability/change-value-display";
+import {
+  ChangeValueAfter,
+  ChangeValueBefore,
+  ChangeValueDisplay,
+} from "@/components/gbo-explainability/change-value-display";
 import { detailChangeRowGrid } from "@/lib/gbo-explainability/detail-layout";
 import { explainabilityType } from "@/lib/gbo-explainability/explainability-typography";
 import { cn } from "@/lib/utils";
@@ -31,6 +36,8 @@ export function ChangeRow({
   trailing,
   className,
 }: ChangeRowProps) {
+  const showArrow = Boolean(before && after && before !== after);
+
   return (
     <div className={cn(detailChangeRowGrid, className)}>
       <p className={cn("min-w-0 truncate", explainabilityType.l3)}>
@@ -45,8 +52,29 @@ export function ChangeRow({
         <FieldBadge field={field} />
       </div>
 
-      <div className="flex min-w-0 flex-wrap items-center justify-start gap-x-3 gap-y-1 sm:justify-self-start">
+      {/* Mobile — inline before → after */}
+      <div className="flex min-w-0 flex-wrap items-center justify-start gap-x-3 gap-y-1 sm:hidden">
         <ChangeValueDisplay before={before} after={after} />
+        {trailing}
+      </div>
+
+      {/* Desktop — subgrid columns align before / after across rows */}
+      <div className="hidden min-w-0 justify-self-start sm:block">
+        <ChangeValueBefore value={before} />
+      </div>
+
+      <div
+        className="hidden items-center justify-center text-slate-400 sm:flex"
+        aria-hidden={!showArrow}
+      >
+        {showArrow ? <ArrowRight className="size-3 shrink-0" /> : null}
+      </div>
+
+      <div className="hidden min-w-0 justify-self-start sm:block">
+        <ChangeValueAfter value={after} />
+      </div>
+
+      <div className="hidden min-w-0 justify-self-start sm:block">
         {trailing}
       </div>
     </div>
