@@ -24,7 +24,7 @@ export const explainabilityActionable = {
   tableSelectedMuted: "bg-violet-50/60 group-hover:bg-violet-50/60",
   tableRowHover: "group-hover:bg-violet-50/40",
   iconAction:
-    "text-slate-500 hover:bg-violet-50 hover:text-violet-500 focus-visible:border-slate-400 focus-visible:ring-slate-200/70",
+    "text-violet-500 hover:bg-violet-50 hover:text-violet-600 aria-expanded:bg-violet-50 aria-expanded:text-violet-600 focus-visible:border-slate-400 focus-visible:ring-slate-200/70",
   /** Ally AI summary note in expanded alert rows */
   aiSummaryCard:
     "rounded-lg border border-violet-200 bg-white shadow-[0_0_0_4px_rgb(237_233_254_/_0.55)]",

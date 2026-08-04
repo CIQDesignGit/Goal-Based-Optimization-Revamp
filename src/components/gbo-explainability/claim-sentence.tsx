@@ -1,6 +1,7 @@
 "use client";
 
 import type { SummarySource } from "@/lib/gbo-explainability/types";
+import { explainabilityType } from "@/lib/gbo-explainability/explainability-typography";
 import { cn } from "@/lib/utils";
 
 type ClaimSentenceProps = {
@@ -17,10 +18,7 @@ export function ClaimSentence({
 }: ClaimSentenceProps) {
   return (
     <p
-      className={cn(
-        "text-base font-normal leading-snug tracking-tight text-slate-700",
-        className,
-      )}
+      className={cn(explainabilityType.l1, className)}
     >
       {claim}
     </p>

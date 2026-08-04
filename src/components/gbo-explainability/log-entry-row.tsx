@@ -7,6 +7,7 @@ import { ClaimSentence } from "@/components/gbo-explainability/claim-sentence";
 import { LogEntryExpanded } from "@/components/gbo-explainability/log-entry-expanded";
 import { Badge } from "@/components/ui/badge";
 import { formatLocalTimestamp } from "@/lib/gbo-explainability/filter-entries";
+import { explainabilityType } from "@/lib/gbo-explainability/explainability-typography";
 import type { ActionStatus, LogEntry } from "@/lib/gbo-explainability/types";
 import { cn } from "@/lib/utils";
 
@@ -75,7 +76,7 @@ export function LogEntryRow({
             }
             summarySource={entry.summarySource}
           />
-          <p className="truncate text-xs text-muted-foreground">
+          <p className={cn("truncate", explainabilityType.l4)}>
             {entry.actor.kind === "human"
               ? `${entry.actor.label}${entry.actor.email ? ` · ${entry.actor.email}` : ""}`
               : entry.actor.triggerOrRule

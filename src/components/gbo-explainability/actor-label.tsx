@@ -7,7 +7,6 @@ import { ContributorAvatar } from "@/components/gbo-explainability/manual-contri
 import {
   ACTOR_AVATAR_RADIUS,
   ACTOR_AVATAR_SIZES,
-  ACTOR_LABEL_TEXT,
   getActorLabel,
   getActorTooltip,
 } from "@/lib/gbo-explainability/actor-display";
@@ -95,8 +94,7 @@ export function ActorLabel({
       <div className="min-w-0 flex-1">
         <span
           className={cn(
-            "block truncate text-sm font-medium leading-snug tracking-tight",
-            ACTOR_LABEL_TEXT[actor.kind],
+            "block truncate text-sm font-semibold leading-snug tracking-tight text-slate-700",
           )}
         >
           {label}

@@ -120,15 +120,15 @@ export type AlertSignalCounts = {
 };
 
 export function conflictLabel(count: number): string {
-  return count === 1 ? "conflict" : "conflicts";
+  return count === 1 ? "Conflict" : "Conflicts";
 }
 
 export function highDeviationLabel(count: number): string {
-  return count === 1 ? "high deviation" : "high deviations";
+  return count === 1 ? "High deviation" : "High deviations";
 }
 
 export function failureLabel(count: number): string {
-  return count === 1 ? "failed action" : "failed actions";
+  return count === 1 ? "Failed action" : "Failed actions";
 }
 
 export function formatConflictTag(count: number): string {

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Image from "next/image";
 import {
   Activity,
   ArrowRight,
@@ -9,11 +10,15 @@ import {
 } from "lucide-react";
 
 import { AlertConflictCard } from "@/components/gbo-explainability/alert-conflict-card";
-import { ActorMark } from "@/components/gbo-explainability/actor-mark";
+import { ChangeRow } from "@/components/gbo-explainability/change-row";
 import { ManualContributorsList } from "@/components/gbo-explainability/manual-contributors-list";
 import { Button } from "@/components/ui/button";
 import { explainabilityActionable } from "@/lib/gbo-explainability/actionable-styles";
-import type { AlertSummary } from "@/lib/gbo-explainability/types";
+import {
+  alertSectionId,
+  explainabilityType,
+} from "@/lib/gbo-explainability/explainability-typography";
+import type { AlertSummary, ManualContributorSummary } from "@/lib/gbo-explainability/types";
 import { cn } from "@/lib/utils";
 
 type AlertRowDetailsProps = {
@@ -22,48 +27,45 @@ type AlertRowDetailsProps = {
 };
 
 type DetailSectionProps = {
-  title: ReactNode;
+  title: string;
+  count?: number;
+  subtitle?: ReactNode;
+  sectionId: string;
   icon: ReactNode;
-  iconClassName: string;
-  iconShape?: "square" | "avatar";
-  titleId?: string;
   children: ReactNode;
   className?: string;
 };
 
 const detailSectionCardClass =
-  "overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-xs";
+  "overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-xs scroll-mt-4";
 
 function DetailSection({
   title,
+  count,
+  subtitle,
+  sectionId,
   icon,
-  iconClassName,
-  iconShape = "square",
-  titleId,
   children,
   className,
 }: DetailSectionProps) {
   return (
-    <section className={className}>
+    <section id={sectionId} className={className} aria-labelledby={`${sectionId}-title`}>
       <div className={detailSectionCardClass}>
-        <div className="flex items-center gap-2.5 px-4 py-2">
-          <span
-            className={cn(
-              "flex shrink-0 items-center justify-center",
-              iconShape === "avatar"
-                ? "bg-transparent p-0"
-                : "size-6 rounded-md",
-              iconClassName,
-            )}
-          >
+        <div className="p-4">
+          <div className="flex items-center gap-1.5">
             {icon}
-          </span>
-          <h4
-            id={titleId}
-            className="text-sm font-semibold tracking-tight text-slate-800"
-          >
-            {title}
-          </h4>
+            <h4 id={`${sectionId}-title`} className={explainabilityType.l2}>
+              {title}
+              {count != null ? (
+                <span className="font-normal text-slate-500"> ({count})</span>
+              ) : null}
+            </h4>
+          </div>
+          {subtitle ? (
+            <p className={cn("mt-0.5 pl-[calc(1rem+0.375rem)]", explainabilityType.l4)}>
+              {subtitle}
+            </p>
+          ) : null}
         </div>
         {children}
       </div>
@@ -83,16 +85,23 @@ function AlertAiSummary({
       id={id}
       role="note"
       aria-label="Summary"
-      className={explainabilityActionable.aiSummaryCard}
+      className={cn(
+        explainabilityActionable.aiSummaryCard,
+        "scroll-mt-4",
+      )}
     >
-      <div className="flex flex-col gap-3 px-4 py-4">
-        <div className="flex items-center gap-2.5">
-          <ActorMark kind="ally-ai" size="sm" className="shrink-0" />
-          <h4 className="text-sm font-semibold tracking-tight text-slate-800">
-            Summary
-          </h4>
+      <div className="flex flex-col gap-2 px-4 py-3">
+        <div className="flex items-center gap-1.5">
+          <Image
+            src="/icons/ally-ai.png"
+            alt=""
+            width={19}
+            height={19}
+            className="size-[1.1875rem] shrink-0 object-cover"
+          />
+          <h4 className={explainabilityType.l2}>Summary</h4>
         </div>
-        <p className="text-sm leading-relaxed text-slate-700">{summary}</p>
+        <p className={explainabilityType.body}>{summary}</p>
       </div>
     </div>
   );
@@ -108,47 +117,40 @@ function DeviationsPanel({
   deviations: AlertSummary["deviations"];
 }) {
   return (
-    <div>
-      <div
-        className="hidden gap-x-4 border-b border-slate-100 bg-slate-50/80 px-4 py-2 text-[10px] font-medium tracking-wider text-slate-500 uppercase sm:grid sm:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)_minmax(0,1.5fr)_4.5rem]"
-        aria-hidden
-      >
-        <span>Entity</span>
-        <span>Field</span>
-        <span>Before → After</span>
-        <span className="text-right">Change</span>
-      </div>
-      <ul className="divide-y divide-slate-100">
-        {deviations.map((deviation) => (
-          <li
-            key={deviation.id}
-            className="grid grid-cols-1 gap-x-4 gap-y-1.5 px-4 py-3 sm:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)_minmax(0,1.5fr)_4.5rem] sm:items-center"
-          >
-            <p className="truncate text-sm font-medium text-slate-800">
-              {deviation.entityName}
-            </p>
-            <p className="truncate text-xs text-slate-500 sm:text-sm">
-              {deviation.field}
-            </p>
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs sm:text-sm">
-              <span className="font-mono text-muted-foreground line-through decoration-slate-300">
-                {deviation.before}
+    <ul className="divide-y divide-slate-100">
+      {deviations.map((deviation) => (
+        <li key={deviation.id}>
+          <ChangeRow
+            entityName={deviation.entityName}
+            field={deviation.field}
+            before={deviation.before}
+            after={deviation.after}
+            trailing={
+              <span
+                className={cn(
+                  "font-medium tabular-nums",
+                  explainabilityType.l4,
+                )}
+              >
+                {formatPercentChange(deviation.percentChange)}
               </span>
-              <ArrowRight
-                className="size-3 shrink-0 text-slate-400"
-                aria-hidden
-              />
-              <span className="rounded bg-brand-50 px-1 py-px font-mono font-medium text-brand-800">
-                {deviation.after}
-              </span>
-            </div>
-            <span className="shrink-0 justify-self-start text-xs font-medium tabular-nums text-slate-500 sm:justify-self-end sm:text-right">
-              {formatPercentChange(deviation.percentChange)}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
+            }
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function buildManualSubtitle(
+  contributor: ManualContributorSummary,
+): ReactNode {
+  return (
+    <>
+      {contributor.name}
+      {contributor.email ? ` · ${contributor.email}` : ""}
+      {contributor.deactivated ? " (deactivated)" : ""}
+    </>
   );
 }
 
@@ -162,85 +164,79 @@ export function AlertRowDetails({
     manualContributors?.length === 1 ? manualContributors[0] : null;
 
   return (
-    <div className="space-y-4 bg-slate-50/40 py-6">
-      {alert.role !== "human" ? (
-        <AlertAiSummary
-          id={`${alert.id}-ai-summary`}
-          summary={alert.aiSummary}
-        />
-      ) : null}
+    <div className="bg-slate-50/40 pt-5 pb-0">
+      <div className="space-y-3 px-0">
+        {alert.role !== "human" ? (
+          <AlertAiSummary
+            id={alertSectionId(alert.id, "summary")}
+            summary={alert.aiSummary}
+          />
+        ) : null}
 
-      {showManualChanges && manualContributors ? (
-        <DetailSection
-              title={
-                singleContributor ? (
-                  <>
-                    Changes done by {singleContributor.name}
-                    {singleContributor.email ? (
-                      <span className="font-normal text-slate-400">
-                        {" "}
-                        · {singleContributor.email}
-                      </span>
-                    ) : null}
-                    {singleContributor.deactivated ? (
-                      <span className="font-normal text-slate-400">
-                        {" "}
-                        (deactivated)
-                      </span>
-                    ) : null}
-                  </>
-                ) : (
-                  `Manual changes by person (${manualContributors.length})`
-                )
-              }
-              icon={<Users className="size-3.5" aria-hidden />}
-              iconClassName="text-slate-600"
-            >
-              <ManualContributorsList
-                contributors={manualContributors}
-                hideIdentity={Boolean(singleContributor)}
-              />
-            </DetailSection>
-          ) : null}
+        {showManualChanges && manualContributors ? (
+          <DetailSection
+            sectionId={alertSectionId(alert.id, "manual")}
+            title="Manual changes"
+            subtitle={
+              singleContributor
+                ? buildManualSubtitle(singleContributor)
+                : `${manualContributors.length} people`
+            }
+            icon={<Users className="size-4 shrink-0 text-slate-500" aria-hidden />}
+          >
+            <ManualContributorsList
+              contributors={manualContributors}
+              hideIdentity={Boolean(singleContributor)}
+            />
+          </DetailSection>
+        ) : null}
 
-          {alert.conflicts.length > 0 ? (
-            <DetailSection
-              title={`Overrides (${alert.conflicts.length})`}
-              icon={<GitCompare className="size-3.5" aria-hidden />}
-              iconClassName="text-slate-600"
-            >
-              <ul className="divide-y divide-slate-100">
-                {alert.conflicts.map((conflict) => (
-                  <li key={conflict.id}>
-                    <AlertConflictCard conflict={conflict} />
-                  </li>
-                ))}
-              </ul>
-            </DetailSection>
-          ) : null}
+        {alert.conflicts.length > 0 ? (
+          <DetailSection
+            sectionId={alertSectionId(alert.id, "overrides")}
+            title="Overrides"
+            count={alert.conflicts.length}
+            icon={<GitCompare className="size-4 shrink-0 text-slate-500" aria-hidden />}
+          >
+            <ul className="divide-y divide-slate-100">
+              {alert.conflicts.map((conflict) => (
+                <li key={conflict.id}>
+                  <AlertConflictCard conflict={conflict} />
+                </li>
+              ))}
+            </ul>
+          </DetailSection>
+        ) : null}
 
-          {alert.deviations.length > 0 ? (
-            <DetailSection
-              title={`High deviations (${alert.deviations.length})`}
-              icon={<Activity className="size-3.5" aria-hidden />}
-              iconClassName="text-slate-600"
-            >
-              <DeviationsPanel deviations={alert.deviations} />
-            </DetailSection>
-          ) : null}
+        {alert.deviations.length > 0 ? (
+          <DetailSection
+            sectionId={alertSectionId(alert.id, "deviations")}
+            title="High deviations"
+            count={alert.deviations.length}
+            icon={<Activity className="size-4 shrink-0 text-slate-500" aria-hidden />}
+          >
+            <DeviationsPanel deviations={alert.deviations} />
+          </DetailSection>
+        ) : null}
+      </div>
 
-      <Button
-        type="button"
-        size="default"
-        className={cn(
-          "gap-1.5 rounded-[8px] shadow-xs",
-          explainabilityActionable.primaryButton,
-        )}
-        onClick={onViewActionLog}
+      <footer
+        id={alertSectionId(alert.id, "actions")}
+        className="mt-4 flex scroll-mt-4 justify-start py-3 pr-4"
       >
-        View in Action Log
-        <ArrowRight className="size-3.5" aria-hidden />
-      </Button>
+        <Button
+          type="button"
+          size="default"
+          className={cn(
+            "gap-1.5 rounded-[8px] shadow-xs",
+            explainabilityActionable.primaryButton,
+          )}
+          onClick={onViewActionLog}
+        >
+          View in Action Log
+          <ArrowRight className="size-3.5" aria-hidden />
+        </Button>
+      </footer>
     </div>
   );
 }

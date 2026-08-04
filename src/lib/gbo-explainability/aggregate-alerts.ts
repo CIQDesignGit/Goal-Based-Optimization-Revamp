@@ -834,34 +834,13 @@ export function formatAlertRowDate(date: string): string {
   });
 }
 
-function ordinalDaySuffix(day: number): string {
-  if (day >= 11 && day <= 13) return "th";
-  switch (day % 10) {
-    case 1:
-      return "st";
-    case 2:
-      return "nd";
-    case 3:
-      return "rd";
-    default:
-      return "th";
-  }
-}
-
-/** Consistent alert row timestamp — e.g. "08:00am, 30th Jun". */
+/** Consistent alert row timestamp — e.g. "04 Aug". */
 export function formatAlertRowDateTime(iso: string): string {
   const d = new Date(iso);
-  const day = d.getDate();
+  const day = String(d.getDate()).padStart(2, "0");
   const month = d.toLocaleDateString(undefined, { month: "short" });
 
-  const hours24 = d.getHours();
-  const minutes = d.getMinutes();
-  const period = hours24 >= 12 ? "pm" : "am";
-  const hours12 = hours24 % 12 || 12;
-
-  const time = `${String(hours12).padStart(2, "0")}:${String(minutes).padStart(2, "0")}${period}`;
-
-  return `${time}, ${day}${ordinalDaySuffix(day)} ${month}`;
+  return `${day} ${month}`;
 }
 
 /** Row timestamp — same format for every alert type. */

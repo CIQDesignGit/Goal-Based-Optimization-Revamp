@@ -5,15 +5,18 @@ import {
   failureLabel,
   highDeviationLabel,
 } from "@/lib/gbo-explainability/alert-signals";
+import { alertSectionId } from "@/lib/gbo-explainability/explainability-typography";
 import type { AlertSummary } from "@/lib/gbo-explainability/types";
 import { cn } from "@/lib/utils";
 
 type AlertSignalTagsProps = {
   alert: Pick<
     AlertSummary,
-    "conflictCount" | "highDeviationCount" | "failureCount"
+    "id" | "conflictCount" | "highDeviationCount" | "failureCount" | "role"
   >;
   className?: string;
+  /** When set, tags scroll to the matching expanded detail section. */
+  onSignalNavigate?: (targetSectionId: string) => void;
 };
 
 type SignalTone = "failure" | "conflict" | "deviation";
@@ -48,21 +51,29 @@ type SignalTagProps = {
   count: number;
   label: string;
   title: string;
+  targetSectionId: string;
+  onNavigate?: (targetSectionId: string) => void;
 };
 
 /** Compact signal chip — label and count pill. */
-function SignalTag({ tone, count, label, title }: SignalTagProps) {
+function SignalTag({
+  tone,
+  count,
+  label,
+  title,
+  targetSectionId,
+  onNavigate,
+}: SignalTagProps) {
   const styles = SIGNAL_TONE_STYLES[tone];
+  const className = cn(
+    "inline-flex h-6 items-center gap-1.5 rounded-full pl-2.5 pr-1.5",
+    styles.container,
+    onNavigate &&
+      "cursor-pointer transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40",
+  );
 
-  return (
-    <span
-      title={title}
-      aria-label={`${count} ${label}`}
-      className={cn(
-        "inline-flex h-6 items-center gap-1.5 rounded-full px-2.5",
-        styles.container,
-      )}
-    >
+  const content = (
+    <>
       <span
         className={cn("text-xs leading-none font-medium", styles.label)}
         aria-hidden
@@ -78,12 +89,45 @@ function SignalTag({ tone, count, label, title }: SignalTagProps) {
       >
         {count}
       </span>
+    </>
+  );
+
+  if (onNavigate) {
+    return (
+      <button
+        type="button"
+        title={`${title} — jump to details`}
+        aria-label={`${count} ${label}. Jump to details.`}
+        className={className}
+        onClick={(event) => {
+          event.stopPropagation();
+          onNavigate(targetSectionId);
+        }}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <span title={title} aria-label={`${count} ${label}`} className={className}>
+      {content}
     </span>
   );
 }
 
+function failureTargetId(alert: AlertSignalTagsProps["alert"]): string {
+  return alert.role === "human"
+    ? alertSectionId(alert.id, "manual")
+    : alertSectionId(alert.id, "summary");
+}
+
 /** Secondary signal chips — failures, conflicts, and high-deviation changes. */
-export function AlertSignalTags({ alert, className }: AlertSignalTagsProps) {
+export function AlertSignalTags({
+  alert,
+  className,
+  onSignalNavigate,
+}: AlertSignalTagsProps) {
   if (
     alert.failureCount === 0 &&
     alert.conflictCount === 0 &&
@@ -100,6 +144,8 @@ export function AlertSignalTags({ alert, className }: AlertSignalTagsProps) {
           count={alert.failureCount}
           label={failureLabel(alert.failureCount)}
           title="One or more actions in this group did not complete successfully"
+          targetSectionId={failureTargetId(alert)}
+          onNavigate={onSignalNavigate}
         />
       ) : null}
       {alert.conflictCount > 0 ? (
@@ -108,6 +154,8 @@ export function AlertSignalTags({ alert, className }: AlertSignalTagsProps) {
           count={alert.conflictCount}
           label={conflictLabel(alert.conflictCount)}
           title="A later action overrode an earlier change on the same entity"
+          targetSectionId={alertSectionId(alert.id, "overrides")}
+          onNavigate={onSignalNavigate}
         />
       ) : null}
       {alert.highDeviationCount > 0 ? (
@@ -116,6 +164,8 @@ export function AlertSignalTags({ alert, className }: AlertSignalTagsProps) {
           count={alert.highDeviationCount}
           label={highDeviationLabel(alert.highDeviationCount)}
           title="Field values changed by more than 12.5% from their prior value"
+          targetSectionId={alertSectionId(alert.id, "deviations")}
+          onNavigate={onSignalNavigate}
         />
       ) : null}
     </div>

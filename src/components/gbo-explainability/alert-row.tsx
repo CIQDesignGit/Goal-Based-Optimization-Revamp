@@ -14,6 +14,7 @@ import {
   formatAlertRowTimestamp,
   formatAlertTitle,
 } from "@/lib/gbo-explainability/aggregate-alerts";
+import { explainabilityType } from "@/lib/gbo-explainability/explainability-typography";
 import type { AlertRole, AlertSummary } from "@/lib/gbo-explainability/types";
 import { cn } from "@/lib/utils";
 
@@ -28,7 +29,7 @@ function alertCategoryLabel(role: AlertRole): "Automation" | "Setup" {
 
 function AlertCategoryTag({ role }: { role: AlertRole }) {
   return (
-    <span className="shrink-0 rounded-xs bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium leading-none text-slate-600">
+    <span className={cn("shrink-0 rounded-xs bg-slate-100 px-1.5 py-0.5 leading-none", explainabilityType.l4)}>
       {alertCategoryLabel(role)}
     </span>
   );
@@ -40,16 +41,33 @@ export const ALERT_ACTOR_COLUMN_WIDTH = "250px";
 export const ALERT_ROW_GRID =
   "grid w-full grid-cols-[250px_minmax(0,1fr)_auto] items-start gap-x-0 px-5 py-4";
 
-/** Second line — signal tags only (failures, conflicts, high deviation). */
-function AlertRowSubtitle({ alert }: { alert: AlertSummary }) {
-  return <AlertSignalTags alert={alert} />;
-}
-
 export function AlertRow({ alert, onClick }: AlertRowProps) {
   const [expanded, setExpanded] = useState(false);
 
   const toggleExpanded = () => {
     setExpanded((current) => !current);
+  };
+
+  const scrollToSection = (targetSectionId: string) => {
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById(targetSectionId)
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  };
+
+  const navigateToSection = (targetSectionId: string) => {
+    if (!expanded) {
+      setExpanded(true);
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          scrollToSection(targetSectionId);
+        });
+      });
+      return;
+    }
+
+    scrollToSection(targetSectionId);
   };
 
   return (
@@ -77,7 +95,10 @@ export function AlertRow({ alert, onClick }: AlertRowProps) {
           summarySource={alert.summarySource}
           className="min-w-0"
         />
-        <AlertRowSubtitle alert={alert} />
+        <AlertSignalTags
+          alert={alert}
+          onSignalNavigate={navigateToSection}
+        />
       </button>
 
       <div className="flex flex-col items-end gap-1.5 self-start pt-0.5">
@@ -85,7 +106,7 @@ export function AlertRow({ alert, onClick }: AlertRowProps) {
           <AlertCategoryTag role={alert.role} />
           <time
             dateTime={alertRowTimestampValue(alert)}
-            className="whitespace-nowrap text-[11px] font-medium tabular-nums text-slate-400"
+            className={cn("whitespace-nowrap tabular-nums", explainabilityType.l4)}
           >
             {formatAlertRowTimestamp(alert)}
           </time>
