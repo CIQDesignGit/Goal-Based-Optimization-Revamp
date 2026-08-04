@@ -10,10 +10,7 @@ import {
 
 import { AlertConflictCard } from "@/components/gbo-explainability/alert-conflict-card";
 import { ActorMark } from "@/components/gbo-explainability/actor-mark";
-import {
-  ContributorAvatar,
-  ManualContributorsList,
-} from "@/components/gbo-explainability/manual-contributors-list";
+import { ManualContributorsList } from "@/components/gbo-explainability/manual-contributors-list";
 import { Button } from "@/components/ui/button";
 import { explainabilityActionable } from "@/lib/gbo-explainability/actionable-styles";
 import type { AlertSummary } from "@/lib/gbo-explainability/types";
@@ -34,6 +31,9 @@ type DetailSectionProps = {
   className?: string;
 };
 
+const detailSectionCardClass =
+  "overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-xs";
+
 function DetailSection({
   title,
   icon,
@@ -44,27 +44,29 @@ function DetailSection({
   className,
 }: DetailSectionProps) {
   return (
-    <section className={cn("space-y-3", className)}>
-      <div className="flex items-center gap-2.5">
-        <span
-          className={cn(
-            "flex shrink-0 items-center justify-center",
-            iconShape === "avatar"
-              ? "bg-transparent p-0"
-              : "size-7 rounded-lg",
-            iconClassName,
-          )}
-        >
-          {icon}
-        </span>
-        <h4
-          id={titleId}
-          className="text-sm font-semibold tracking-tight text-slate-800"
-        >
-          {title}
-        </h4>
+    <section className={className}>
+      <div className={detailSectionCardClass}>
+        <div className="flex items-center gap-2.5 px-4 py-2">
+          <span
+            className={cn(
+              "flex shrink-0 items-center justify-center",
+              iconShape === "avatar"
+                ? "bg-transparent p-0"
+                : "size-6 rounded-md",
+              iconClassName,
+            )}
+          >
+            {icon}
+          </span>
+          <h4
+            id={titleId}
+            className="text-sm font-semibold tracking-tight text-slate-800"
+          >
+            {title}
+          </h4>
+        </div>
+        {children}
       </div>
-      {children}
     </section>
   );
 }
@@ -106,9 +108,9 @@ function DeviationsPanel({
   deviations: AlertSummary["deviations"];
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-sky-100/80 bg-white shadow-xs">
+    <div>
       <div
-        className="hidden gap-x-4 border-b border-sky-100/80 bg-sky-50/80 px-4 py-2 text-[10px] font-medium tracking-wider text-slate-500 uppercase sm:grid sm:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)_minmax(0,1.5fr)_4.5rem]"
+        className="hidden gap-x-4 border-b border-slate-100 bg-slate-50/80 px-4 py-2 text-[10px] font-medium tracking-wider text-slate-500 uppercase sm:grid sm:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)_minmax(0,1.5fr)_4.5rem]"
         aria-hidden
       >
         <span>Entity</span>
@@ -116,7 +118,7 @@ function DeviationsPanel({
         <span>Before → After</span>
         <span className="text-right">Change</span>
       </div>
-      <ul className="divide-y divide-sky-50">
+      <ul className="divide-y divide-slate-100">
         {deviations.map((deviation) => (
           <li
             key={deviation.id}
@@ -160,7 +162,7 @@ export function AlertRowDetails({
     manualContributors?.length === 1 ? manualContributors[0] : null;
 
   return (
-    <div className="space-y-7 bg-slate-50/40 py-6">
+    <div className="space-y-4 bg-slate-50/40 py-6">
       {alert.role !== "human" ? (
         <AlertAiSummary
           id={`${alert.id}-ai-summary`}
@@ -191,18 +193,8 @@ export function AlertRowDetails({
                   `Manual changes by person (${manualContributors.length})`
                 )
               }
-              icon={
-                singleContributor ? (
-                  <ContributorAvatar name={singleContributor.name} />
-                ) : (
-                  <Users className="size-3.5" aria-hidden />
-                )
-              }
-              iconShape={singleContributor ? "avatar" : "square"}
-              iconClassName={
-                singleContributor ? "" : "bg-slate-100 text-slate-600"
-              }
-              className="space-y-2.5"
+              icon={<Users className="size-3.5" aria-hidden />}
+              iconClassName="text-slate-600"
             >
               <ManualContributorsList
                 contributors={manualContributors}
@@ -215,17 +207,15 @@ export function AlertRowDetails({
             <DetailSection
               title={`Overrides (${alert.conflicts.length})`}
               icon={<GitCompare className="size-3.5" aria-hidden />}
-              iconClassName="bg-amber-50 text-amber-700"
+              iconClassName="text-slate-600"
             >
-              <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-xs">
-                <ul className="divide-y divide-slate-100">
-                  {alert.conflicts.map((conflict) => (
-                    <li key={conflict.id}>
-                      <AlertConflictCard conflict={conflict} />
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <ul className="divide-y divide-slate-100">
+                {alert.conflicts.map((conflict) => (
+                  <li key={conflict.id}>
+                    <AlertConflictCard conflict={conflict} />
+                  </li>
+                ))}
+              </ul>
             </DetailSection>
           ) : null}
 
@@ -233,8 +223,7 @@ export function AlertRowDetails({
             <DetailSection
               title={`High deviations (${alert.deviations.length})`}
               icon={<Activity className="size-3.5" aria-hidden />}
-              iconClassName="bg-sky-50 text-sky-700"
-              className="space-y-2.5"
+              iconClassName="text-slate-600"
             >
               <DeviationsPanel deviations={alert.deviations} />
             </DetailSection>

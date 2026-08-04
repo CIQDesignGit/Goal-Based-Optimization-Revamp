@@ -57,12 +57,7 @@ export function ManualContributorsList({
   if (contributors.length === 0) return null;
 
   return (
-    <ul
-      className={cn(
-        "divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-xs",
-        className,
-      )}
-    >
+    <ul className={cn("divide-y divide-slate-100", className)}>
       {contributors.map((contributor) => (
         <li key={contributor.id} className="px-4 py-3">
           {hideIdentity ? (
