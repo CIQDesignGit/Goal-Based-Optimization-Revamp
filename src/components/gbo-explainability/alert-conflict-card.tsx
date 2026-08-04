@@ -64,7 +64,7 @@ function ChangeValues({ side }: { side: ConflictActorChange }) {
 
   if (after) {
     return (
-      <span className="rounded-md bg-brand-50 px-1.5 py-0.5 font-mono text-sm font-medium text-brand-800">
+      <span className="rounded bg-brand-50 px-1 py-px font-mono text-sm font-medium text-brand-800">
         Set to {after}
       </span>
     );

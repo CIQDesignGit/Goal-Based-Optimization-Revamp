@@ -131,14 +131,14 @@ function DeviationsPanel({
               {deviation.field}
             </p>
             <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs sm:text-sm">
-              <span className="rounded-md bg-slate-50 px-2 py-0.5 font-mono text-slate-500">
+              <span className="font-mono text-muted-foreground line-through decoration-slate-300">
                 {deviation.before}
               </span>
               <ArrowRight
                 className="size-3 shrink-0 text-slate-400"
                 aria-hidden
               />
-              <span className="rounded-md bg-sky-50 px-2 py-0.5 font-mono font-medium text-sky-900">
+              <span className="rounded bg-brand-50 px-1 py-px font-mono font-medium text-brand-800">
                 {deviation.after}
               </span>
             </div>
