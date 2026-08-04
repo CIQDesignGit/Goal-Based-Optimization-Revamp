@@ -26,7 +26,8 @@ export const explainabilityActionable = {
   iconAction:
     "text-slate-500 hover:bg-violet-50 hover:text-violet-500 focus-visible:border-slate-400 focus-visible:ring-slate-200/70",
   /** Ally AI summary note in expanded alert rows */
-  aiSummaryCard: "rounded-lg border border-violet-200 bg-violet-50 shadow-xs",
+  aiSummaryCard:
+    "rounded-lg border border-violet-200 bg-white shadow-[0_0_0_4px_rgb(237_233_254_/_0.55)]",
 } as const;
 
 /** Shared input chrome for explainability search and filter fields. */
