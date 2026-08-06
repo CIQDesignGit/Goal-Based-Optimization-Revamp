@@ -1,5 +1,6 @@
 "use client";
 
+import { Rocket } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { SetupHeader } from "@/components/gbo-optimization/setup-header";
@@ -14,7 +15,6 @@ import { GoalsBudgetsStep } from "@/components/gbo-optimization/steps/goals-budg
 import { OptimizerStep } from "@/components/gbo-optimization/steps/optimizer-step";
 import { SeasonalityStep } from "@/components/gbo-optimization/steps/seasonality-step";
 import { SummaryStep } from "@/components/gbo-optimization/steps/summary-step";
-import { Loader } from "@/components/ui/loader";
 import type { SetupStepKey } from "@/lib/gbo-optimization/setup-data";
 import { useSetupSessionStore } from "@/lib/gbo-optimization/setup-session-store";
 import { cn } from "@/lib/utils";
@@ -203,93 +203,38 @@ function SetupWizardContent() {
 
       {isLaunching ? (
         <div
-          className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/25 px-6 backdrop-blur-[2px]"
+          className="absolute inset-0 z-50 flex items-center justify-center bg-black/45 px-6 supports-backdrop-filter:backdrop-blur-[1px]"
           role="status"
           aria-live="polite"
           aria-busy="true"
         >
-          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
-            {/* Branded header strip */}
-            <div className="relative overflow-hidden border-b border-slate-100 bg-linear-to-br from-brand-50 via-white to-sky-50 px-6 py-6">
-              <div
-                className="pointer-events-none absolute -top-12 -right-10 size-40 rounded-full bg-brand-200/25 blur-2xl"
-                aria-hidden
-              />
-              <div className="relative flex flex-col items-center gap-4 text-center">
-                <span className="flex size-14 items-center justify-center rounded-2xl border border-brand-100 bg-white shadow-sm">
-                  <Loader
-                    variant="circular"
-                    size="lg"
-                    className="border-brand-500"
-                  />
-                </span>
-                <div className="space-y-1.5">
-                  <p className="text-base font-semibold text-slate-900">
-                    Launching your setup
-                  </p>
-                  <p className="max-w-sm text-sm leading-relaxed text-slate-500">
-                    We’re saving your changes and turning on optimization across
-                    the portfolio. Hang tight for a few seconds.
-                  </p>
-                </div>
+          {/*
+            Alignment: icon + copy share one row; progress spans the full
+            content width so it doesn't hang under the text column alone.
+          */}
+          <div className="w-full max-w-sm space-y-4 rounded-xl bg-white p-5 text-slate-900 ring-1 ring-foreground/10">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-md bg-brand-50 text-brand-600">
+                <Rocket className="size-5" aria-hidden />
+              </span>
+              <div className="min-w-0 space-y-0.5">
+                <p className="text-base font-medium">Launching your setup</p>
+                <p className="text-sm text-muted-foreground">
+                  {LAUNCH_PROGRESS_STEPS[launchStepIndex]}…
+                </p>
               </div>
             </div>
 
-            <div className="space-y-4 px-6 py-5">
-              {/* Progress bar */}
-              <div className="space-y-2">
-                <div className="h-1.5 overflow-hidden rounded-full bg-brand-100">
-                  <div className="loader-progress-bar h-full rounded-full bg-brand-500" />
-                </div>
-                <p className="text-center text-xs font-medium text-brand-700">
-                  {LAUNCH_PROGRESS_STEPS[launchStepIndex]}
-                </p>
-              </div>
-
-              {/* Checklist of what is happening */}
-              <ul className="space-y-2.5">
-                {LAUNCH_PROGRESS_STEPS.map((label, index) => {
-                  const isDone = index < launchStepIndex;
-                  const isCurrent = index === launchStepIndex;
-
-                  return (
-                    <li
-                      key={label}
-                      className={cn(
-                        "flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-colors",
-                        isDone &&
-                          "border-success-100 bg-success-50/70 text-success-700",
-                        isCurrent &&
-                          "border-brand-100 bg-brand-50/80 text-brand-800",
-                        !isDone &&
-                          !isCurrent &&
-                          "border-slate-100 bg-slate-50 text-slate-400",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold",
-                          isDone && "bg-success-500 text-white",
-                          isCurrent && "bg-brand-500 text-white",
-                          !isDone &&
-                            !isCurrent &&
-                            "bg-slate-200 text-slate-500",
-                        )}
-                      >
-                        {isDone ? "✓" : index + 1}
-                      </span>
-                      <span className="font-medium">{label}</span>
-                      {isCurrent ? (
-                        <Loader
-                          variant="circular"
-                          size="sm"
-                          className="ml-auto border-brand-500"
-                        />
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
+            <div
+              className="h-1 overflow-hidden rounded-full bg-slate-100"
+              aria-hidden
+            >
+              <div
+                className="h-full rounded-full bg-brand-500 transition-[width] duration-500 ease-out"
+                style={{
+                  width: `${((launchStepIndex + 1) / LAUNCH_PROGRESS_STEPS.length) * 100}%`,
+                }}
+              />
             </div>
           </div>
         </div>
