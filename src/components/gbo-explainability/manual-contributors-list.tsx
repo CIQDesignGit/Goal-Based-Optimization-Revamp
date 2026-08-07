@@ -5,8 +5,8 @@ import {
   ACTOR_AVATAR_RADIUS,
   ACTOR_AVATAR_SIZES,
   ACTOR_AVATAR_TEXT,
+  getProfileAvatarStyle,
   getProfileInitials,
-  PROFILE_AVATAR_STYLE,
   type ActorAvatarSize,
 } from "@/lib/gbo-explainability/actor-display";
 import {
@@ -31,21 +31,24 @@ type ContributorAvatarProps = {
   className?: string;
 };
 
-/** Initials avatar for manual contributors — reused in list rows and section headers. */
+/** Initials avatar for manual contributors — soft color from name (stable per person). */
 export function ContributorAvatar({
   name,
   size = "sm",
   className,
 }: ContributorAvatarProps) {
+  const colors = getProfileAvatarStyle(name);
+
   return (
     <span
       className={cn(
-        "flex shrink-0 items-center justify-center ring-1 ring-slate-200/80",
+        "flex shrink-0 items-center justify-center overflow-hidden",
         ACTOR_AVATAR_RADIUS,
         ACTOR_AVATAR_SIZES[size],
         ACTOR_AVATAR_TEXT[size],
-        PROFILE_AVATAR_STYLE.bg,
-        PROFILE_AVATAR_STYLE.text,
+        colors.bg,
+        colors.text,
+        colors.ring,
         className,
       )}
       aria-hidden

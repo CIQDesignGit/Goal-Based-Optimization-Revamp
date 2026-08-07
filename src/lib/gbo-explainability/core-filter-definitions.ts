@@ -59,6 +59,21 @@ export type FilterDefinitionSection = {
 
 export const CORE_FILTER_SECTION_LABEL = "Filters";
 
+/**
+ * Product-style accordion categories shown above the working Filters list.
+ * Categories without real options yet use the same label as a placeholder child.
+ */
+export const PRODUCT_FILTER_ACCORDIONS = [
+  { id: "campaign-categorization", label: "Campaign Categorization" },
+  { id: "retailer-categorization", label: "Retailer Categorization" },
+  { id: "saved-filters", label: "Saved Filters" },
+  { id: "expression-column-filters", label: "Expression (Column) Filters" },
+  { id: "custom-lists", label: "Custom Lists" },
+] as const;
+
+export type ProductFilterAccordionId =
+  (typeof PRODUCT_FILTER_ACCORDIONS)[number]["id"];
+
 const ACTION_STATUS_OPTIONS: CoreFilterOption[] = [
   { value: "success", label: "Success" },
   { value: "failure", label: "Failure" },

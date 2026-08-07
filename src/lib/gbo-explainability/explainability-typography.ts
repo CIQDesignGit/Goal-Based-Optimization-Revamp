@@ -3,7 +3,7 @@ export const explainabilityType = {
   /** Row claim / daily summary — scan line in collapsed row */
   l1: "text-sm font-medium leading-snug tracking-tight text-slate-700",
   /** Expanded section title — primary anchor inside open alert details */
-  l2: "text-sm font-semibold tracking-tight text-slate-900",
+  l2: "text-sm font-semibold tracking-tight text-slate-800",
   /** Entity names, field labels in content */
   l3: "text-sm font-medium text-slate-800",
   /** Metadata — email, timestamps, counts, helper copy */

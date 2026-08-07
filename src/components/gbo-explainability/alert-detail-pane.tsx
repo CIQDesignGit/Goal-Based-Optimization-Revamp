@@ -7,14 +7,12 @@ import {
 } from "@/components/gbo-explainability/alert-master-card";
 import { ActorLabel } from "@/components/gbo-explainability/actor-label";
 import { AlertRowDetails } from "@/components/gbo-explainability/alert-row-details";
-import { ClaimSentence } from "@/components/gbo-explainability/claim-sentence";
 import { AlertSignalTags } from "@/components/gbo-explainability/alert-signal-tags";
 import { Button } from "@/components/ui/button";
 import { explainabilityActionable } from "@/lib/gbo-explainability/actionable-styles";
 import {
   alertRowTimestampValue,
   formatAlertRowTimestamp,
-  formatAlertTitle,
 } from "@/lib/gbo-explainability/aggregate-alerts";
 import { explainabilityType } from "@/lib/gbo-explainability/explainability-typography";
 import type { AlertSummary } from "@/lib/gbo-explainability/types";
@@ -40,12 +38,12 @@ export function AlertDetailPane({
 }: AlertDetailPaneProps) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="shrink-0 border-b border-slate-100 bg-white px-6 py-4">
-        <div className="flex items-start justify-between gap-4">
+      <header className="shrink-0 border-b border-slate-100 bg-white py-4">
+        <div className="flex items-start justify-between gap-4 px-6">
           <ActorLabel
             actor={alert.actor}
             manualContributors={alert.manualContributors}
-            className="min-w-0 [&_span]:text-base"
+            className="min-w-0"
           />
 
           <Button
@@ -62,21 +60,20 @@ export function AlertDetailPane({
           </Button>
         </div>
 
-        <ClaimSentence
-          claim={formatAlertTitle(alert)}
-          summarySource={alert.summarySource}
-          className="mt-3 min-w-0"
-        />
-
-        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+        {/* No horizontal padding on this meta row — selected for flush alignment */}
+        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 px-6">
           <AlertSignalTags
             alert={alert}
             onSignalNavigate={scrollToDetailSection}
           />
-          <span className="text-slate-300" aria-hidden>
-            ·
-          </span>
-          <AlertCategoryTag role={alert.role} />
+          {(alert.failureCount > 0 ||
+            alert.conflictCount > 0 ||
+            alert.highDeviationCount > 0) && (
+            <span className="text-slate-300" aria-hidden>
+              ·
+            </span>
+          )}
+          <AlertCategoryTag role={alert.role} variant="chip" />
           <time
             dateTime={alertRowTimestampValue(alert)}
             className={cn("tabular-nums", explainabilityType.l4)}

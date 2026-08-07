@@ -251,15 +251,6 @@ function buildManualGroupClaim(
   contributors: ManualContributorSummary[],
 ): string {
   const changeCount = countManualChanges(entries);
-
-  if (changeCount === 1) {
-    for (const entry of entries) {
-      const units = explodeManualChangeUnits(entry);
-      if (units.length === 1) return units[0].claim;
-    }
-    return entryClaim(entries[0]);
-  }
-
   const failureCount = entries.filter((entry) =>
     isFailureStatus(entry.status),
   ).length;
@@ -269,11 +260,13 @@ function buildManualGroupClaim(
       ? contributors[0].name
       : `${contributors.length} people`;
 
+  const changeWord = changeCount === 1 ? "change" : "changes";
+
   if (failureCount > 0) {
-    return `${peopleLabel} made ${changeCount} manual changes — ${failureCount} with failures`;
+    return `${peopleLabel} made ${changeCount} manual ${changeWord} — ${failureCount} with failures`;
   }
 
-  return `${peopleLabel} made ${changeCount} manual changes today`;
+  return `${peopleLabel} made ${changeCount} manual ${changeWord}`;
 }
 
 function entryClaim(entry: LogEntry): string {
@@ -322,20 +315,19 @@ function buildGroupClaim(role: AlertRole, entries: LogEntry[]): string {
     return buildManualGroupClaim(entries, buildManualContributors(entries));
   }
 
-  if (entries.length === 1) {
-    return entryClaim(entries[0]);
-  }
-
+  // Cards / titles stay short (“X made Y changes”) — detailed narrative lives in aiSummary.
   const roleLabel = alertRoleLabel(role);
+  const count = entries.length;
   const failureCount = entries.filter((entry) =>
     isFailureStatus(entry.status),
   ).length;
+  const changeWord = count === 1 ? "change" : "changes";
 
   if (failureCount > 0) {
-    return `${entries.length} ${roleLabel} actions — ${failureCount} with failures`;
+    return `${roleLabel} made ${count} ${changeWord} — ${failureCount} with failures`;
   }
 
-  return `${entries.length} ${roleLabel} actions`;
+  return `${roleLabel} made ${count} ${changeWord}`;
 }
 
 function buildGroupReason(entries: LogEntry[]): string {
@@ -834,13 +826,17 @@ export function formatAlertRowDate(date: string): string {
   });
 }
 
-/** Consistent alert row timestamp — e.g. "04 Aug". */
+/** Consistent alert / action-log timestamp — e.g. "9:14 AM, 04 Aug". */
 export function formatAlertRowDateTime(iso: string): string {
   const d = new Date(iso);
   const day = String(d.getDate()).padStart(2, "0");
   const month = d.toLocaleDateString(undefined, { month: "short" });
+  const time = d.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 
-  return `${day} ${month}`;
+  return `${time}, ${day} ${month}`;
 }
 
 /** Row timestamp — same format for every alert type. */
@@ -893,16 +889,9 @@ export function groupAlertsByDate(
   return groups;
 }
 
-/** Title line: claim plus impact when not already included. */
+/** Title line for alert cards — always the short count claim (not a detailed summary). */
 export function formatAlertTitle(alert: AlertSummary): string {
-  if (alert.actionCount > 1) {
-    return alert.claim;
-  }
-
-  if (!alert.impact || alert.claim.includes(alert.impact)) {
-    return alert.claim;
-  }
-  return `${alert.claim} — ${alert.impact}`;
+  return alert.claim;
 }
 
 function formatContributorIdentity(

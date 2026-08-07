@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { Check, ChevronRight, Funnel, Search } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Funnel, Search } from "lucide-react";
 
 import { ActorMark } from "@/components/gbo-explainability/actor-mark";
 import { ContributorAvatar } from "@/components/gbo-explainability/manual-contributors-list";
@@ -33,6 +33,7 @@ import {
   parseUserFilterValues,
   patchCoreDraftForKey,
   pickCoreFilterDraft,
+  PRODUCT_FILTER_ACCORDIONS,
   serializeFailureCategoryFilterValues,
   serializeUserFilterValues,
   type CoreFilterDefinition,
@@ -460,74 +461,257 @@ function OptionsPanel({
   );
 }
 
-function FilterNavSections({
-  sections,
-  filteredSections,
-  activeKey,
+/** What is selected in the right-hand options panel. */
+type ActiveFilterSelection = { kind: "core"; key: CoreFilterKey };
+
+type NavAccordion = {
+  id: string;
+  label: string;
+  /** Real filter columns when available (e.g. Retailer Categorization on Action Log). */
+  definitions: CoreFilterDefinition[];
+  /**
+   * When true and there are no real definitions yet, show a non-clickable
+   * "same as Product" placeholder under the accordion.
+   */
+  showProductPlaceholder?: boolean;
+};
+
+type FilterNavModel = {
+  /** Product categories rendered as expandable accordions. */
+  accordions: NavAccordion[];
+  /** Existing Filters — flat top-level rows (no "Filters" accordion wrapper). */
+  topLevelDefinitions: CoreFilterDefinition[];
+};
+
+function buildFilterNavModel(sections: FilterDefinitionSection[]): FilterNavModel {
+  const sectionByLabel = new Map(
+    sections.map((section) => [section.label, section] as const),
+  );
+
+  const productLabels = new Set<string>(
+    PRODUCT_FILTER_ACCORDIONS.map((item) => item.label),
+  );
+
+  const accordions: NavAccordion[] = PRODUCT_FILTER_ACCORDIONS.map(
+    (accordion) => {
+      const matched = sectionByLabel.get(accordion.label);
+      if (matched && matched.definitions.length > 0) {
+        return {
+          id: accordion.id,
+          label: accordion.label,
+          definitions: matched.definitions,
+        };
+      }
+
+      return {
+        id: accordion.id,
+        label: accordion.label,
+        definitions: [],
+        showProductPlaceholder: true,
+      };
+    },
+  );
+
+  // Sections that are not product accordion titles (e.g. "Filters")
+  // flatten to top-level rows — no accordion wrapper.
+  const topLevelDefinitions = sections
+    .filter((section) => !productLabels.has(section.label))
+    .flatMap((section) => section.definitions);
+
+  return { accordions, topLevelDefinitions };
+}
+
+function FilterNavItemButton({
+  label,
+  isActive,
+  isApplied,
+  indent,
+  showChevron = true,
+  onClick,
+}: {
+  label: string;
+  isActive: boolean;
+  isApplied?: boolean;
+  indent?: boolean;
+  /** Accordion child rows keep a chevron; top-level filters do not. */
+  showChevron?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center justify-between gap-2 rounded-md py-2 text-left text-sm transition-colors",
+        indent ? "pr-2.5 pl-5" : "px-2.5",
+        isActive
+          ? explainabilityActionable.navActive
+          : "text-slate-700 hover:bg-slate-100",
+      )}
+    >
+      <span className="truncate">{label}</span>
+      <span className="flex shrink-0 items-center gap-1">
+        {isApplied && !isActive ? (
+          <span
+            className={cn(
+              "size-1.5 rounded-full",
+              explainabilityActionable.filterDot,
+            )}
+          />
+        ) : null}
+        {showChevron ? (
+          <ChevronRight
+            className={cn(
+              "size-3.5",
+              isActive
+                ? explainabilityActionable.chevronActive
+                : "text-slate-400",
+            )}
+            aria-hidden
+          />
+        ) : null}
+      </span>
+    </button>
+  );
+}
+
+function FilterNavAccordions({
+  nav,
+  query,
+  active,
   draft,
   onSelect,
 }: {
-  sections: FilterDefinitionSection[];
-  filteredSections: FilterDefinitionSection[];
-  activeKey: CoreFilterKey | null;
+  nav: FilterNavModel;
+  query: string;
+  active: ActiveFilterSelection | null;
   draft: CoreFilterDraft;
-  onSelect: (key: CoreFilterKey) => void;
+  onSelect: (selection: ActiveFilterSelection) => void;
 }) {
-  const visibleSections =
-    filteredSections.length > 0 ? filteredSections : sections;
+  const normalizedQuery = query.trim().toLowerCase();
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const visibleTopLevel = normalizedQuery
+    ? nav.topLevelDefinitions.filter((definition) =>
+        definition.label.toLowerCase().includes(normalizedQuery),
+      )
+    : nav.topLevelDefinitions;
+
+  const visibleAccordions = nav.accordions
+    .map((accordion) => {
+      if (!normalizedQuery) return accordion;
+
+      const labelMatch = accordion.label.toLowerCase().includes(normalizedQuery);
+      const matchedDefinitions = accordion.definitions.filter((definition) =>
+        definition.label.toLowerCase().includes(normalizedQuery),
+      );
+
+      if (labelMatch) {
+        return accordion;
+      }
+
+      if (matchedDefinitions.length > 0) {
+        return { ...accordion, definitions: matchedDefinitions };
+      }
+
+      return null;
+    })
+    .filter((accordion): accordion is NavAccordion => accordion !== null);
 
   return (
-    <>
-      {visibleSections.map((section) => (
-        <div key={section.id} className="mb-2">
-          <p className="px-2 py-1.5 text-xs font-semibold text-slate-800">
-            {section.label}
-          </p>
-          <ul className="space-y-0.5">
-            {section.definitions.map((definition) => {
-              const isActive = activeKey === definition.key;
-              const isApplied = isCoreFilterApplied(draft, definition.key);
+    <div className="space-y-0.5">
+      {/* Existing filters stay as flat top-level rows — above product accordions */}
+      <ul className="space-y-0.5">
+        {visibleTopLevel.map((definition) => {
+          const isActive =
+            active?.kind === "core" && active.key === definition.key;
+          const isApplied = isCoreFilterApplied(draft, definition.key);
 
-              return (
-                <li key={definition.key}>
-                  <button
-                    type="button"
-                    onClick={() => onSelect(definition.key)}
-                    className={cn(
-                      "flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors",
-                      isActive
-                        ? explainabilityActionable.navActive
-                        : "text-slate-700 hover:bg-slate-100",
-                    )}
-                  >
-                    <span className="truncate">{definition.label}</span>
-                    <span className="flex shrink-0 items-center gap-1">
-                      {isApplied && !isActive ? (
-                        <span
-                          className={cn(
-                            "size-1.5 rounded-full",
-                            explainabilityActionable.filterDot,
-                          )}
-                        />
-                      ) : null}
-                      <ChevronRight
-                        className={cn(
-                          "size-3.5",
-                          isActive
-                            ? explainabilityActionable.chevronActive
-                            : "text-slate-400",
-                        )}
-                        aria-hidden
+          return (
+            <li key={definition.key}>
+              <FilterNavItemButton
+                label={definition.label}
+                isActive={isActive}
+                isApplied={isApplied}
+                showChevron={false}
+                onClick={() => onSelect({ kind: "core", key: definition.key })}
+              />
+            </li>
+          );
+        })}
+      </ul>
+
+      {visibleAccordions.map((accordion) => {
+        const forceExpand = Boolean(normalizedQuery);
+        const isExpanded = forceExpand || expandedIds.has(accordion.id);
+        const hasChildren =
+          accordion.definitions.length > 0 ||
+          Boolean(accordion.showProductPlaceholder);
+
+        return (
+          <div key={accordion.id}>
+            <button
+              type="button"
+              onClick={() => toggleExpanded(accordion.id)}
+              aria-expanded={isExpanded}
+              className="flex w-full items-center justify-between gap-2 rounded-md bg-slate-50 px-2.5 py-2 text-left text-sm font-medium text-slate-800 transition-colors hover:bg-slate-100"
+            >
+              <span className="truncate">{accordion.label}</span>
+              <ChevronDown
+                className={cn(
+                  "size-3.5 shrink-0 text-slate-400 transition-transform",
+                  isExpanded ? "rotate-0" : "-rotate-90",
+                )}
+                aria-hidden
+              />
+            </button>
+
+            {isExpanded && hasChildren ? (
+              <ul className="mt-0.5 space-y-0.5 pb-1">
+                {accordion.definitions.map((definition) => {
+                  const isActive =
+                    active?.kind === "core" && active.key === definition.key;
+                  const isApplied = isCoreFilterApplied(draft, definition.key);
+
+                  return (
+                    <li key={definition.key}>
+                      <FilterNavItemButton
+                        label={definition.label}
+                        isActive={isActive}
+                        isApplied={isApplied}
+                        indent
+                        onClick={() =>
+                          onSelect({ kind: "core", key: definition.key })
+                        }
                       />
+                    </li>
+                  );
+                })}
+
+                {accordion.showProductPlaceholder &&
+                accordion.definitions.length === 0 ? (
+                  <li className="px-2.5 py-2 pl-5">
+                    {/* Product placeholder — display only, not selectable */}
+                    <span className="block truncate text-sm text-slate-400">
+                      same as Product
                     </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
-    </>
+                  </li>
+                ) : null}
+              </ul>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -552,6 +736,8 @@ export function FiltersPopover({
     [view, accountConfig],
   );
 
+  const navModel = useMemo(() => buildFilterNavModel(sections), [sections]);
+
   const definitions = useMemo(
     () => flattenFilterSections(sections),
     [sections],
@@ -559,7 +745,7 @@ export function FiltersPopover({
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [activeKey, setActiveKey] = useState<CoreFilterKey | null>(null);
+  const [active, setActive] = useState<ActiveFilterSelection | null>(null);
   const [draft, setDraft] = useState<CoreFilterDraft>(() =>
     pickCoreFilterDraft(filters),
   );
@@ -568,26 +754,18 @@ export function FiltersPopover({
     if (open) {
       setDraft(pickCoreFilterDraft(filters));
       setQuery("");
-      setActiveKey(definitions[0]?.key ?? null);
+      // Prefer first existing top-level filter (e.g. Date / time)
+      const firstKey =
+        navModel.topLevelDefinitions[0]?.key ?? definitions[0]?.key ?? null;
+      setActive(firstKey ? { kind: "core", key: firstKey } : null);
     }
-  }, [open, filters, definitions]);
-
-  const filteredSections = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return sections;
-
-    return sections
-      .map((section) => ({
-        ...section,
-        definitions: section.definitions.filter((definition) =>
-          definition.label.toLowerCase().includes(q),
-        ),
-      }))
-      .filter((section) => section.definitions.length > 0);
-  }, [sections, query]);
+  }, [open, filters, definitions, navModel]);
 
   const activeDefinition =
-    definitions.find((definition) => definition.key === activeKey) ?? null;
+    active?.kind === "core"
+      ? (definitions.find((definition) => definition.key === active.key) ??
+        null)
+      : null;
 
   const usesDefaultDateRange = view === "alerts" || view === "action-log";
 
@@ -661,12 +839,13 @@ export function FiltersPopover({
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto p-2">
-              <FilterNavSections
-                sections={sections}
-                filteredSections={filteredSections}
-                activeKey={activeKey}
+              <FilterNavAccordions
+                key={view}
+                nav={navModel}
+                query={query}
+                active={active}
                 draft={draft}
-                onSelect={setActiveKey}
+                onSelect={setActive}
               />
             </div>
           </div>
@@ -771,3 +950,4 @@ export function FiltersPopover({
     </Popover>
   );
 }
+

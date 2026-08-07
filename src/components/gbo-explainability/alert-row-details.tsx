@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import Image from "next/image";
 import {
   Activity,
   GitCompare,
@@ -9,6 +8,7 @@ import {
 } from "lucide-react";
 
 import { AlertConflictCard } from "@/components/gbo-explainability/alert-conflict-card";
+import { ActorMark } from "@/components/gbo-explainability/actor-mark";
 import { ChangeRow } from "@/components/gbo-explainability/change-row";
 import { ManualContributorsList } from "@/components/gbo-explainability/manual-contributors-list";
 import { explainabilityActionable } from "@/lib/gbo-explainability/actionable-styles";
@@ -20,7 +20,11 @@ import {
   alertSectionId,
   explainabilityType,
 } from "@/lib/gbo-explainability/explainability-typography";
-import type { AlertSummary, ManualContributorSummary } from "@/lib/gbo-explainability/types";
+import type {
+  AlertRole,
+  AlertSummary,
+  ManualContributorSummary,
+} from "@/lib/gbo-explainability/types";
 import { cn } from "@/lib/utils";
 
 type AlertRowDetailsProps = {
@@ -74,12 +78,22 @@ function DetailSection({
   );
 }
 
+/** Maps alert role → ActorMark kind (same four explainability actors). */
+function actorKindForRole(role: AlertRole) {
+  return role === "human" ? "human" : role;
+}
+
 function AlertAiSummary({
   id,
   summary,
+  role,
+  personName,
 }: {
   id: string;
   summary: string;
+  role: AlertRole;
+  /** Used for Manual summary avatar initials. */
+  personName?: string;
 }) {
   return (
     <div
@@ -93,12 +107,10 @@ function AlertAiSummary({
     >
       <div className="flex flex-col gap-2 px-4 py-3">
         <div className="flex items-center gap-1.5">
-          <Image
-            src="/icons/ally-ai.png"
-            alt=""
-            width={19}
-            height={19}
-            className="size-[1.1875rem] shrink-0 object-cover"
+          <ActorMark
+            kind={actorKindForRole(role)}
+            name={personName}
+            size="sm"
           />
           <h4 className={explainabilityType.l2}>Summary</h4>
         </div>
@@ -161,60 +173,68 @@ export function AlertRowDetails({ alert }: AlertRowDetailsProps) {
   const singleContributor =
     manualContributors?.length === 1 ? manualContributors[0] : null;
 
+  // Temporarily hide Manual changes in the detail pane — keep the block below for easy restore.
+  const showManualChangesSection = false;
+
   return (
     <div className="space-y-4">
-      {alert.role !== "human" ? (
-          <AlertAiSummary
-            id={alertSectionId(alert.id, "summary")}
-            summary={alert.aiSummary}
+      {/* Summary is always shown — Ally AI, Rule Based, Day Parting, and Manual */}
+      <AlertAiSummary
+        id={alertSectionId(alert.id, "summary")}
+        summary={alert.aiSummary}
+        role={alert.role}
+        personName={
+          alert.role === "human"
+            ? (singleContributor?.name ?? alert.actor.label)
+            : undefined
+        }
+      />
+
+      {showManualChangesSection && showManualChanges && manualContributors ? (
+        <DetailSection
+          sectionId={alertSectionId(alert.id, "manual")}
+          title="Manual changes"
+          subtitle={
+            singleContributor
+              ? buildManualSubtitle(singleContributor)
+              : `${manualContributors.length} people`
+          }
+          icon={<Users className="size-4 shrink-0 text-slate-500" aria-hidden />}
+        >
+          <ManualContributorsList
+            contributors={manualContributors}
+            hideIdentity={Boolean(singleContributor)}
           />
-        ) : null}
+        </DetailSection>
+      ) : null}
 
-        {showManualChanges && manualContributors ? (
-          <DetailSection
-            sectionId={alertSectionId(alert.id, "manual")}
-            title="Manual changes"
-            subtitle={
-              singleContributor
-                ? buildManualSubtitle(singleContributor)
-                : `${manualContributors.length} people`
-            }
-            icon={<Users className="size-4 shrink-0 text-slate-500" aria-hidden />}
-          >
-            <ManualContributorsList
-              contributors={manualContributors}
-              hideIdentity={Boolean(singleContributor)}
-            />
-          </DetailSection>
-        ) : null}
+      {alert.conflicts.length > 0 ? (
+        <DetailSection
+          sectionId={alertSectionId(alert.id, "overrides")}
+          title="Overrides"
+          count={alert.conflicts.length}
+          icon={<GitCompare className="size-4 shrink-0 text-amber-600" aria-hidden />}
+        >
+          <ul className="divide-y divide-slate-100">
+            {alert.conflicts.map((conflict) => (
+              <li key={conflict.id}>
+                <AlertConflictCard conflict={conflict} />
+              </li>
+            ))}
+          </ul>
+        </DetailSection>
+      ) : null}
 
-        {alert.conflicts.length > 0 ? (
-          <DetailSection
-            sectionId={alertSectionId(alert.id, "overrides")}
-            title="Overrides"
-            count={alert.conflicts.length}
-            icon={<GitCompare className="size-4 shrink-0 text-slate-500" aria-hidden />}
-          >
-            <ul className="divide-y divide-slate-100">
-              {alert.conflicts.map((conflict) => (
-                <li key={conflict.id}>
-                  <AlertConflictCard conflict={conflict} />
-                </li>
-              ))}
-            </ul>
-          </DetailSection>
-        ) : null}
-
-        {alert.deviations.length > 0 ? (
-          <DetailSection
-            sectionId={alertSectionId(alert.id, "deviations")}
-            title="High deviations"
-            count={alert.deviations.length}
-            icon={<Activity className="size-4 shrink-0 text-slate-500" aria-hidden />}
-          >
-            <DeviationsPanel deviations={alert.deviations} />
-          </DetailSection>
-        ) : null}
+      {alert.deviations.length > 0 ? (
+        <DetailSection
+          sectionId={alertSectionId(alert.id, "deviations")}
+          title="High deviations"
+          count={alert.deviations.length}
+          icon={<Activity className="size-4 shrink-0 text-sky-600" aria-hidden />}
+        >
+          <DeviationsPanel deviations={alert.deviations} />
+        </DetailSection>
+      ) : null}
     </div>
   );
 }

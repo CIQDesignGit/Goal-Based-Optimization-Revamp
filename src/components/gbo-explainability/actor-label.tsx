@@ -9,6 +9,7 @@ import {
   ACTOR_AVATAR_SIZES,
   getActorLabel,
   getActorTooltip,
+  MULTI_CONTRIBUTOR_AVATAR_STYLE,
 } from "@/lib/gbo-explainability/actor-display";
 import type { Actor, ManualContributorSummary } from "@/lib/gbo-explainability/types";
 import { cn } from "@/lib/utils";
@@ -40,15 +41,20 @@ function ActorLabelAvatar({
   const contributors = manualContributors ?? [];
   const singleContributor =
     contributors.length === 1 ? contributors[0] : null;
+  // Match text-sm + leading-snug name (~19px) — see ACTOR_AVATAR_SIZES.sm
+  const size = "sm" as const;
 
   if (actor.kind === "human") {
     if (contributors.length > 1) {
       return (
         <span
           className={cn(
-            "flex shrink-0 items-center justify-center bg-slate-100 text-slate-600 ring-1 ring-slate-200",
+            "flex shrink-0 items-center justify-center",
+            MULTI_CONTRIBUTOR_AVATAR_STYLE.bg,
+            MULTI_CONTRIBUTOR_AVATAR_STYLE.text,
+            MULTI_CONTRIBUTOR_AVATAR_STYLE.ring,
             ACTOR_AVATAR_RADIUS,
-            ACTOR_AVATAR_SIZES.sm,
+            ACTOR_AVATAR_SIZES[size],
           )}
           aria-hidden
         >
@@ -60,12 +66,12 @@ function ActorLabelAvatar({
     return (
       <ContributorAvatar
         name={singleContributor?.name ?? actor.label}
-        size="sm"
+        size={size}
       />
     );
   }
 
-  return <ActorMark kind={actor.kind} size="sm" />;
+  return <ActorMark kind={actor.kind} size={size} />;
 }
 
 /** Actor column for alert rows — avatar + label. */

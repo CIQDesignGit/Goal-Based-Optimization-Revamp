@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 type AlertSignalTagsProps = {
   alert: Pick<
     AlertSummary,
-    "id" | "conflictCount" | "highDeviationCount" | "failureCount" | "role"
+    "id" | "conflictCount" | "highDeviationCount" | "failureCount"
   >;
   className?: string;
   /** When set, tags scroll to the matching expanded detail section. */
@@ -117,9 +117,8 @@ function SignalTag({
 }
 
 function failureTargetId(alert: AlertSignalTagsProps["alert"]): string {
-  return alert.role === "human"
-    ? alertSectionId(alert.id, "manual")
-    : alertSectionId(alert.id, "summary");
+  // Summary is always present — failures jump there for every actor type
+  return alertSectionId(alert.id, "summary");
 }
 
 /** Secondary signal chips — failures, conflicts, and high-deviation changes. */
@@ -137,7 +136,7 @@ export function AlertSignalTags({
   }
 
   return (
-    <div className={cn("flex shrink-0 flex-wrap items-center gap-1.5", className)}>
+    <div className={cn("flex min-w-0 max-w-full flex-wrap items-center gap-1.5", className)}>
       {alert.failureCount > 0 ? (
         <SignalTag
           tone="failure"

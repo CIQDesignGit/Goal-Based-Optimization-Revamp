@@ -8,6 +8,7 @@ import {
   ACTOR_AVATAR_SIZES,
   ACTOR_AVATAR_TEXT,
   ACTOR_MARK_STYLE,
+  getProfileAvatarStyle,
   getProfileInitials,
   type ActorAvatarSize,
 } from "@/lib/gbo-explainability/actor-display";
@@ -82,13 +83,18 @@ export function ActorMark({
   const markSize = ACTOR_AVATAR_SIZES[size];
   const iconSize = ACTOR_MARK_ICON_SIZE[size];
   const imageSize = ACTOR_MARK_IMAGE_PX[size];
+  // People get a soft tint from their name; automation kinds use fixed brand colors
+  const style =
+    kind === "human"
+      ? getProfileAvatarStyle(name ?? "Manual")
+      : ACTOR_MARK_STYLE[kind];
   const markClass = cn(
     "inline-flex shrink-0 items-center justify-center",
     ACTOR_AVATAR_RADIUS,
     markSize,
-    ACTOR_MARK_STYLE[kind].bg,
-    ACTOR_MARK_STYLE[kind].text,
-    ACTOR_MARK_STYLE[kind].ring,
+    style.bg,
+    style.text,
+    style.ring,
     className,
   );
 
