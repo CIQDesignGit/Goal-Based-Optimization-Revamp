@@ -66,19 +66,3 @@ export function downloadCsv(filename: string, csv: string): void {
   a.click();
   URL.revokeObjectURL(url);
 }
-
-/** Today's Ally AI changes only (local calendar day). */
-export function filterTodaysAllyAi(entries: LogEntry[]): LogEntry[] {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
-
-  return entries.filter((e) => {
-    if (e.automationType !== "ally-ai" && e.actor.kind !== "ally-ai") {
-      return false;
-    }
-    const ts = new Date(e.timestamp);
-    return ts >= start && ts <= end;
-  });
-}

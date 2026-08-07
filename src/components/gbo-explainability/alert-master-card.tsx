@@ -86,7 +86,10 @@ export function AlertMasterCard({
           <time
             dateTime={alertRowTimestampValue(alert)}
             className={cn(
-              "shrink-0 whitespace-nowrap tabular-nums",
+              "shrink-0 text-right tabular-nums",
+              alert.role === "day-parting"
+                ? "max-w-[9.5rem] whitespace-normal"
+                : "whitespace-nowrap",
               explainabilityType.l4,
             )}
           >

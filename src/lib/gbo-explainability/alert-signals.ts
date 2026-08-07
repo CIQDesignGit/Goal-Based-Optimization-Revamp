@@ -119,8 +119,8 @@ export type AlertSignalCounts = {
   highDeviationCount: number;
 };
 
-export function conflictLabel(count: number): string {
-  return count === 1 ? "Conflict" : "Conflicts";
+export function conflictLabel(_count: number): string {
+  return "Conflicts";
 }
 
 export function highDeviationLabel(count: number): string {

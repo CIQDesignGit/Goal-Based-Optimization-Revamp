@@ -16,7 +16,6 @@ import {
 import {
   downloadCsv,
   entriesToCsv,
-  filterTodaysAllyAi,
 } from "@/lib/gbo-explainability/export-csv";
 import {
   actionStatusLabel,
@@ -480,8 +479,6 @@ export function ActionLogsPage() {
     [filteredEntries],
   );
 
-  const todayAlly = useMemo(() => filterTodaysAllyAi(entries), [entries]);
-
   const hasActiveNarrowing = chips.length > 0 || search.trim().length > 0;
 
   function patchFilters(patch: Partial<FilterState>) {
@@ -577,11 +574,6 @@ export function ActionLogsPage() {
     downloadCsv(`action-log-${suffix}.csv`, csv);
   }
 
-  function handleDownloadToday() {
-    const csv = entriesToCsv(todayAlly);
-    downloadCsv("ally-ai-today.csv", csv);
-  }
-
   function handleRetry(entryId: string) {
     const entry = entries.find((e) => e.id === entryId);
     if (!entry) return;
@@ -652,9 +644,7 @@ export function ActionLogsPage() {
             retryingId={retryingId}
             onRetry={handleRetry}
             filteredCount={flatRows.length}
-            todayAllyCount={todayAlly.length}
             onExport={handleExport}
-            onDownloadToday={handleDownloadToday}
           />
         )}
       </div>

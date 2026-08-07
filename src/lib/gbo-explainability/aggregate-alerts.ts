@@ -839,11 +839,15 @@ export function formatAlertRowDateTime(iso: string): string {
   return `${time}, ${day} ${month}`;
 }
 
-/** Row timestamp — same format for every alert type. */
+/** Row timestamp — Day Parting uses “Last updated at …” framing. */
 export function formatAlertRowTimestamp(
-  alert: Pick<AlertSummary, "timestamp">,
+  alert: Pick<AlertSummary, "timestamp" | "role">,
 ): string {
-  return formatAlertRowDateTime(alert.timestamp);
+  const when = formatAlertRowDateTime(alert.timestamp);
+  if (alert.role === "day-parting") {
+    return `Last updated at ${when}`;
+  }
+  return when;
 }
 
 /** `dateTime` value for the alert row timestamp. */

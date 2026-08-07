@@ -211,7 +211,7 @@ export function AlertRowDetails({ alert }: AlertRowDetailsProps) {
       {alert.conflicts.length > 0 ? (
         <DetailSection
           sectionId={alertSectionId(alert.id, "overrides")}
-          title="Overrides"
+          title="Conflicts"
           count={alert.conflicts.length}
           icon={<GitCompare className="size-4 shrink-0 text-amber-600" aria-hidden />}
         >

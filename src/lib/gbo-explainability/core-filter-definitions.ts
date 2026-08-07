@@ -149,8 +149,6 @@ const WHO_MADE_CHANGE_OPTIONS: CoreFilterOption[] = [
 
 const CORE_ACTION_LOG_DEFINITIONS: CoreFilterDefinition[] = [
   { key: "dateRange", label: "Date / time" },
-  { key: "budgetLevel", label: "Budget level", options: BUDGET_LEVEL_OPTIONS },
-  { key: "entityScope", label: "Entity / scope", panel: "text" },
   {
     key: "actionStatus",
     label: "Action status",
@@ -176,12 +174,6 @@ const CORE_ACTION_LOG_DEFINITIONS: CoreFilterDefinition[] = [
     options: FAILURE_CATEGORY_OPTIONS,
     multiSelect: true,
   },
-  {
-    key: "outOfBudgetOnly",
-    label: "Out of budget",
-    boolean: true,
-    booleanLabel: "Flagged only",
-  },
 ];
 
 export function buildCoreFilterDefinitions(): CoreFilterDefinition[] {
@@ -199,10 +191,7 @@ export function buildCoreFilterDefinitions(): CoreFilterDefinition[] {
 }
 
 export function buildAlertsFilterDefinitions(): CoreFilterDefinition[] {
-  return CORE_ACTION_LOG_DEFINITIONS.filter(
-    (definition) =>
-      definition.key !== "budgetLevel" && definition.key !== "entityScope",
-  );
+  return CORE_ACTION_LOG_DEFINITIONS;
 }
 
 export function buildActionLogFilterSections(

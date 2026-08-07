@@ -93,9 +93,7 @@ type ActionLogTableProps = {
   retryingId: string | null;
   onRetry: (entryId: string) => void;
   filteredCount: number;
-  todayAllyCount: number;
   onExport: () => void;
-  onDownloadToday: () => void;
 };
 
 export function ActionLogTable({
@@ -107,9 +105,7 @@ export function ActionLogTable({
   retryingId,
   onRetry,
   filteredCount,
-  todayAllyCount,
   onExport,
-  onDownloadToday,
 }: ActionLogTableProps) {
   const [detailRow, setDetailRow] = useState<ActionLogRow | null>(null);
 
@@ -122,9 +118,7 @@ export function ActionLogTable({
           actions={
             <ExportPopover
               filteredCount={filteredCount}
-              todayAllyCount={todayAllyCount}
               onExportFiltered={onExport}
-              onExportTodayAlly={onDownloadToday}
             />
           }
         />
