@@ -286,7 +286,7 @@ Per the PRD release plan, **P0 = FR-001, 002, 003, 004, 005, 006, 008, 010, 018*
 
 | Deferred | FRs | Theme |
 | -------- | --- | ----- |
-| **P1** | 12–17 | Budget Pacing Dashboard (Executive Summary + Pacing) |
+| **P1** | 12–17 | Budget Pacing Dashboard (Executive Summary + Pacing) — see [Budget Pacing Dashboard (P1)](#budget-pacing-dashboard-p1) |
 | **P2** | 7, 11, 9 | High Deviation / anomaly, entity timeline, email alerts |
 | **P3** | 19 | Conflict detection |
 
@@ -470,3 +470,152 @@ Five distinct states — each with its own message and, where relevant, a CTA:
 - Current entry: `src/components/settings/settings-home-content.tsx` → `/explainability-dashboard`.
 - Implementation: `src/components/gbo-explainability/` — `AlertsView`, `AlertRow`, `ActionLogsPage`, unified filters in `filters-popover.tsx`, aggregation in `aggregate-alerts.ts`.
 - Related setup audit trail during the wizard lives in `setup-session-store` (change ledger for Summary). Explainability is the **post-save, durable** history of those (and Ally AI) actions.
+
+---
+
+# Budget Pacing Dashboard (P1)
+
+| Field | Value |
+| ----- | ----- |
+| **Product** | CommerceIQ Retail Media Management (RMM) |
+| **Feature** | Budget Pacing Dashboard — Executive Summary + Pacing |
+| **Version** | v1 |
+| **Status** | Draft |
+| **Entry point (prototype)** | AI Goal Optimizer home (`/`) |
+| **Numbering note** | These FRs (012–017) are the **Explainability / P1** set. Setup-wizard FRs also use 012–017 in an earlier section — they are separate scopes. FR-015 and FR-017 for this dashboard were not specified yet. |
+
+---
+
+## Problem statement
+
+Advertising managers get a weekly Budget Pacing Report email, but the in-product home page only shows a chart widget. They cannot see projected month-end utilisation, constraint gaps, or actionable recommendations next to the same numbers. P1 brings the emailer’s intelligence into the landing page with an Executive Summary lens and a Pacing tab that mirrors the report.
+
+---
+
+## Key concepts
+
+| Term | Definition |
+| ---- | ---------- |
+| **Budget Pacing Dashboard** | The AI Goal Optimizer landing page with two tabs: Executive Summary and Pacing. |
+| **Executive Summary tab** | Default tab. Performance Overview (AI summary) + the existing Budget Pacing chart/widget (unchanged below). Forward-looking projected metrics are surfaced in the Performance Overview narrative and/or the widget Metrics row as needed — not as a separate four-card strip. |
+| **Pacing tab** | In-product mirror of the weekly Budget Pacing Report emailer — Sections A–E. |
+| **97–102% color band** | On Plan (green) when pacing/utilisation is within 97–102%; otherwise Behind/Ahead (red). |
+| **Pacing MTD** | Actual MTD spend ÷ planned MTD spend. |
+| **Projected utilisation** | Projected month-end spend ÷ planned monthly budget (uses the filter window, default 14 days). |
+| **Performance Overview** | Collapsible AI-generated summary at the top of the Executive Summary tab. |
+
+---
+
+## Functional requirements
+
+### FR-012 — Dashboard shell with Executive Summary and Pacing tabs
+
+**Statement.** The Budget Pacing Dashboard opens with two tabs. Executive Summary = the existing dashboard page with an Executive Summary section added on top. Pacing tab = the emailer-style report view.
+
+**Happy flow.** The user opens the Budget Pacing Dashboard on a live account. It loads on the Executive Summary tab; the Executive Summary section sits above the existing (unchanged) dashboard charts/tables. The user switches to the Pacing tab and back; the selected tab persists within the session.
+
+**Acceptance criteria**
+
+- Two tabs render (Executive Summary default); the selected tab persists on in-session navigation.
+- On the Executive Summary tab, the summary section sits above the existing dashboard, which is otherwise unchanged.
+- Widgets load independently with skeleton loaders; the slowest widget does not block the page.
+- Filters applied on one tab persist on the other as well.
+
+**Edge cases & defaults**
+
+- GBO not supported for the retailer: same as current product behaviour.
+- GBO strategy not live yet: same as current product behaviour.
+- Slow pacing-screen load: the dashboard should load within 10 seconds in the default view.
+
+### FR-013 — Executive Summary section (Performance Overview)
+
+**Statement.** A collapsible Executive Summary at the top of the Executive Summary tab (labeled **Performance Overview**). It summarizes pacing, performance, and under/over-pacing reasons with actionable insights. Prototype uses a deterministic template from instance data (no live LLM); product target is GPT-class generation with the same constraints.
+
+**Behavioural requirements**
+
+- Dynamic based on filters — recomputes for the current selection (retailer, brand/level, date range, attribution window).
+- No hallucination — every figure/claim traces to instance data; if a metric is unavailable it is omitted, not guessed. Shows an “AI-generated summary — verify in your instance” disclaimer.
+- Accurate numbers — figures match the underlying widgets and the pacing table exactly.
+- Actionable insights — names what to do with supporting numbers.
+
+**Happy flow.** The user lands on the Executive Summary tab with default filters (14-day window). The summary generates from instance data. It presents at least one actionable recommendation tied to specific numbers. A brand filter change re-generates the summary against the filtered data within 30 seconds. Cross-checks against widgets below match.
+
+**Acceptance criteria**
+
+- A filter change re-generates the summary against the filtered data within 30 seconds.
+- A missing metric is omitted; no placeholder or estimated number is shown.
+- Every number in the summary matches the corresponding widget / pacing table to the displayed precision.
+- The summary includes at least one actionable recommendation tied to specific numbers where the data supports one.
+- The AI-generated disclaimer is visible.
+
+**Edge cases & defaults**
+
+- LLM service down: show the last-generated summary with a timestamp, or a deterministic fallback — never blank or fabricated.
+- Conflicting signals (on-plan spend but efficiency dropping): reflect both, consistent with the Pacing tab.
+
+### FR-014 — Projected spend & utilisation metrics
+
+**Statement.** Add forward-looking pacing metrics to the Executive Summary tab as **four cards**:
+
+1. Projected Sales for the complete month
+2. Projected utilisation / pacing % complete month (projected month-end spend ÷ planned monthly budget), with projected $ over/under-spend alongside the %
+3. Projected Goal
+4. Pacing MTD (actual MTD ÷ planned MTD) — Spend MTD (actual vs planned) is the planned/actual reference on this card, not a fifth card
+
+Show the 97–102% color band (outside the band → red).
+
+**Acceptance criteria**
+
+- All four metrics render with value, planned reference, and color band.
+- Projected utilisation uses the filter window (default 14-day) and current planned monthly budget; projected $ over/under-spend shows next to the %.
+- Spend MTD and Pacing MTD match the pacing table (FR-016 Section A) exactly.
+- Values outside 97–102% render red per the band.
+- Zero planned budget: show “no plan set” instead of dividing by zero.
+- Early month / insufficient history: show projection, not false precision.
+- Mid-month plan/budget change: projection uses the current plan.
+- Manual-override inflation: projection reflects actuals; the summary flags override contribution.
+
+### FR-016 — Pacing tab (from the Budget Pacing Report)
+
+**Statement.** The Pacing tab renders the intelligence currently sent in the weekly Budget Pacing Report emailer, in-product with minimal new design, mirroring the emailer’s sections. All figures are from instance data.
+
+- **Section A — Weekly state of the account (pacing table).** Columns: Level 1, Level 2, Planned MTD, Actual MTD, Pacing % (with On Plan / Behind / Ahead status), Goal, Goal Value, goal metric, Budget/Bid Opt, % Time in Budget. Include the account rollup line and GBO execution-quality stats: budget-change success %, bid-change success %, recommendation-coverage %.
+- **Section B — Constraint analysis.** Table: Alert, Level 1, Level 2, Group, Constraint Type, Constraint %, Spend Share %, Deviation (points + relative %), with plain-language explanation of each flagged gap.
+- **Section C — What changed and why.** Ranked narrative of under/over-pacing drivers tied to numbers.
+- **Section D — What to do this week.** Recommendations, each with: Action, Lever used, Exact setting change, Why now (with numbers), Expected impact, Risk, How to monitor this week.
+- **Section E — Watchouts.** Forward-looking risks.
+
+**Acceptance criteria**
+
+- Sections A–E populate from the account’s current instance data for the selected scope and date range.
+- Pacing % status and color band (97–102% green) render correctly per level.
+- Each Section D recommendation includes lever, exact setting change, numbers, expected impact, risk, and monitoring guidance.
+- Any figure in Sections A–E reconciles with the Executive Summary and dashboard widgets.
+- Parent–child rollup: parent-level spend must not misrepresent child spend; show budget context so a rolled-up utilisation % isn’t read as the parent’s own.
+- No constraints configured: Section B shows “no constraints set,” not an empty error.
+- No recommendations for a day: reflected in recommendation-coverage %, not hidden.
+- AI narrative unavailable: tabular Sections A/B still render; C/D/E degrade to “summary pending” without blocking the table.
+- Manual overrides present: Section C attributes over-pacing to overrides explicitly.
+
+---
+
+## Behaviour rules (quick reference)
+
+- Default land: **Executive Summary** tab; default date filter = **14-day window**.
+- Tab selection and filters persist for the browser session (in-app navigation).
+- Shared filters apply to both tabs.
+- Widgets load independently (skeletons); slowest widget does not block the page; target ≤10s default view.
+- 97–102% = On Plan (green); outside = Behind/Ahead (red).
+- Four metric cards only (FR-014); Spend MTD is the reference on the Pacing MTD card.
+- Performance Overview is AI-labeled with disclaimer; omit missing metrics; never invent numbers.
+- Pacing A/B always render; C/D/E may show “summary pending.”
+- FR-015 and FR-017 for this dashboard are not specified yet — do not invent them.
+
+---
+
+## Prototype notes
+
+- Entry: `src/components/home/ai-goal-optimizer-home.tsx` (`/`).
+- Shared instance + filters: `src/lib/home/` (`pacing-instance.ts`, `pacing-dashboard-store.ts`, etc.).
+- UI: `src/components/home/` — dashboard shell, Performance Overview, metric cards, Pacing sections A–E.
+- Existing Budget Pacing chart widget remains below the new Executive Summary content and reads from the same instance.

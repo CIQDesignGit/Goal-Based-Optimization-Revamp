@@ -1,48 +1,100 @@
-/** Demo metrics for the home page Budget Pacing widget. */
-export const BUDGET_PACING_SUMMARY = {
-  currentBudget: "$1.19M",
-  actualSpend: "$1.01M",
-  spendDelta: "-20.37%",
-  dateRange: "Jul 01, 2026 - Jul 28, 2026",
-  lastRefreshed: "Jul 28, 2026",
-  dimensionLabel: "BUDGET CATEGORY - CIQ",
-} as const;
+/**
+ * Demo metrics for the home page Budget Pacing widget.
+ * Derived from the canonical pacing instance so cards / table / chart agree.
+ */
 
-/** Daily spend points for Jul 1–28, 2026 (prototype mock). */
-export const BUDGET_PACING_CHART_DATA = [
-  { date: "01 Jul", spend: 18200 },
-  { date: "02 Jul", spend: 21400 },
-  { date: "03 Jul", spend: 19800 },
-  { date: "04 Jul", spend: 24100 },
-  { date: "05 Jul", spend: 26800 },
-  { date: "06 Jul", spend: 25200 },
-  { date: "07 Jul", spend: 28900 },
-  { date: "08 Jul", spend: 30500 },
-  { date: "09 Jul", spend: 29100 },
-  { date: "10 Jul", spend: 32800 },
-  { date: "11 Jul", spend: 34600 },
-  { date: "12 Jul", spend: 33100 },
-  { date: "13 Jul", spend: 36200 },
-  { date: "14 Jul", spend: 37800 },
-  { date: "15 Jul", spend: 40100 },
-  { date: "16 Jul", spend: 38900 },
-  { date: "17 Jul", spend: 41200 },
-  { date: "18 Jul", spend: 42800 },
-  { date: "19 Jul", spend: 44500 },
-  { date: "20 Jul", spend: 43100 },
-  { date: "21 Jul", spend: 45800 },
-  { date: "22 Jul", spend: 47200 },
-  { date: "23 Jul", spend: 46100 },
-  { date: "24 Jul", spend: 48900 },
-  { date: "25 Jul", spend: 50200 },
-  { date: "26 Jul", spend: 49100 },
-  { date: "27 Jul", spend: 51400 },
-  { date: "28 Jul", spend: 49800 },
-] as const;
+import {
+  formatUsd,
+  PACING_INSTANCE,
+  sumActualMtd,
+  sumPlannedMtd,
+  type PacingInstance,
+} from "@/lib/home/pacing-instance";
+import { formatPacingPercent, ratioToPercent } from "@/lib/home/pacing-status";
+
+/** Build widget summary strings from a (possibly filtered) instance. */
+export function buildBudgetPacingSummary(instance: PacingInstance) {
+  const plannedMtd = sumPlannedMtd(instance.rows);
+  const actualMtd = sumActualMtd(instance.rows);
+  // Prefer monthly plan for "Current Budget" when present.
+  const currentBudget =
+    instance.plannedMonthlyBudget > 0
+      ? instance.plannedMonthlyBudget
+      : plannedMtd;
+  const deltaPct = ratioToPercent(actualMtd - plannedMtd, plannedMtd);
+  const utilizationPct = ratioToPercent(actualMtd, plannedMtd);
+
+  return {
+    currentBudget: formatUsd(currentBudget),
+    plannedBudgetTillDate: formatUsd(plannedMtd),
+    actualSpend: formatUsd(actualMtd),
+    spendDelta:
+      deltaPct === null
+        ? undefined
+        : `${deltaPct >= 0 ? "+" : ""}${deltaPct.toFixed(2)}%`,
+    utilization:
+      utilizationPct === null ? "—" : formatPacingPercent(utilizationPct),
+    lastRefreshed: instance.lastRefreshed,
+    dimensionLabel: instance.dimensionLabel,
+  } as const;
+}
+
+/** @deprecated Prefer buildBudgetPacingSummary(instance) — kept for defaults. */
+export const BUDGET_PACING_SUMMARY = buildBudgetPacingSummary(PACING_INSTANCE);
+
+/** Daily spend points from the canonical instance. */
+export const BUDGET_PACING_CHART_DATA = PACING_INSTANCE.chartData;
 
 export function formatSpendAxis(value: number): string {
   if (value >= 1000) {
     return `$${Math.round(value / 1000)}K`;
   }
   return `$${value}`;
+}
+
+export function getChartData(instance: PacingInstance) {
+  return instance.chartData;
+}
+
+/** Prior comparison window label (same length as current filter range). */
+export function formatComparisonDateRange(
+  dateFrom: string,
+  dateTo: string,
+): string {
+  const from = parseIso(dateFrom);
+  const to = parseIso(dateTo);
+  if (!from || !to) return "";
+  const days = Math.max(
+    1,
+    Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1,
+  );
+  const prevTo = new Date(from);
+  prevTo.setDate(prevTo.getDate() - 1);
+  const prevFrom = new Date(prevTo);
+  prevFrom.setDate(prevFrom.getDate() - (days - 1));
+  return `vs. ${formatShortDate(prevFrom)} - ${formatShortDate(prevTo)}`;
+}
+
+function parseIso(iso: string): Date | null {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+}
+
+function formatShortDate(date: Date): string {
+  const months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+  return `${months[date.getMonth()]} ${String(date.getDate()).padStart(2, "0")}, ${date.getFullYear()}`;
 }

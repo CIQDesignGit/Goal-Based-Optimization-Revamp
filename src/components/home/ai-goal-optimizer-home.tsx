@@ -1,44 +1,81 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { useMemo } from "react";
 
 import { AiGoalOptimizerHeader } from "@/components/home/ai-goal-optimizer-header";
-import { BudgetPacingCard } from "@/components/home/budget-pacing-card";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { DashboardTabs } from "@/components/home/dashboard-tabs";
+import { ExecutiveSummaryTab } from "@/components/home/executive-summary-tab";
+import { PacingTab } from "@/components/home/pacing-tab";
+import { filterPacingInstance } from "@/lib/home/filter-pacing-instance";
+import { usePacingDashboardStore } from "@/lib/home/pacing-dashboard-store";
 
-/** Landing page — AI Goal Optimizer dashboard (prototype home). */
+/** Landing page — Budget Pacing Dashboard (Executive Summary + Pacing). */
 export function AiGoalOptimizerHome() {
+  const tab = usePacingDashboardStore((s) => s.tab);
+  const filters = usePacingDashboardStore((s) => s.filters);
+
+  const filtered = useMemo(() => filterPacingInstance(filters), [filters]);
+
+  const filterKey = useMemo(
+    () =>
+      [
+        filters.retailer,
+        filters.brandId,
+        filters.dateFrom,
+        filters.dateTo,
+        filters.attributionWindow,
+      ].join("|"),
+    [filters],
+  );
+
   return (
     <div className="flex min-h-full w-full flex-col bg-slate-50/80">
       <AiGoalOptimizerHeader />
-
-      {/* Page controls — full-width strip, no nested card */}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-slate-200/70 bg-slate-50 px-6 py-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1.5 px-2 text-xs font-medium text-slate-600 hover:bg-white/80 hover:text-slate-900"
-        >
-          <Plus className="size-3.5 text-slate-500" />
-          Add filter
-        </Button>
-
-        <div className="flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/70 px-2.5 py-1">
-          <Label
-            htmlFor="personal-mode"
-            className="text-xs font-normal text-slate-600"
-          >
-            Personal Mode
-          </Label>
-          <Switch id="personal-mode" size="sm" defaultChecked />
-        </div>
-      </div>
+      <DashboardTabs />
 
       <div className="flex flex-1 flex-col p-6 pt-4">
-        <BudgetPacingCard />
+        {filtered.status === "unsupported" ? (
+          <EmptyState
+            title="GBO not supported for this retailer"
+            body="Budget pacing insights are unavailable for the selected retailer."
+          />
+        ) : null}
+
+        {filtered.status === "not-live" ? (
+          <EmptyState
+            title="GBO strategy not live yet"
+            body="Set up and launch Goal Based Optimization to see pacing for this account."
+          />
+        ) : null}
+
+        {filtered.status === "empty" ? (
+          <EmptyState
+            title="No pacing data for these filters"
+            body="Try another retailer or brand — nothing matches the current selection."
+          />
+        ) : null}
+
+        {filtered.status === "ok" && tab === "executive-summary" ? (
+          <ExecutiveSummaryTab
+            instance={filtered.instance}
+            filters={filters}
+            filterKey={filterKey}
+          />
+        ) : null}
+
+        {filtered.status === "ok" && tab === "pacing" ? (
+          <PacingTab instance={filtered.instance} />
+        ) : null}
       </div>
+    </div>
+  );
+}
+
+function EmptyState({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+      <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+      <p className="mt-2 text-sm text-slate-600">{body}</p>
     </div>
   );
 }
