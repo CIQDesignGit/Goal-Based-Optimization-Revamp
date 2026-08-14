@@ -29,11 +29,11 @@ export function AiGoalOptimizerHome() {
   );
 
   return (
-    <div className="flex min-h-full w-full flex-col bg-slate-50/80">
+    <div className="flex min-h-full w-full flex-col bg-slate-100">
       <AiGoalOptimizerHeader />
       <DashboardTabs />
 
-      <div className="flex flex-1 flex-col p-6 pt-4">
+      <div className="flex flex-1 flex-col bg-slate-100 p-6 pt-4">
         {filtered.status === "unsupported" ? (
           <EmptyState
             title="GBO not supported for this retailer"

@@ -18,7 +18,7 @@ import {
 } from "@/lib/home/pacing-status";
 
 export type ExecutiveSummaryResult = {
-  /** Numbered insight bullets for the Performance Overview card (max 3). */
+  /** Lead summary sentence, then up to 3 key highlight lines. */
   bullets: string[];
   /** Numbered AI recommended actions (from instance recommendations). */
   recommendations: string[];
@@ -30,7 +30,8 @@ export type ExecutiveSummaryResult = {
 };
 
 const DISCLAIMER = "AI-generated — verify in your instance";
-const MAX_BULLETS = 3;
+/** 1 summary line + up to 3 key highlights. */
+const MAX_BULLETS = 4;
 
 /** Build summary copy strictly from instance data. */
 export function buildExecutiveSummary(
@@ -61,7 +62,7 @@ export function buildExecutiveSummary(
   if (pacingPct !== null) {
     const status = getPacingBandStatus(pacingPct);
     bullets.push(
-      `Account pacing MTD is ${formatPacingPercent(pacingPct)} (${pacingStatusLabel(status)}) — actual spend ${formatUsd(actualMtd)} vs planned MTD ${formatUsd(plannedMtd)}.`,
+      `Account pacing MTD is **${formatPacingPercent(pacingPct)} (${pacingStatusLabel(status)})**, with actual spend **${formatUsd(actualMtd)}** vs planned MTD **${formatUsd(plannedMtd)}**.`,
     );
   }
 
@@ -87,7 +88,7 @@ export function buildExecutiveSummary(
   }
   if (worst && worst.pct < 97) {
     bullets.push(
-      `Largest under-pacing pocket: ${worst.label} at ${formatPacingPercent(worst.pct)} (${formatUsd(worst.actual)} / ${formatUsd(worst.planned)}).`,
+      `Largest under-pacing pocket: **${worst.label}** at **${formatPacingPercent(worst.pct)}** (**${formatUsd(worst.actual)}** / **${formatUsd(worst.planned)}**).`,
     );
   }
 
@@ -101,7 +102,7 @@ export function buildExecutiveSummary(
         instance.projectedMonthEndSpend - instance.plannedMonthlyBudget;
       const utilStatus = getPacingBandStatus(util);
       bullets.push(
-        `Projected month-end utilisation is ${formatPacingPercent(util)} (${pacingStatusLabel(utilStatus)}) on a ${formatUsd(instance.plannedMonthlyBudget)} monthly plan (${overUnder >= 0 ? "+" : ""}${formatUsd(overUnder)} vs plan).`,
+        `Projected month-end utilisation is **${formatPacingPercent(util)} (${pacingStatusLabel(utilStatus)})** on a **${formatUsd(instance.plannedMonthlyBudget)}** monthly plan (**${overUnder >= 0 ? "+" : ""}${formatUsd(overUnder)}** vs plan).`,
       );
     }
   }
@@ -113,7 +114,7 @@ export function buildExecutiveSummary(
     instance.recommendedSpend > 0
   ) {
     bullets.push(
-      `Manual overrides are contributing to spend pressure: ${formatUsdExact(instance.manualOverrideSpend)} manual vs ${formatUsdExact(instance.recommendedSpend)} Ally-recommended on sampled override days.`,
+      `Manual overrides are contributing to spend pressure: **${formatUsdExact(instance.manualOverrideSpend)}** manual vs **${formatUsdExact(instance.recommendedSpend)}** Ally-recommended on sampled override days.`,
     );
   }
 
@@ -123,7 +124,7 @@ export function buildExecutiveSummary(
     instance.plannedGoalValue !== null
   ) {
     bullets.push(
-      `Projected ${instance.projectedGoalMetric} is ${instance.projectedGoalValue.toFixed(1)} vs planned ${instance.plannedGoalValue.toFixed(1)}.`,
+      `Projected ${instance.projectedGoalMetric} is **${instance.projectedGoalValue.toFixed(1)}** vs planned **${instance.plannedGoalValue.toFixed(1)}**.`,
     );
   }
 
@@ -137,7 +138,7 @@ export function buildExecutiveSummary(
     instance.projectedGoalValue < instance.plannedGoalValue
   ) {
     bullets.push(
-      `Spend is On Plan, but projected ${instance.projectedGoalMetric} (${instance.projectedGoalValue.toFixed(1)}) is below the planned ${instance.plannedGoalValue.toFixed(1)} — efficiency and pacing are pulling in different directions.`,
+      `Spend is **On Plan**, but projected ${instance.projectedGoalMetric} (**${instance.projectedGoalValue.toFixed(1)}**) is below the planned **${instance.plannedGoalValue.toFixed(1)}** — efficiency and pacing are pulling in different directions.`,
     );
   }
 

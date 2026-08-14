@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Sparkles } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { buildExecutiveSummary } from "@/lib/home/executive-summary";
@@ -14,8 +14,7 @@ type PerformanceOverviewProps = {
 };
 
 /**
- * Single Ally brief: narrative + next steps side by side (FR-013).
- * Not a stack of identical numbered cards.
+ * Performance Overview: narrative summary with recommendations stacked below (FR-013).
  */
 export function PerformanceOverview({
   instance,
@@ -53,7 +52,7 @@ function AllyBrief({ instance }: { instance: PacingInstance }) {
   }, [simulateLlmDown, liveSummary, setLastSummary]);
 
   const headline = summary.bullets[0] ?? null;
-  const supporting = summary.bullets.slice(1);
+  const highlights = summary.bullets.slice(1, 4);
 
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
@@ -79,9 +78,8 @@ function AllyBrief({ instance }: { instance: PacingInstance }) {
       </header>
 
       {open ? (
-        <div className="grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-          <div className="p-4 lg:pr-3">
-            <div className="space-y-4 rounded-lg border border-brand-200 bg-white p-5 shadow-[0_0_0_4px_rgb(239_246_255_/_0.55)]">
+        <div className="space-y-8 p-4">
+          <div className="space-y-4">
             {!ready ? (
               <BriefSkeleton />
             ) : (
@@ -95,47 +93,34 @@ function AllyBrief({ instance }: { instance: PacingInstance }) {
                 ) : null}
 
                 {headline ? (
-                  <div className="flex gap-3">
-                    <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
-                      <Sparkles className="size-4" aria-hidden />
-                    </span>
-                    <p className="min-w-0 text-base font-medium leading-snug text-slate-900">
-                      {splitLead(headline).lead}
-                      {splitLead(headline).detail ? (
-                        <span className="mt-1 block text-sm font-normal leading-relaxed text-slate-600">
-                          {splitLead(headline).detail}
-                        </span>
-                      ) : null}
-                    </p>
-                  </div>
+                  <p className="text-base font-medium leading-snug text-slate-900">
+                    <MarkedText text={headline} />
+                  </p>
                 ) : null}
 
-                {supporting.length > 0 ? (
-                  <ul className="space-y-2.5 border-t border-brand-100 pt-3">
-                    {supporting.map((item) => {
-                      const parts = splitLead(item);
-                      return (
-                        <li key={item.slice(0, 40)} className="text-sm">
-                          <span className="font-medium text-slate-800">
-                            {parts.lead}
-                          </span>
-                          {parts.detail ? (
-                            <span className="text-slate-600">
-                              {" "}
-                              — {parts.detail}
-                            </span>
-                          ) : null}
-                        </li>
-                      );
-                    })}
+                {highlights.length > 0 ? (
+                  <ul className="space-y-2">
+                    {highlights.map((item) => (
+                      <li
+                        key={item.slice(0, 40)}
+                        className="flex gap-2 text-sm leading-snug text-slate-700"
+                      >
+                        <span
+                          className="mt-2 size-1.5 shrink-0 rounded-full bg-slate-400"
+                          aria-hidden
+                        />
+                        <span>
+                          <MarkedText text={item} />
+                        </span>
+                      </li>
+                    ))}
                   </ul>
                 ) : null}
               </>
             )}
-            </div>
           </div>
 
-          <aside className="bg-slate-50/70 px-4 py-4">
+          <div>
             <p className="text-2xs font-semibold uppercase tracking-wider text-slate-500">
               Recommendations
             </p>
@@ -149,32 +134,46 @@ function AllyBrief({ instance }: { instance: PacingInstance }) {
                 No prioritized actions for this selection.
               </p>
             ) : (
-              <ol className="mt-3 space-y-2">
+              <ol className="mt-3 space-y-2.5">
                 {summary.recommendations.map((rec, index) => (
                   <li
                     key={rec.slice(0, 40)}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-xs"
+                    className="flex items-start gap-3"
                   >
-                    <p className="text-2xs font-semibold uppercase tracking-wide text-brand-600">
-                      Action {index + 1}
-                    </p>
-                    <p className="mt-1 text-sm font-medium leading-snug text-slate-900">
+                    <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md bg-brand-50 text-xs font-bold tabular-nums text-brand-700">
+                      {index + 1}
+                    </span>
+                    <p className="min-w-0 text-sm leading-snug text-slate-800">
                       {rec}
                     </p>
                   </li>
                 ))}
               </ol>
             )}
-          </aside>
+          </div>
         </div>
       ) : null}
     </section>
   );
 }
 
-function splitLead(item: string) {
-  const [lead, ...rest] = item.split(" — ");
-  return { lead, detail: rest.join(" — ") };
+/** Renders **bold** markers from summary copy. */
+function MarkedText({ text }: { text: string }) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (part.startsWith("**") && part.endsWith("**")) {
+          return (
+            <strong key={index} className="font-semibold text-slate-900">
+              {part.slice(2, -2)}
+            </strong>
+          );
+        }
+        return <span key={index}>{part}</span>;
+      })}
+    </>
+  );
 }
 
 function BriefSkeleton() {

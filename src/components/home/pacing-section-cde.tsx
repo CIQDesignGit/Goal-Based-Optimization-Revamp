@@ -15,13 +15,12 @@ type PacingSectionCdeProps = {
 };
 
 /**
- * Drivers + actions sit side-by-side; watchouts are a quiet footer strip.
- * Each block has its own layout — not the same lettered card template.
+ * Drivers, actions, and watchouts as a single-column stack.
  */
 export function PacingSectionCde({ instance }: PacingSectionCdeProps) {
   if (instance.aiNarrativeUnavailable) {
     return (
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="flex flex-col gap-4">
         <PendingPanel
           title="What changed and why"
           description="Top drivers behind pacing and performance shifts"
@@ -33,18 +32,15 @@ export function PacingSectionCde({ instance }: PacingSectionCdeProps) {
         <PendingPanel
           title="Watchouts"
           description="Risks to monitor while you act on recommendations"
-          className="lg:col-span-2"
         />
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-        <DriversPanel drivers={instance.changeDrivers} />
-        <ActionsPanel recommendations={instance.recommendations} />
-      </div>
+    <div className="flex flex-col gap-4">
+      <DriversPanel drivers={instance.changeDrivers} />
+      <ActionsPanel recommendations={instance.recommendations} />
       <WatchoutsStrip watchouts={instance.watchouts} />
     </div>
   );
