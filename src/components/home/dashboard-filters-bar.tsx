@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronRight, Download, Info, PlusCircle, X } from "lucide-react";
 
+import { PeriodDatePresetPicker } from "@/components/home/period-date-preset-picker";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -24,8 +25,9 @@ import { usePacingDashboardStore } from "@/lib/home/pacing-dashboard-store";
 import { cn } from "@/lib/utils";
 
 /**
- * Filter bar: Add filter (left) + Download PDF / Personal Mode (right).
- * Applied data-source chips sit beside Add filter when active.
+ * Filter bar:
+ * - Executive Summary: Add filter (left) + Personal Mode (right)
+ * - Pacing: period date (left) + Download PDF (right)
  */
 export function DashboardFiltersBar() {
   const tab = usePacingDashboardStore((s) => s.tab);
@@ -35,87 +37,107 @@ export function DashboardFiltersBar() {
   const addDataSource = usePacingDashboardStore((s) => s.addDataSource);
   const removeDataSource = usePacingDashboardStore((s) => s.removeDataSource);
   const clearDataSources = usePacingDashboardStore((s) => s.clearDataSources);
+  const periodDatePreset = usePacingDashboardStore((s) => s.periodDatePreset);
+  const setPeriodDatePreset = usePacingDashboardStore(
+    (s) => s.setPeriodDatePreset,
+  );
 
   const chips = DATA_SOURCE_OPTIONS.filter((opt) =>
     dataSources.includes(opt.id),
   );
 
+  // First tab (Executive Summary): Add filter + Personal Mode
+  if (tab === "executive-summary") {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 md:px-5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <DashboardFiltersPopover
+            selectedIds={dataSources}
+            onSelect={(id) => addDataSource(id)}
+          />
+
+          {chips.length > 0 ? (
+            <>
+              {chips.map((chip) => (
+                <AppliedFilterChip
+                  key={chip.id}
+                  abbr={chip.abbr}
+                  label={chip.label}
+                  onRemove={() => removeDataSource(chip.id)}
+                />
+              ))}
+              <button
+                type="button"
+                onClick={clearDataSources}
+                className="rounded-md px-2 py-1.5 text-xs font-medium text-brand-500 transition-colors hover:bg-brand-50 hover:text-brand-600"
+              >
+                Clear all
+              </button>
+            </>
+          ) : null}
+        </div>
+
+        <div className="flex shrink-0 flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Switch
+              size="sm"
+              checked={personalMode}
+              onCheckedChange={setPersonalMode}
+              aria-label="Personal Mode"
+              className="data-checked:bg-brand-500"
+            />
+            <span className="text-sm font-medium text-slate-700">
+              Personal Mode
+            </span>
+            <Tooltip>
+              <TooltipTrigger
+                className="inline-flex text-slate-400 transition-colors hover:text-slate-600"
+                aria-label="About Personal Mode"
+              >
+                <Info className="size-4" />
+              </TooltipTrigger>
+              <TooltipContent
+                side="bottom"
+                align="end"
+                className="max-w-[260px] flex-col items-start gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left text-slate-800 shadow-md [&>div:last-child]:hidden"
+              >
+                <p className="text-sm font-semibold text-slate-900">
+                  Personal Mode
+                </p>
+                <p className="text-xs font-normal leading-relaxed text-slate-600">
+                  Show insights and recommendations tailored to your role and
+                  saved preferences
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Pacing tab: period date + Download PDF
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-4 md:px-5">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <DashboardFiltersPopover
-          selectedIds={dataSources}
-          onSelect={(id) => addDataSource(id)}
+        <PeriodDatePresetPicker
+          value={periodDatePreset}
+          onChange={setPeriodDatePreset}
+          align="start"
         />
-
-        {chips.length > 0 ? (
-          <>
-            {chips.map((chip) => (
-              <AppliedFilterChip
-                key={chip.id}
-                abbr={chip.abbr}
-                label={chip.label}
-                onRemove={() => removeDataSource(chip.id)}
-              />
-            ))}
-            <button
-              type="button"
-              onClick={clearDataSources}
-              className="rounded-md px-2 py-1.5 text-xs font-medium text-brand-500 transition-colors hover:bg-brand-50 hover:text-brand-600"
-            >
-              Clear all
-            </button>
-          </>
-        ) : null}
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-3">
-        {tab === "pacing" ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={downloadPacingReportPdf}
-            className="h-8 gap-1.5 border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-none hover:bg-slate-50"
-          >
-            <Download className="size-3.5 text-slate-500" />
-            Download PDF
-          </Button>
-        ) : null}
-
-        <div className="flex items-center gap-2">
-          <Switch
-            size="sm"
-            checked={personalMode}
-            onCheckedChange={setPersonalMode}
-            aria-label="Personal Mode"
-            className="data-checked:bg-brand-500"
-          />
-          <span className="text-sm font-medium text-slate-700">
-            Personal Mode
-          </span>
-          <Tooltip>
-            <TooltipTrigger
-              className="inline-flex text-slate-400 transition-colors hover:text-slate-600"
-              aria-label="About Personal Mode"
-            >
-              <Info className="size-4" />
-            </TooltipTrigger>
-            <TooltipContent
-              side="bottom"
-              align="end"
-              className="max-w-[260px] flex-col items-start gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left text-slate-800 shadow-md [&>div:last-child]:hidden"
-            >
-              <p className="text-sm font-semibold text-slate-900">
-                Personal Mode
-              </p>
-              <p className="text-xs font-normal leading-relaxed text-slate-600">
-                Show insights and recommendations tailored to your role and
-                saved preferences
-              </p>
-            </TooltipContent>
-          </Tooltip>
-        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={downloadPacingReportPdf}
+          className="h-8 gap-1.5 border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-none hover:bg-slate-50"
+        >
+          <Download className="size-3.5 text-slate-500" />
+          Download PDF
+        </Button>
       </div>
     </div>
   );
@@ -159,7 +181,6 @@ function DashboardFiltersPopover({
         sideOffset={8}
         className="w-[min(20rem,calc(100vw-2rem))] gap-0 overflow-hidden rounded-lg border-0 p-0 shadow-xl ring-0"
       >
-        {/* Dark header — matches product Filters panel */}
         <div className="flex items-center justify-between bg-slate-700 px-4 py-3">
           <h3 className="text-sm font-semibold text-white">Filters</h3>
           <button

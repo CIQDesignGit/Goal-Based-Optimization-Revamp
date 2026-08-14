@@ -6,6 +6,7 @@ import {
   type DataSourceId,
 } from "@/lib/home/dashboard-filters";
 import type { ExecutiveSummaryResult } from "@/lib/home/executive-summary";
+import type { PeriodDatePresetId } from "@/lib/home/period-date-presets";
 
 export type DashboardTab = "executive-summary" | "pacing";
 
@@ -29,6 +30,9 @@ type PacingDashboardState = {
   addDataSource: (id: DataSourceId) => void;
   removeDataSource: (id: DataSourceId) => void;
   clearDataSources: () => void;
+  /** Shared period preset (filter bar + Budget Plan). */
+  periodDatePreset: PeriodDatePresetId;
+  setPeriodDatePreset: (id: PeriodDatePresetId) => void;
 };
 
 export const usePacingDashboardStore = create<PacingDashboardState>((set) => ({
@@ -56,4 +60,6 @@ export const usePacingDashboardStore = create<PacingDashboardState>((set) => ({
       dataSources: state.dataSources.filter((d) => d !== id),
     })),
   clearDataSources: () => set({ dataSources: [] }),
+  periodDatePreset: "month",
+  setPeriodDatePreset: (id) => set({ periodDatePreset: id }),
 }));

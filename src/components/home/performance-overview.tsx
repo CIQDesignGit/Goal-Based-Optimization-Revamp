@@ -1,8 +1,11 @@
 "use client";
 
+import { format } from "date-fns";
 import { ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { BudgetPacingDateRangePicker } from "@/components/home/budget-pacing-date-range-picker";
+import { formatFilterDateRange } from "@/lib/home/dashboard-filters";
 import { buildExecutiveSummary } from "@/lib/home/executive-summary";
 import type { PacingInstance } from "@/lib/home/pacing-instance";
 import { usePacingDashboardStore } from "@/lib/home/pacing-dashboard-store";
@@ -29,6 +32,8 @@ function AllyBrief({ instance }: { instance: PacingInstance }) {
   const simulateLlmDown = usePacingDashboardStore((s) => s.simulateLlmDown);
   const lastSummary = usePacingDashboardStore((s) => s.lastSummary);
   const setLastSummary = usePacingDashboardStore((s) => s.setLastSummary);
+  const filters = usePacingDashboardStore((s) => s.filters);
+  const setFilters = usePacingDashboardStore((s) => s.setFilters);
 
   const liveSummary = useMemo(
     () => buildExecutiveSummary(instance),
@@ -56,7 +61,7 @@ function AllyBrief({ instance }: { instance: PacingInstance }) {
 
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
-      <header className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-3">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
         <button
           type="button"
           aria-expanded={open}
@@ -75,6 +80,22 @@ function AllyBrief({ instance }: { instance: PacingInstance }) {
             Performance Overview
           </h2>
         </button>
+
+        {/* Same date picker as Budget Pacing, but without compare window */}
+        <BudgetPacingDateRangePicker
+          showCompare={false}
+          range={{
+            from: parseIsoDate(filters.dateFrom),
+            to: parseIsoDate(filters.dateTo),
+          }}
+          triggerLabel={formatFilterDateRange(filters)}
+          onApply={(next) =>
+            setFilters({
+              dateFrom: format(next.from, "yyyy-MM-dd"),
+              dateTo: format(next.to, "yyyy-MM-dd"),
+            })
+          }
+        />
       </header>
 
       {open ? (
@@ -184,4 +205,10 @@ function BriefSkeleton() {
       <div className="h-4 w-3/4 rounded bg-slate-100" />
     </div>
   );
+}
+
+/** Parse YYYY-MM-DD as a local calendar date (avoids UTC shift). */
+function parseIsoDate(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y!, (m ?? 1) - 1, d ?? 1);
 }

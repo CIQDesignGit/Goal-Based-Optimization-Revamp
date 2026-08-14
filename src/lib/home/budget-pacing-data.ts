@@ -21,22 +21,46 @@ export function buildBudgetPacingSummary(instance: PacingInstance) {
     instance.plannedMonthlyBudget > 0
       ? instance.plannedMonthlyBudget
       : plannedMtd;
-  const deltaPct = ratioToPercent(actualMtd - plannedMtd, plannedMtd);
   const utilizationPct = ratioToPercent(actualMtd, plannedMtd);
+
+  // Previous-period comparison (prototype): same-length window before current.
+  // Scaled from current metrics so every tile can show a vs-compare delta.
+  const prevCurrentBudget = currentBudget * 0.976;
+  const prevPlannedMtd = plannedMtd * 0.942;
+  const prevActualMtd = actualMtd / 0.796; // ~-20.4% vs prior spend
+  const prevUtilizationPct = ratioToPercent(prevActualMtd, prevPlannedMtd);
 
   return {
     currentBudget: formatUsd(currentBudget),
     plannedBudgetTillDate: formatUsd(plannedMtd),
     actualSpend: formatUsd(actualMtd),
-    spendDelta:
-      deltaPct === null
-        ? undefined
-        : `${deltaPct >= 0 ? "+" : ""}${deltaPct.toFixed(2)}%`,
     utilization:
       utilizationPct === null ? "—" : formatPacingPercent(utilizationPct),
+    currentBudgetDelta: formatCompareDelta(
+      ratioToPercent(currentBudget - prevCurrentBudget, prevCurrentBudget),
+    ),
+    plannedDelta: formatCompareDelta(
+      ratioToPercent(plannedMtd - prevPlannedMtd, prevPlannedMtd),
+    ),
+    spendDelta: formatCompareDelta(
+      ratioToPercent(actualMtd - prevActualMtd, prevActualMtd),
+    ),
+    utilizationDelta: formatCompareDelta(
+      utilizationPct === null || prevUtilizationPct === null
+        ? null
+        : utilizationPct - prevUtilizationPct,
+    ),
     lastRefreshed: instance.lastRefreshed,
     dimensionLabel: instance.dimensionLabel,
   } as const;
+}
+
+/** Signed percent for tile comparison chips, e.g. "+5.12%" or "-20.40%". */
+function formatCompareDelta(pct: number | null): string | undefined {
+  if (pct === null || Number.isNaN(pct)) return undefined;
+  const rounded = Number(pct.toFixed(2));
+  if (rounded === 0) return "0.00%";
+  return `${rounded > 0 ? "+" : ""}${rounded.toFixed(2)}%`;
 }
 
 /** @deprecated Prefer buildBudgetPacingSummary(instance) — kept for defaults. */

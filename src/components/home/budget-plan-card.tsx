@@ -2,7 +2,6 @@
 
 import {
   ArrowDown,
-  CalendarDays,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -14,6 +13,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { PeriodDatePresetPicker } from "@/components/home/period-date-preset-picker";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -21,7 +21,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  BUDGET_PLAN_DATE_LABEL,
   BUDGET_PLAN_PAGE_SIZE,
   BUDGET_PLAN_TOTAL_COUNT,
   BUDGET_PLAN_TOTAL_ROW,
@@ -30,6 +29,7 @@ import {
   getBudgetPlanPage,
   type BudgetPlanRow,
 } from "@/lib/home/budget-plan-data";
+import { usePacingDashboardStore } from "@/lib/home/pacing-dashboard-store";
 import { cn } from "@/lib/utils";
 
 /**
@@ -37,6 +37,10 @@ import { cn } from "@/lib/utils";
  */
 export function BudgetPlanCard() {
   const [page, setPage] = useState(1);
+  const periodDatePreset = usePacingDashboardStore((s) => s.periodDatePreset);
+  const setPeriodDatePreset = usePacingDashboardStore(
+    (s) => s.setPeriodDatePreset,
+  );
   const pageSize = BUDGET_PLAN_PAGE_SIZE;
   const totalPages = Math.ceil(BUDGET_PLAN_TOTAL_COUNT / pageSize);
   const pageRows = useMemo(() => getBudgetPlanPage(page, pageSize), [page]);
@@ -84,15 +88,11 @@ export function BudgetPlanCard() {
             </span>
           </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 gap-1.5 border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 shadow-none"
-          >
-            <CalendarDays className="size-3.5 shrink-0 text-slate-500" />
-            {BUDGET_PLAN_DATE_LABEL}
-            <ChevronDown className="size-3.5 text-slate-400" />
-          </Button>
+          <PeriodDatePresetPicker
+            value={periodDatePreset}
+            onChange={setPeriodDatePreset}
+            align="end"
+          />
 
           <Button
             variant="ghost"

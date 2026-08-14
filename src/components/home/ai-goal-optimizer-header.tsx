@@ -104,6 +104,7 @@ export function AiGoalOptimizerHeader() {
           <Button
             variant="outline"
             size="lg"
+            nativeButton={false}
             className="h-9 gap-2 rounded-md border-slate-200 bg-white px-4 text-slate-700 shadow-none hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:border-slate-400 focus-visible:ring-slate-200/70"
             render={<Link href="/gbo-optimization" />}
           >
@@ -113,6 +114,7 @@ export function AiGoalOptimizerHeader() {
           <Button
             variant="outline"
             size="lg"
+            nativeButton={false}
             className="h-9 gap-2 rounded-md border-slate-200 bg-white px-4 text-slate-700 shadow-none hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:border-slate-400 focus-visible:ring-slate-200/70"
             render={<Link href="/explainability-dashboard" />}
           >

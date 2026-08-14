@@ -157,7 +157,11 @@ export const BUDGET_PLAN_TOTAL_COUNT = 373;
 
 export const BUDGET_PLAN_PAGE_SIZE = 10;
 
-export const BUDGET_PLAN_DATE_LABEL = "Current Month (Aug 01 - Aug 12, 2026)";
+export type { PeriodDatePresetId as BudgetPlanDatePresetId } from "@/lib/home/period-date-presets";
+export { PERIOD_DATE_PRESETS as BUDGET_PLAN_DATE_PRESETS } from "@/lib/home/period-date-presets";
+
+export const BUDGET_PLAN_DATE_LABEL =
+  "Current Month (Aug 01 - Aug 12, 2026)";
 
 function buildCategoryRows(): BudgetPlanRow[] {
   const rows: BudgetPlanRow[] = FIRST_PAGE_SEED.map((row, index) => ({

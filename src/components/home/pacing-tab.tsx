@@ -44,10 +44,6 @@ export function PacingTab({ instance }: PacingTabProps) {
       >
         <PacingSectionCde instance={instance} />
       </DeferredWidget>
-
-      <p className="text-center text-2xs text-slate-400 print:hidden">
-        AI-assisted narrative — verify figures in your CommerceIQ instance
-      </p>
     </div>
   );
 }

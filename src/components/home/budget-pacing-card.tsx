@@ -15,6 +15,7 @@ import {
 import { useState } from "react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 
+import { BudgetPacingDateRangePicker } from "@/components/home/budget-pacing-date-range-picker";
 import { Button } from "@/components/ui/button";
 import {
   ChartContainer,
@@ -40,8 +41,10 @@ import {
 } from "@/lib/home/budget-pacing-data";
 import { formatFilterDateRange } from "@/lib/home/dashboard-filters";
 import type { DashboardFilters } from "@/lib/home/dashboard-filters";
+import { usePacingDashboardStore } from "@/lib/home/pacing-dashboard-store";
 import type { PacingInstance } from "@/lib/home/pacing-instance";
 import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 
 /** Teal used in the live Budget Pacing product chart. */
 const TEAL = "hsl(174 58% 39%)";
@@ -83,6 +86,7 @@ type BudgetPacingCardProps = {
  * Numbers come from the shared pacing instance.
  */
 export function BudgetPacingCard({ instance, filters }: BudgetPacingCardProps) {
+  const setFilters = usePacingDashboardStore((s) => s.setFilters);
   const summary = buildBudgetPacingSummary(instance);
   const chartData = getChartData(instance);
   const maxSpend = Math.max(...chartData.map((d) => d.spend), 1);
@@ -91,6 +95,11 @@ export function BudgetPacingCard({ instance, filters }: BudgetPacingCardProps) {
     filters.dateFrom,
     filters.dateTo,
   );
+
+  const selectedRange = {
+    from: parseIsoDate(filters.dateFrom),
+    to: parseIsoDate(filters.dateTo),
+  };
 
   const [selectedMetric, setSelectedMetric] =
     useState<MetricKey>("planned-mtd");
@@ -102,13 +111,22 @@ export function BudgetPacingCard({ instance, filters }: BudgetPacingCardProps) {
     MetricKey,
     { value: string; delta?: string }
   > = {
-    "current-budget": { value: summary.currentBudget },
-    "planned-mtd": { value: summary.plannedBudgetTillDate },
+    "current-budget": {
+      value: summary.currentBudget,
+      delta: summary.currentBudgetDelta,
+    },
+    "planned-mtd": {
+      value: summary.plannedBudgetTillDate,
+      delta: summary.plannedDelta,
+    },
     "actual-spend": {
       value: summary.actualSpend,
       delta: summary.spendDelta,
     },
-    utilization: { value: summary.utilization },
+    utilization: {
+      value: summary.utilization,
+      delta: summary.utilizationDelta,
+    },
   };
 
   function changeSlotMetric(slotIndex: number, next: MetricKey) {
@@ -167,22 +185,17 @@ export function BudgetPacingCard({ instance, filters }: BudgetPacingCardProps) {
             </span>
           </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 flex-col items-start justify-center gap-px border-slate-200 bg-white px-2.5 py-0 text-left text-slate-700 shadow-none"
-          >
-            <span className="inline-flex items-center gap-1 text-2xs font-medium leading-none">
-              <CalendarDays className="size-3 shrink-0 text-slate-500" />
-              {formatFilterDateRange(filters)}
-              <ChevronDown className="size-3 text-slate-400" />
-            </span>
-            {comparisonRange ? (
-              <span className="pl-4 text-2xs font-normal leading-none text-slate-400">
-                {comparisonRange}
-              </span>
-            ) : null}
-          </Button>
+          <BudgetPacingDateRangePicker
+            range={selectedRange}
+            triggerLabel={formatFilterDateRange(filters)}
+            comparisonLabel={comparisonRange || undefined}
+            onApply={(next) =>
+              setFilters({
+                dateFrom: format(next.from, "yyyy-MM-dd"),
+                dateTo: format(next.to, "yyyy-MM-dd"),
+              })
+            }
+          />
 
           <Button
             variant="ghost"
@@ -436,13 +449,34 @@ function MetricTile({
         <p className="text-xl font-semibold tabular-nums text-slate-900">
           {value}
         </p>
-        {delta ? (
-          <span className="inline-flex items-center gap-0.5 text-xs font-medium text-destructive">
-            <span aria-hidden>↓</span>
-            {delta}
-          </span>
-        ) : null}
+        {delta ? <CompareDeltaChip delta={delta} /> : null}
       </div>
     </div>
   );
+}
+
+/** ↑ / ↓ chip vs comparison period — green when up, red when down. */
+function CompareDeltaChip({ delta }: { delta: string }) {
+  const negative = delta.trim().startsWith("-");
+  const positive = delta.trim().startsWith("+");
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-0.5 text-xs font-medium",
+        negative && "text-destructive",
+        positive && "text-success-600",
+        !negative && !positive && "text-slate-500",
+      )}
+    >
+      <span aria-hidden>{negative ? "↓" : positive ? "↑" : ""}</span>
+      {delta}
+    </span>
+  );
+}
+
+/** Parse YYYY-MM-DD as a local calendar date (avoids UTC shift). */
+function parseIsoDate(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y!, (m ?? 1) - 1, d ?? 1);
 }

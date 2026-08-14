@@ -8,7 +8,7 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * Tabs on top; filter bar below with Add filter (left) and Personal Mode (right).
+ * Tabs on top; filter bar below changes by tab.
  */
 export function DashboardTabs() {
   const tab = usePacingDashboardStore((s) => s.tab);
