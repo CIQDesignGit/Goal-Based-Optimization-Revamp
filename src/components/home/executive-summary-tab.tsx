@@ -1,6 +1,7 @@
 "use client";
 
 import { BudgetPacingCard } from "@/components/home/budget-pacing-card";
+import { BudgetPlanCard } from "@/components/home/budget-plan-card";
 import { DeferredWidget } from "@/components/home/deferred-widget";
 import { PerformanceOverview } from "@/components/home/performance-overview";
 import { WidgetSkeleton } from "@/components/home/widget-skeleton";
@@ -13,14 +14,14 @@ type ExecutiveSummaryTabProps = {
   filterKey: string;
 };
 
-/** Executive Summary tab: Performance Overview + existing Budget Pacing widget. */
+/** Executive Summary: Ally brief → Budget Pacing chart → Budget Plan table. */
 export function ExecutiveSummaryTab({
   instance,
   filters,
   filterKey,
 }: ExecutiveSummaryTabProps) {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       <PerformanceOverview instance={instance} filterKey={filterKey} />
 
       <DeferredWidget
@@ -29,6 +30,14 @@ export function ExecutiveSummaryTab({
         skeleton={<WidgetSkeleton rows={8} className="min-h-[360px]" />}
       >
         <BudgetPacingCard instance={instance} filters={filters} />
+      </DeferredWidget>
+
+      <DeferredWidget
+        key={`plan-${filterKey}`}
+        delayMs={900}
+        skeleton={<WidgetSkeleton rows={10} className="min-h-[420px]" />}
+      >
+        <BudgetPlanCard />
       </DeferredWidget>
     </div>
   );

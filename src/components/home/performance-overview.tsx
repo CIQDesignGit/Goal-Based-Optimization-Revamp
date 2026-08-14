@@ -1,35 +1,32 @@
 "use client";
 
-import { Lightbulb, TrendingUp } from "lucide-react";
+import { ChevronDown, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { buildExecutiveSummary } from "@/lib/home/executive-summary";
 import type { PacingInstance } from "@/lib/home/pacing-instance";
 import { usePacingDashboardStore } from "@/lib/home/pacing-dashboard-store";
+import { cn } from "@/lib/utils";
 
 type PerformanceOverviewProps = {
   instance: PacingInstance;
-  /** Bumps when filters change so we remount and re-run generation. */
   filterKey: string;
 };
 
 /**
- * Performance Overview + AI Recommended Action — matching card layouts (FR-013).
+ * Single Ally brief: narrative + next steps side by side (FR-013).
+ * Not a stack of identical numbered cards.
  */
 export function PerformanceOverview({
   instance,
   filterKey,
 }: PerformanceOverviewProps) {
-  return (
-    <div className="space-y-4">
-      <OverviewCard key={filterKey} instance={instance} />
-      <AiRecommendationSection key={`rec-${filterKey}`} instance={instance} />
-    </div>
-  );
+  return <AllyBrief key={filterKey} instance={instance} />;
 }
 
-function OverviewCard({ instance }: { instance: PacingInstance }) {
+function AllyBrief({ instance }: { instance: PacingInstance }) {
   const [ready, setReady] = useState(false);
+  const [open, setOpen] = useState(true);
   const simulateLlmDown = usePacingDashboardStore((s) => s.simulateLlmDown);
   const lastSummary = usePacingDashboardStore((s) => s.lastSummary);
   const setLastSummary = usePacingDashboardStore((s) => s.setLastSummary);
@@ -49,111 +46,143 @@ function OverviewCard({ instance }: { instance: PacingInstance }) {
 
   useEffect(() => {
     const id = window.setTimeout(() => {
-      if (!simulateLlmDown) {
-        setLastSummary(liveSummary);
-      }
+      if (!simulateLlmDown) setLastSummary(liveSummary);
       setReady(true);
     }, 600);
     return () => window.clearTimeout(id);
   }, [simulateLlmDown, liveSummary, setLastSummary]);
 
+  const headline = summary.bullets[0] ?? null;
+  const supporting = summary.bullets.slice(1);
+
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
-      <div className="flex flex-wrap items-center gap-2 px-4 py-3.5">
-        <TrendingUp className="size-4 shrink-0 text-violet-500" aria-hidden />
-        <h2 className="text-sm font-semibold text-slate-900">
-          Performance Overview
-        </h2>
-      </div>
+      <header className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-3">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-label={open ? "Collapse overview" : "Expand overview"}
+          onClick={() => setOpen((v) => !v)}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+        >
+          <ChevronDown
+            className={cn(
+              "size-4 shrink-0 text-slate-400 transition-transform",
+              open && "rotate-180",
+            )}
+            aria-hidden
+          />
+          <h2 className="min-w-0 text-sm font-semibold text-slate-900">
+            Performance Overview
+          </h2>
+        </button>
+      </header>
 
-      <div className="border-t border-slate-100 bg-gradient-to-r from-violet-100/80 via-violet-50/50 to-white px-4 py-4">
-        {!ready ? (
-          <NumberedListSkeleton />
-        ) : (
-          <>
-            {summary.isFallback ? (
-              <p className="mb-3 text-xs text-warning-700">
-                {lastSummary?.generatedAt
-                  ? `Showing last available summary (${lastSummary.generatedAt}).`
-                  : "AI service unavailable — showing a short instance-based status."}
+      {open ? (
+        <div className="grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+          <div className="p-4 lg:pr-3">
+            <div className="space-y-4 rounded-lg border border-brand-200 bg-white p-5 shadow-[0_0_0_4px_rgb(239_246_255_/_0.55)]">
+            {!ready ? (
+              <BriefSkeleton />
+            ) : (
+              <>
+                {summary.isFallback ? (
+                  <p className="text-xs text-warning-700">
+                    {lastSummary?.generatedAt
+                      ? `Showing last available summary (${lastSummary.generatedAt}).`
+                      : "AI service unavailable — showing a short instance-based status."}
+                  </p>
+                ) : null}
+
+                {headline ? (
+                  <div className="flex gap-3">
+                    <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+                      <Sparkles className="size-4" aria-hidden />
+                    </span>
+                    <p className="min-w-0 text-base font-medium leading-snug text-slate-900">
+                      {splitLead(headline).lead}
+                      {splitLead(headline).detail ? (
+                        <span className="mt-1 block text-sm font-normal leading-relaxed text-slate-600">
+                          {splitLead(headline).detail}
+                        </span>
+                      ) : null}
+                    </p>
+                  </div>
+                ) : null}
+
+                {supporting.length > 0 ? (
+                  <ul className="space-y-2.5 border-t border-brand-100 pt-3">
+                    {supporting.map((item) => {
+                      const parts = splitLead(item);
+                      return (
+                        <li key={item.slice(0, 40)} className="text-sm">
+                          <span className="font-medium text-slate-800">
+                            {parts.lead}
+                          </span>
+                          {parts.detail ? (
+                            <span className="text-slate-600">
+                              {" "}
+                              — {parts.detail}
+                            </span>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+              </>
+            )}
+            </div>
+          </div>
+
+          <aside className="bg-slate-50/70 px-4 py-4">
+            <p className="text-2xs font-semibold uppercase tracking-wider text-slate-500">
+              Recommendations
+            </p>
+            {!ready ? (
+              <div className="mt-3 animate-pulse space-y-2" aria-busy="true">
+                <div className="h-14 rounded-lg bg-slate-200/70" />
+                <div className="h-14 rounded-lg bg-slate-200/70" />
+              </div>
+            ) : summary.recommendations.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-500">
+                No prioritized actions for this selection.
               </p>
-            ) : null}
-            <NumberedList items={summary.bullets} />
-          </>
-        )}
-      </div>
+            ) : (
+              <ol className="mt-3 space-y-2">
+                {summary.recommendations.map((rec, index) => (
+                  <li
+                    key={rec.slice(0, 40)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-xs"
+                  >
+                    <p className="text-2xs font-semibold uppercase tracking-wide text-brand-600">
+                      Action {index + 1}
+                    </p>
+                    <p className="mt-1 text-sm font-medium leading-snug text-slate-900">
+                      {rec}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </aside>
+        </div>
+      ) : null}
     </section>
   );
 }
 
-/** Same card chrome as Performance Overview; Lightbulb marks actions. */
-function AiRecommendationSection({ instance }: { instance: PacingInstance }) {
-  const [ready, setReady] = useState(false);
-  const simulateLlmDown = usePacingDashboardStore((s) => s.simulateLlmDown);
-  const lastSummary = usePacingDashboardStore((s) => s.lastSummary);
-
-  const liveSummary = useMemo(
-    () => buildExecutiveSummary(instance),
-    [instance],
-  );
-
-  const recommendations = useMemo(() => {
-    if (!simulateLlmDown) return liveSummary.recommendations;
-    return lastSummary?.recommendations?.length
-      ? lastSummary.recommendations
-      : liveSummary.recommendations;
-  }, [simulateLlmDown, liveSummary, lastSummary]);
-
-  useEffect(() => {
-    const id = window.setTimeout(() => setReady(true), 750);
-    return () => window.clearTimeout(id);
-  }, []);
-
-  if (ready && recommendations.length === 0) {
-    return null;
-  }
-
-  return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
-      <div className="flex flex-wrap items-center gap-2 px-4 py-3.5">
-        <Lightbulb className="size-4 shrink-0 text-violet-500" aria-hidden />
-        <h2 className="text-sm font-semibold text-slate-900">
-          AI Recommended Action
-        </h2>
-      </div>
-
-      <div className="border-t border-slate-100 px-4 py-4">
-        {!ready ? (
-          <NumberedListSkeleton />
-        ) : (
-          <NumberedList items={recommendations} />
-        )}
-      </div>
-    </section>
-  );
+function splitLead(item: string) {
+  const [lead, ...rest] = item.split(" — ");
+  return { lead, detail: rest.join(" — ") };
 }
 
-function NumberedList({ items }: { items: string[] }) {
-  return (
-    <ol className="space-y-3">
-      {items.map((item, index) => (
-        <li key={item.slice(0, 48)} className="flex gap-3">
-          <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-semibold text-violet-700">
-            {index + 1}
-          </span>
-          <p className="pt-0.5 text-sm leading-relaxed text-slate-800">{item}</p>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-function NumberedListSkeleton() {
+function BriefSkeleton() {
   return (
     <div className="animate-pulse space-y-3" aria-busy="true">
-      <div className="h-4 w-full rounded bg-violet-100/80" />
-      <div className="h-4 w-5/6 rounded bg-violet-100/80" />
-      <div className="h-4 w-4/6 rounded bg-violet-100/80" />
+      <div className="h-5 w-4/5 rounded bg-slate-100" />
+      <div className="h-4 w-full rounded bg-slate-100" />
+      <div className="h-4 w-3/4 rounded bg-slate-100" />
     </div>
   );
 }

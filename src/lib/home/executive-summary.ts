@@ -29,7 +29,7 @@ export type ExecutiveSummaryResult = {
   isFallback: boolean;
 };
 
-const DISCLAIMER = "AI-generated summary — verify in your instance";
+const DISCLAIMER = "AI-generated — verify in your instance";
 const MAX_BULLETS = 3;
 
 /** Build summary copy strictly from instance data. */

@@ -29,6 +29,26 @@ export const ATTRIBUTION_OPTIONS = [
   { value: "30d", label: "30-day" },
 ] as const;
 
+/** Data sources shown in the Add filter popover (product reference). */
+export type DataSourceId =
+  | "catalog-skus"
+  | "campaigns"
+  | "ad-targets"
+  | "budget-pacing"
+  | "sov-keywords";
+
+export const DATA_SOURCE_OPTIONS: {
+  id: DataSourceId;
+  abbr: string;
+  label: string;
+}[] = [
+  { id: "catalog-skus", abbr: "CS", label: "Catalog SKUs" },
+  { id: "campaigns", abbr: "C", label: "Campaigns" },
+  { id: "ad-targets", abbr: "AT", label: "Ad Targets" },
+  { id: "budget-pacing", abbr: "BP", label: "Budget Pacing" },
+  { id: "sov-keywords", abbr: "SoVK", label: "Share of Voice Keywords" },
+];
+
 /** Default 14-day window ending on the prototype as-of date (Jul 28, 2026). */
 export function buildDefaultDashboardFilters(): DashboardFilters {
   return {

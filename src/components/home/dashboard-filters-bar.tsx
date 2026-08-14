@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { CalendarDays, Funnel, X } from "lucide-react";
+import { useState } from "react";
+import { ChevronRight, Download, Info, PlusCircle, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -9,110 +9,126 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { explainabilityActionable } from "@/lib/gbo-explainability/actionable-styles";
+import { Switch } from "@/components/ui/switch";
 import {
-  ATTRIBUTION_OPTIONS,
-  BRAND_OPTIONS,
-  buildDashboardFilterChips,
-  buildDefaultDashboardFilters,
-  countActiveDashboardFilters,
-  formatFilterDateRange,
-  RETAILER_OPTIONS,
-  type AttributionWindow,
-  type DashboardFilters,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  DATA_SOURCE_OPTIONS,
+  type DataSourceId,
 } from "@/lib/home/dashboard-filters";
+import { downloadPacingReportPdf } from "@/lib/home/download-pacing-pdf";
 import { usePacingDashboardStore } from "@/lib/home/pacing-dashboard-store";
 import { cn } from "@/lib/utils";
 
 /**
- * Explainability-style Filters control: funnel button opens a popover.
- * Sit this on the right of the toolbar row (tabs live above).
+ * Filter bar: Add filter (left) + Download PDF / Personal Mode (right).
+ * Applied data-source chips sit beside Add filter when active.
  */
 export function DashboardFiltersBar() {
-  const filters = usePacingDashboardStore((s) => s.filters);
-  const setFilters = usePacingDashboardStore((s) => s.setFilters);
-  const resetFilters = usePacingDashboardStore((s) => s.resetFilters);
+  const tab = usePacingDashboardStore((s) => s.tab);
+  const personalMode = usePacingDashboardStore((s) => s.personalMode);
+  const setPersonalMode = usePacingDashboardStore((s) => s.setPersonalMode);
+  const dataSources = usePacingDashboardStore((s) => s.dataSources);
+  const addDataSource = usePacingDashboardStore((s) => s.addDataSource);
+  const removeDataSource = usePacingDashboardStore((s) => s.removeDataSource);
+  const clearDataSources = usePacingDashboardStore((s) => s.clearDataSources);
 
-  const activeCount = countActiveDashboardFilters(filters);
-  const chips = buildDashboardFilterChips(filters);
+  const chips = DATA_SOURCE_OPTIONS.filter((opt) =>
+    dataSources.includes(opt.id),
+  );
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2.5 px-4 md:px-5">
-      {chips.length > 0 ? (
-        <div className="mr-auto flex flex-wrap items-center gap-2">
-          {chips.map((chip) => (
-            <AppliedFilterChip
-              key={chip.id}
-              categoryLabel={chip.categoryLabel}
-              valueLabel={chip.valueLabel}
-              onRemove={() => removeChip(chip.id, setFilters)}
-            />
-          ))}
-          <button
-            type="button"
-            onClick={resetFilters}
-            className={cn(
-              "rounded-md px-2 py-1.5 text-xs font-medium",
-              explainabilityActionable.clearLink,
-            )}
-          >
-            Clear all
-          </button>
-        </div>
-      ) : null}
+    <div className="flex flex-wrap items-center justify-between gap-3 px-4 md:px-5">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <DashboardFiltersPopover
+          selectedIds={dataSources}
+          onSelect={(id) => addDataSource(id)}
+        />
 
-      <DashboardFiltersPopover
-        filters={filters}
-        activeCount={activeCount}
-        onChange={setFilters}
-        onReset={resetFilters}
-      />
+        {chips.length > 0 ? (
+          <>
+            {chips.map((chip) => (
+              <AppliedFilterChip
+                key={chip.id}
+                abbr={chip.abbr}
+                label={chip.label}
+                onRemove={() => removeDataSource(chip.id)}
+              />
+            ))}
+            <button
+              type="button"
+              onClick={clearDataSources}
+              className="rounded-md px-2 py-1.5 text-xs font-medium text-brand-500 transition-colors hover:bg-brand-50 hover:text-brand-600"
+            >
+              Clear all
+            </button>
+          </>
+        ) : null}
+      </div>
+
+      <div className="flex shrink-0 flex-wrap items-center gap-3">
+        {tab === "pacing" ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={downloadPacingReportPdf}
+            className="h-8 gap-1.5 border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-none hover:bg-slate-50"
+          >
+            <Download className="size-3.5 text-slate-500" />
+            Download PDF
+          </Button>
+        ) : null}
+
+        <div className="flex items-center gap-2">
+          <Switch
+            size="sm"
+            checked={personalMode}
+            onCheckedChange={setPersonalMode}
+            aria-label="Personal Mode"
+            className="data-checked:bg-brand-500"
+          />
+          <span className="text-sm font-medium text-slate-700">
+            Personal Mode
+          </span>
+          <Tooltip>
+            <TooltipTrigger
+              className="inline-flex text-slate-400 transition-colors hover:text-slate-600"
+              aria-label="About Personal Mode"
+            >
+              <Info className="size-4" />
+            </TooltipTrigger>
+            <TooltipContent
+              side="bottom"
+              align="end"
+              className="max-w-[260px] flex-col items-start gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left text-slate-800 shadow-md [&>div:last-child]:hidden"
+            >
+              <p className="text-sm font-semibold text-slate-900">
+                Personal Mode
+              </p>
+              <p className="text-xs font-normal leading-relaxed text-slate-600">
+                Show insights and recommendations tailored to your role and
+                saved preferences
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </div>
     </div>
   );
 }
 
-function removeChip(
-  id: string,
-  setFilters: (patch: Partial<DashboardFilters>) => void,
-) {
-  const defaults = buildDefaultDashboardFilters();
-  if (id === "retailer") setFilters({ retailer: defaults.retailer });
-  if (id === "brand") setFilters({ brandId: defaults.brandId });
-  if (id === "date") {
-    setFilters({ dateFrom: defaults.dateFrom, dateTo: defaults.dateTo });
-  }
-  if (id === "attribution") {
-    setFilters({ attributionWindow: defaults.attributionWindow });
-  }
-}
-
 function DashboardFiltersPopover({
-  filters,
-  activeCount,
-  onChange,
-  onReset,
+  selectedIds,
+  onSelect,
 }: {
-  filters: DashboardFilters;
-  activeCount: number;
-  onChange: (patch: Partial<DashboardFilters>) => void;
-  onReset: () => void;
+  selectedIds: DataSourceId[];
+  onSelect: (id: DataSourceId) => void;
 }) {
   const [open, setOpen] = useState(false);
-  // Draft = edits inside the popover before Apply (same idea as Explainability).
-  const [draft, setDraft] = useState<DashboardFilters>(filters);
-
-  useEffect(() => {
-    if (open) setDraft(filters);
-  }, [open, filters]);
-
-  const patchDraft = (patch: Partial<DashboardFilters>) => {
-    setDraft((prev) => ({ ...prev, ...patch }));
-  };
-
-  const apply = () => {
-    onChange(draft);
-    setOpen(false);
-  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -120,188 +136,112 @@ function DashboardFiltersPopover({
         render={
           <Button
             variant="outline"
-            size="icon"
-            aria-label={
-              activeCount > 0 ? `Filters, ${activeCount} active` : "Filters"
-            }
+            size="sm"
+            aria-label="Add filter"
+            aria-expanded={open}
             className={cn(
-              "relative size-9 shadow-none",
-              explainabilityActionable.slateFocus,
+              "h-8 gap-1.5 rounded-full px-3 text-sm font-medium shadow-none",
+              open
+                ? "border-brand-500 bg-brand-500 text-white hover:border-brand-600 hover:bg-brand-600 hover:text-white"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
             )}
           />
         }
       >
-        <Funnel className="size-4" />
-        {activeCount > 0 ? (
-          <span
-            className={cn(
-              "absolute -right-1 -top-1 flex min-w-4 items-center justify-center rounded-full px-1 py-0.5 text-[10px] font-semibold leading-none tabular-nums",
-              explainabilityActionable.countBadge,
-            )}
-          >
-            {activeCount}
-          </span>
-        ) : null}
+        <PlusCircle
+          className={cn("size-4", open ? "text-white" : "text-slate-500")}
+        />
+        Add filter
       </PopoverTrigger>
 
       <PopoverContent
-        align="end"
-        className="w-[min(22rem,calc(100vw-2rem))] gap-0 overflow-hidden rounded-xl p-0 shadow-lg ring-1 ring-slate-200"
+        align="start"
+        sideOffset={8}
+        className="w-[min(20rem,calc(100vw-2rem))] gap-0 overflow-hidden rounded-lg border-0 p-0 shadow-xl ring-0"
       >
-        <div className="border-b border-slate-200 px-4 py-3">
-          <h3 className="text-sm font-semibold text-slate-900">Filters</h3>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Applies to Executive Summary and Pacing
-          </p>
-        </div>
-
-        <div className="space-y-4 px-4 py-4">
-          <FieldSelect
-            label="Retailer"
-            value={draft.retailer}
-            options={RETAILER_OPTIONS.map((o) => ({
-              value: o.value,
-              label: o.label,
-            }))}
-            onChange={(value) => patchDraft({ retailer: value })}
-          />
-          <FieldSelect
-            label="Brand"
-            value={draft.brandId}
-            options={BRAND_OPTIONS.map((o) => ({
-              value: o.value,
-              label: o.label,
-            }))}
-            onChange={(value) => patchDraft({ brandId: value })}
-          />
-          <div className="space-y-1.5">
-            <span className="text-xs font-medium text-slate-600">
-              Date range
-            </span>
-            <div
-              className="flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 text-sm text-slate-700"
-              aria-label={`Date range ${formatFilterDateRange(draft)}`}
-            >
-              <CalendarDays className="size-4 shrink-0 text-slate-500" />
-              <span className="truncate">{formatFilterDateRange(draft)}</span>
-            </div>
-            <p className="text-[11px] text-slate-400">
-              Prototype uses a fixed 14-day window (Jul 15–28, 2026).
-            </p>
-          </div>
-          <FieldSelect
-            label="Attribution"
-            value={draft.attributionWindow}
-            options={ATTRIBUTION_OPTIONS.map((o) => ({
-              value: o.value,
-              label: o.label,
-            }))}
-            onChange={(value) =>
-              patchDraft({ attributionWindow: value as AttributionWindow })
-            }
-          />
-        </div>
-
-        <div className="flex items-center justify-between gap-2 border-t border-slate-200 bg-slate-50/80 px-4 py-3">
+        {/* Dark header — matches product Filters panel */}
+        <div className="flex items-center justify-between bg-slate-700 px-4 py-3">
+          <h3 className="text-sm font-semibold text-white">Filters</h3>
           <button
             type="button"
-            onClick={() => {
-              onReset();
-              setDraft(buildDefaultDashboardFilters());
-              setOpen(false);
-            }}
-            className={cn(
-              "rounded-md px-2 py-1.5 text-xs font-medium",
-              explainabilityActionable.clearLink,
-            )}
+            aria-label="Close filters"
+            onClick={() => setOpen(false)}
+            className="rounded p-0.5 text-white/90 transition-colors hover:bg-white/10 hover:text-white"
           >
-            Reset
+            <X className="size-4" />
           </button>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="shadow-none"
-              onClick={() => setOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              className={cn(explainabilityActionable.primaryButton, "shadow-none")}
-              onClick={apply}
-            >
-              Apply
-            </Button>
-          </div>
+        </div>
+
+        <div className="bg-white px-4 py-3">
+          <p className="mb-2 text-sm font-semibold text-slate-800">
+            Filter by Data Source
+          </p>
+          <ul className="flex flex-col">
+            {DATA_SOURCE_OPTIONS.map((opt) => {
+              const selected = selectedIds.includes(opt.id);
+              return (
+                <li key={opt.id}>
+                  <button
+                    type="button"
+                    disabled={selected}
+                    onClick={() => {
+                      onSelect(opt.id);
+                      setOpen(false);
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-md py-2.5 text-left transition-colors",
+                      selected
+                        ? "cursor-default opacity-50"
+                        : "hover:bg-slate-50",
+                    )}
+                  >
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-2xs font-semibold text-slate-600">
+                      {opt.abbr}
+                    </span>
+                    <span className="min-w-0 flex-1 text-sm text-slate-700">
+                      {opt.label}
+                    </span>
+                    <ChevronRight
+                      className="size-4 shrink-0 text-slate-400"
+                      aria-hidden
+                    />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       </PopoverContent>
     </Popover>
   );
 }
 
-function FieldSelect({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-slate-600">{label}</span>
-      <select
-        className="h-9 rounded-md border border-slate-200 bg-white px-2.5 text-sm font-medium text-slate-800 outline-none focus-visible:border-slate-400 focus-visible:ring-3 focus-visible:ring-slate-200/70"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label={label}
-      >
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
 function AppliedFilterChip({
-  categoryLabel,
-  valueLabel,
+  abbr,
+  label,
   onRemove,
 }: {
-  categoryLabel: string;
-  valueLabel: string;
+  abbr: string;
+  label: string;
   onRemove: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onRemove}
-      className="inline-flex max-w-full items-stretch overflow-hidden rounded-lg border border-slate-200/90 bg-white text-xs shadow-xs transition-[border-color,box-shadow] hover:border-slate-300 hover:shadow-sm"
+      className="inline-flex max-w-full items-center gap-1.5 overflow-hidden rounded-lg border border-slate-200/90 bg-white px-2 py-1.5 text-xs shadow-xs transition-[border-color,box-shadow] hover:border-slate-300 hover:shadow-sm"
     >
-      <span className="flex shrink-0 items-center px-2.5 py-1.5 font-normal text-slate-500">
-        {categoryLabel}
+      <span className="flex size-5 shrink-0 items-center justify-center rounded bg-slate-100 text-[10px] font-semibold text-slate-600">
+        {abbr}
       </span>
-      <span className="flex min-w-0 items-center gap-1.5 px-2.5 py-1.5">
-        <span className="truncate font-medium text-slate-800">{valueLabel}</span>
-        <span
-          className="flex size-4 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500"
-          aria-hidden
-        >
-          <X className="size-2.5" />
-        </span>
+      <span className="truncate font-medium text-slate-800">{label}</span>
+      <span
+        className="flex size-4 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500"
+        aria-hidden
+      >
+        <X className="size-2.5" />
       </span>
-      <span className="sr-only">
-        Remove {categoryLabel} {valueLabel}
-      </span>
+      <span className="sr-only">Remove {label}</span>
     </button>
   );
 }

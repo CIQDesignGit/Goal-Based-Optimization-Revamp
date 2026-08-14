@@ -73,9 +73,9 @@ export function AiGoalOptimizerHome() {
 
 function EmptyState({ title, body }: { title: string; body: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+    <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center shadow-xs">
       <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
-      <p className="mt-2 text-sm text-slate-600">{body}</p>
+      <p className="mt-2 text-sm text-muted-foreground">{body}</p>
     </div>
   );
 }

@@ -403,3 +403,28 @@
 .current-month-column-nudge {
   animation: current-month-column-glow 2.4s ease-in-out 2;
 }
+
+/* Pacing tab → Download PDF (browser Save as PDF) */
+@media print {
+  body.printing-pacing-report * {
+    visibility: hidden !important;
+  }
+
+  body.printing-pacing-report #pacing-report-root,
+  body.printing-pacing-report #pacing-report-root * {
+    visibility: visible !important;
+  }
+
+  body.printing-pacing-report #pacing-report-root {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    padding: 0;
+    background: white;
+  }
+
+  body.printing-pacing-report #pacing-report-root [data-pacing-accordion-body] {
+    display: block !important;
+  }
+}
+

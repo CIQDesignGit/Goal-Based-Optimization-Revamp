@@ -11,7 +11,7 @@ type PacingTabProps = {
   instance: PacingInstance;
 };
 
-/** Pacing tab — Budget Pacing Report sections A–E. */
+/** Pacing tab — report sections with distinct layouts (not one template). */
 export function PacingTab({ instance }: PacingTabProps) {
   const filterKey = [
     instance.accountName,
@@ -20,12 +20,7 @@ export function PacingTab({ instance }: PacingTabProps) {
   ].join("|");
 
   return (
-    <div className="flex flex-col gap-8 rounded-xl border border-slate-200/90 bg-white p-5 shadow-xs">
-      <p className="text-xs italic text-slate-500">
-        AI generated summary. It may contain errors. Check your CommerceIQ
-        instance for the most accurate and up-to-date information.
-      </p>
-
+    <div id="pacing-report-root" className="flex flex-col gap-5">
       <DeferredWidget
         key={`a-${filterKey}`}
         delayMs={400}
@@ -49,6 +44,10 @@ export function PacingTab({ instance }: PacingTabProps) {
       >
         <PacingSectionCde instance={instance} />
       </DeferredWidget>
+
+      <p className="text-center text-2xs text-slate-400 print:hidden">
+        AI-assisted narrative — verify figures in your CommerceIQ instance
+      </p>
     </div>
   );
 }

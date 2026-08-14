@@ -170,40 +170,40 @@ export function BudgetPacingCard({ instance, filters }: BudgetPacingCardProps) {
           <Button
             variant="outline"
             size="sm"
-            className="h-auto min-h-8 flex-col items-start gap-0 border-slate-200 bg-white px-2.5 py-1.5 text-left text-slate-700 shadow-none"
+            className="h-8 flex-col items-start justify-center gap-px border-slate-200 bg-white px-2.5 py-0 text-left text-slate-700 shadow-none"
           >
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium">
-              <CalendarDays className="size-3.5 shrink-0 text-slate-500" />
+            <span className="inline-flex items-center gap-1 text-2xs font-medium leading-none">
+              <CalendarDays className="size-3 shrink-0 text-slate-500" />
               {formatFilterDateRange(filters)}
-              <ChevronDown className="size-3.5 text-slate-400" />
+              <ChevronDown className="size-3 text-slate-400" />
             </span>
             {comparisonRange ? (
-              <span className="pl-5 text-2xs font-normal text-slate-400">
+              <span className="pl-4 text-2xs font-normal leading-none text-slate-400">
                 {comparisonRange}
               </span>
             ) : null}
           </Button>
 
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon-sm"
-            className="border-slate-200 bg-white text-slate-600 shadow-none"
+            className="size-8 text-slate-500 shadow-none hover:bg-slate-100 hover:text-slate-700"
             aria-label="Edit widget"
           >
             <PencilLine className="size-4" />
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon-sm"
-            className="border-slate-200 bg-white text-slate-600 shadow-none"
+            className="size-8 text-slate-500 shadow-none hover:bg-slate-100 hover:text-slate-700"
             aria-label="Download"
           >
             <Download className="size-4" />
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon-sm"
-            className="border-slate-200 bg-white text-slate-600 shadow-none"
+            className="size-8 text-slate-500 shadow-none hover:bg-slate-100 hover:text-slate-700"
             aria-label="More options"
           >
             <EllipsisVertical className="size-4" />
@@ -215,7 +215,7 @@ export function BudgetPacingCard({ instance, filters }: BudgetPacingCardProps) {
         {/* Metrics */}
         <div>
           <p className="mb-2 text-xs font-medium text-slate-500">Metrics</p>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <div className="grid grid-cols-5 gap-3">
             {slots.map((metricKey, slotIndex) => {
               const option = METRIC_OPTIONS.find((o) => o.key === metricKey)!;
               const display = metricValues[metricKey];
@@ -250,7 +250,7 @@ export function BudgetPacingCard({ instance, filters }: BudgetPacingCardProps) {
               checked={dimensionOn}
               onCheckedChange={setDimensionOn}
               aria-label="Toggle dimension"
-              className="data-checked:bg-violet-500"
+              className="data-checked:bg-brand-500"
             />
             <button
               type="button"
@@ -269,7 +269,7 @@ export function BudgetPacingCard({ instance, filters }: BudgetPacingCardProps) {
               checked={plotTrend}
               onCheckedChange={setPlotTrend}
               aria-label="Plot trend line"
-              className="data-checked:bg-violet-500"
+              className="data-checked:bg-brand-500"
             />
             <span>
               Plot Trend line
@@ -398,7 +398,7 @@ function MetricTile({
     >
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
-          className="inline-flex max-w-full items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700"
+          className="inline-flex max-w-full items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700"
           onClick={(e) => e.stopPropagation()}
           aria-label={`Change metric, currently ${label}`}
         >
@@ -417,7 +417,7 @@ function MetricTile({
               className={cn(
                 "flex w-full rounded-md px-2.5 py-2 text-left text-sm transition-colors",
                 opt.key === metricKey
-                  ? "bg-violet-50 font-medium text-violet-600"
+                  ? "bg-brand-50 font-medium text-brand-600"
                   : "text-slate-700 hover:bg-slate-50",
               )}
               onClick={(e) => {

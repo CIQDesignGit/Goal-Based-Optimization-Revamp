@@ -3,6 +3,7 @@ import { create } from "zustand";
 import {
   buildDefaultDashboardFilters,
   type DashboardFilters,
+  type DataSourceId,
 } from "@/lib/home/dashboard-filters";
 import type { ExecutiveSummaryResult } from "@/lib/home/executive-summary";
 
@@ -20,6 +21,14 @@ type PacingDashboardState = {
   /** Simulate LLM down for FR-013 fallback testing. */
   simulateLlmDown: boolean;
   setSimulateLlmDown: (value: boolean) => void;
+  /** Personal Mode toggle on the dashboard filter bar. */
+  personalMode: boolean;
+  setPersonalMode: (value: boolean) => void;
+  /** Selected data sources from Add filter. */
+  dataSources: DataSourceId[];
+  addDataSource: (id: DataSourceId) => void;
+  removeDataSource: (id: DataSourceId) => void;
+  clearDataSources: () => void;
 };
 
 export const usePacingDashboardStore = create<PacingDashboardState>((set) => ({
@@ -33,4 +42,18 @@ export const usePacingDashboardStore = create<PacingDashboardState>((set) => ({
   setLastSummary: (value) => set({ lastSummary: value }),
   simulateLlmDown: false,
   setSimulateLlmDown: (value) => set({ simulateLlmDown: value }),
+  personalMode: false,
+  setPersonalMode: (value) => set({ personalMode: value }),
+  dataSources: [],
+  addDataSource: (id) =>
+    set((state) =>
+      state.dataSources.includes(id)
+        ? state
+        : { dataSources: [...state.dataSources, id] },
+    ),
+  removeDataSource: (id) =>
+    set((state) => ({
+      dataSources: state.dataSources.filter((d) => d !== id),
+    })),
+  clearDataSources: () => set({ dataSources: [] }),
 }));

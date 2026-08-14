@@ -1,7 +1,6 @@
 "use client";
 
 import { DashboardFiltersBar } from "@/components/home/dashboard-filters-bar";
-import { explainabilityActionable } from "@/lib/gbo-explainability/actionable-styles";
 import {
   type DashboardTab,
   usePacingDashboardStore,
@@ -9,8 +8,7 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * Same chrome as Explainability: tabs on top, Filters funnel button on the
- * right of the row below (chips appear to the left of the button when active).
+ * Tabs on top; filter bar below with Add filter (left) and Personal Mode (right).
  */
 export function DashboardTabs() {
   const tab = usePacingDashboardStore((s) => s.tab);
@@ -62,10 +60,7 @@ function TabButton({
       className={cn(
         "-mb-px inline-flex items-center gap-2 border-b-2 px-1 pb-3 pt-0.5 text-sm transition-colors",
         active
-          ? cn(
-              explainabilityActionable.tabActive,
-              "font-semibold text-slate-900",
-            )
+          ? "border-brand-500 font-semibold text-slate-900"
           : "border-transparent font-medium text-slate-500 hover:border-slate-200 hover:text-slate-700",
       )}
     >

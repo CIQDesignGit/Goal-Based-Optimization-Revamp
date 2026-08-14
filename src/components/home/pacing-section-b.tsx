@@ -1,90 +1,124 @@
 "use client";
 
-import type { PacingInstance } from "@/lib/home/pacing-instance";
+import { PacingAccordionSection } from "@/components/home/pacing-accordion-section";
+import type { ConstraintAlert, PacingInstance } from "@/lib/home/pacing-instance";
 import { cn } from "@/lib/utils";
 
 type PacingSectionBProps = {
   instance: PacingInstance;
 };
 
-/** Section B — Constraint analysis (Budget Pacing Report style). */
+/**
+ * Constraint gaps as visual target-vs-actual bars — easier to scan than a
+ * second table that repeats the same numbers in prose.
+ */
 export function PacingSectionB({ instance }: PacingSectionBProps) {
   const { constraints } = instance;
 
   return (
-    <section className="space-y-4 bg-white">
-      <h2 className="text-base font-bold text-slate-900">
-        Section B – Constraint analysis
-      </h2>
-
-      {constraints.length === 0 ? (
-        <p className="text-sm text-slate-600">No constraints set.</p>
-      ) : (
-        <>
-          <div className="overflow-x-auto rounded-md border border-slate-200">
-            <table className="w-full min-w-[900px] border-collapse text-left text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-100 text-slate-700">
-                  <th className="px-3 py-2.5 font-semibold">Alert</th>
-                  <th className="px-3 py-2.5 font-semibold">Level 1</th>
-                  <th className="px-3 py-2.5 font-semibold">Level 2</th>
-                  <th className="px-3 py-2.5 font-semibold">Group</th>
-                  <th className="px-3 py-2.5 font-semibold">Constraint Type</th>
-                  <th className="px-3 py-2.5 font-semibold text-right">
-                    Constraint %
-                  </th>
-                  <th className="px-3 py-2.5 font-semibold text-right">
-                    Spend Share %
-                  </th>
-                  <th className="px-3 py-2.5 font-semibold text-right">
-                    Deviation
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {constraints.map((c) => (
-                  <tr key={c.id} className="border-b border-slate-200">
-                    <td className="px-3 py-2.5">
-                      <span
-                        className={cn(
-                          "inline-flex rounded border px-2 py-0.5 text-2xs font-semibold",
-                          c.alert === "High Deviation"
-                            ? "border-error-500/40 bg-error-50 text-error-600"
-                            : "border-warning-500/40 bg-warning-50 text-warning-700",
-                        )}
-                      >
-                        {c.alert}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-slate-800">{c.level1}</td>
-                    <td className="px-3 py-2.5 text-slate-700">{c.level2}</td>
-                    <td className="px-3 py-2.5 text-slate-700">{c.group}</td>
-                    <td className="px-3 py-2.5 text-slate-700">
-                      {c.constraintType}
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-800">
-                      {c.constraintPercent.toFixed(1)}%
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-800">
-                      {c.spendSharePercent.toFixed(1)}%
-                    </td>
-                    <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-error-600">
-                      {Math.abs(c.deviationPoints).toFixed(1)}pp (
-                      {Math.abs(c.deviationRelativePercent).toFixed(0)}%)
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <ul className="list-disc space-y-2 pl-5 text-sm leading-relaxed text-slate-800">
+    <PacingAccordionSection
+      title="Constraint gaps"
+      description="Configured share vs actual spend share"
+    >
+      <div className="p-4">
+        {constraints.length === 0 ? (
+          <p className="text-sm text-slate-500">No constraints set.</p>
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
             {constraints.map((c) => (
-              <li key={`${c.id}-note`}>{c.plainLanguage}</li>
+              <ConstraintGapCard key={c.id} constraint={c} />
             ))}
-          </ul>
-        </>
-      )}
-    </section>
+          </div>
+        )}
+      </div>
+    </PacingAccordionSection>
+  );
+}
+
+function ConstraintGapCard({ constraint: c }: { constraint: ConstraintAlert }) {
+  const max = Math.max(100, c.constraintPercent, c.spendSharePercent);
+  const under = c.spendSharePercent < c.constraintPercent;
+
+  return (
+    <article className="flex flex-col rounded-lg border border-slate-200 bg-slate-50/40 p-3.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-slate-900">
+            {c.constraintType}
+          </p>
+          <p className="mt-0.5 truncate text-xs text-slate-500">
+            {c.level1}
+            {c.level2 !== "None" ? ` · ${c.level2}` : ""}
+            {" · "}
+            {c.group}
+          </p>
+        </div>
+        <span
+          className={cn(
+            "shrink-0 rounded-md px-1.5 py-0.5 text-2xs font-semibold",
+            c.alert === "High Deviation"
+              ? "bg-error-100 text-error-700"
+              : "bg-warning-100 text-warning-700",
+          )}
+        >
+          {Math.abs(c.deviationPoints).toFixed(1)}pp
+        </span>
+      </div>
+
+      <div className="mt-3 space-y-2">
+        <ShareBar
+          label="Target"
+          percent={c.constraintPercent}
+          max={max}
+          tone="target"
+        />
+        <ShareBar
+          label="Actual"
+          percent={c.spendSharePercent}
+          max={max}
+          tone={under ? "under" : "over"}
+        />
+      </div>
+
+      <p className="mt-3 text-xs leading-relaxed text-slate-600">
+        {c.plainLanguage}
+      </p>
+    </article>
+  );
+}
+
+function ShareBar({
+  label,
+  percent,
+  max,
+  tone,
+}: {
+  label: string;
+  percent: number;
+  max: number;
+  tone: "target" | "under" | "over";
+}) {
+  const width = Math.min(100, (percent / max) * 100);
+
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between text-2xs">
+        <span className="font-medium text-slate-500">{label}</span>
+        <span className="font-semibold tabular-nums text-slate-800">
+          {percent.toFixed(1)}%
+        </span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-slate-200/80">
+        <div
+          className={cn(
+            "h-full rounded-full",
+            tone === "target" && "bg-slate-400",
+            tone === "under" && "bg-warning-500",
+            tone === "over" && "bg-error-500",
+          )}
+          style={{ width: `${width}%` }}
+        />
+      </div>
+    </div>
   );
 }
