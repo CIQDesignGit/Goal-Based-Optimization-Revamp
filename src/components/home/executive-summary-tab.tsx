@@ -4,6 +4,7 @@ import { BudgetPacingCard } from "@/components/home/budget-pacing-card";
 import { BudgetPlanCard } from "@/components/home/budget-plan-card";
 import { DeferredWidget } from "@/components/home/deferred-widget";
 import { PerformanceOverview } from "@/components/home/performance-overview";
+import { ProjectedSpendUtilisationCard } from "@/components/home/projected-spend-utilisation-card";
 import { WidgetSkeleton } from "@/components/home/widget-skeleton";
 import type { DashboardFilters } from "@/lib/home/dashboard-filters";
 import type { PacingInstance } from "@/lib/home/pacing-instance";
@@ -14,7 +15,7 @@ type ExecutiveSummaryTabProps = {
   filterKey: string;
 };
 
-/** Executive Summary: Ally brief → Budget Pacing chart → Budget Plan table. */
+/** Executive Summary: Ally brief → spend/utilisation → Budget Pacing → Budget Plan. */
 export function ExecutiveSummaryTab({
   instance,
   filters,
@@ -23,6 +24,14 @@ export function ExecutiveSummaryTab({
   return (
     <div className="flex flex-col gap-5">
       <PerformanceOverview instance={instance} filterKey={filterKey} />
+
+      <DeferredWidget
+        key={`spend-util-${filterKey}`}
+        delayMs={450}
+        skeleton={<WidgetSkeleton rows={4} className="min-h-[160px]" />}
+      >
+        <ProjectedSpendUtilisationCard instance={instance} />
+      </DeferredWidget>
 
       <DeferredWidget
         key={`chart-${filterKey}`}
