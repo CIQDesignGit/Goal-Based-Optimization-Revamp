@@ -26,13 +26,13 @@ export function DashboardTabs() {
             active={tab === "executive-summary"}
             onClick={() => setTab("executive-summary")}
           >
-            Executive Summary
+            Analytics
           </TabButton>
           <TabButton
             active={tab === "pacing"}
             onClick={() => setTab("pacing")}
           >
-            Pacing
+            Executive Summary
           </TabButton>
         </div>
 

@@ -64,7 +64,7 @@ export function AiGoalOptimizerHome() {
         ) : null}
 
         {filtered.status === "ok" && tab === "pacing" ? (
-          <PacingTab instance={filtered.instance} />
+          <PacingTab instance={filtered.instance} filterKey={filterKey} />
         ) : null}
       </div>
     </div>

@@ -59,14 +59,14 @@ function DriversPanel({
       <ol className="divide-y divide-slate-100">
         {drivers.map((d, index) => (
           <li key={d.id} className="flex gap-3 px-4 py-3">
-            <span className="mt-0.5 w-5 shrink-0 text-right font-mono text-xs font-medium tabular-nums text-slate-400">
-              {String(index + 1).padStart(2, "0")}
+            <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md bg-brand-50 text-xs font-bold tabular-nums text-brand-700">
+              {index + 1}
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-medium leading-snug text-slate-900">
+              <p className="text-sm font-semibold leading-snug text-slate-900">
                 {d.title}
               </p>
-              <p className="mt-1 text-xs leading-relaxed text-slate-600">
+              <p className="mt-1 text-sm leading-relaxed text-slate-600">
                 {d.detail}
               </p>
             </div>
@@ -107,14 +107,14 @@ function ActionsPanel({
                   aria-expanded={open}
                   className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50"
                 >
-                  <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md bg-brand-50 text-xs font-bold text-brand-700">
+                  <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md bg-brand-50 text-xs font-bold tabular-nums text-brand-700">
                     {index + 1}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold leading-snug text-slate-900">
                       {r.action}
                     </p>
-                    <p className="mt-1 line-clamp-1 text-xs text-slate-500">
+                    <p className="mt-1 line-clamp-1 text-sm text-slate-500">
                       {r.expectedImpact}
                     </p>
                   </div>

@@ -26,8 +26,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * Filter bar:
- * - Executive Summary: Add filter (left) + Personal Mode (right)
- * - Pacing: period date (left) + Download PDF (right)
+ * - Analytics (first tab): Add filter (left) + Personal Mode (right)
+ * - Executive Summary (second tab): period date (left) + Download PDF (right)
  */
 export function DashboardFiltersBar() {
   const tab = usePacingDashboardStore((s) => s.tab);
@@ -46,7 +46,7 @@ export function DashboardFiltersBar() {
     dataSources.includes(opt.id),
   );
 
-  // First tab (Executive Summary): Add filter + Personal Mode
+  // Analytics tab: Add filter + Personal Mode
   if (tab === "executive-summary") {
     return (
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 md:px-5">
@@ -116,7 +116,7 @@ export function DashboardFiltersBar() {
     );
   }
 
-  // Pacing tab: period date + Download PDF
+  // Executive Summary tab: period date + Download PDF
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-4 md:px-5">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
