@@ -246,3 +246,42 @@ export const BUDGET_PLAN_GROUPS: BudgetPlanGroup[] = [
 
 export type { PeriodDatePresetId as BudgetPlanDatePresetId } from "@/lib/home/period-date-presets";
 export { PERIOD_DATE_PRESETS as BUDGET_PLAN_DATE_PRESETS } from "@/lib/home/period-date-presets";
+
+/** Flat leaf row with its Level 1 parent — used for pagination. */
+export type BudgetPlanFlatRow = BudgetPlanLeafRow & { level1: string };
+
+export const BUDGET_PLAN_PAGE_SIZE = 10;
+
+/** Flatten Level 1 groups into a single list (Consolidated Total is not included). */
+export function flattenBudgetPlanRows(
+  groups: BudgetPlanGroup[] = BUDGET_PLAN_GROUPS,
+): BudgetPlanFlatRow[] {
+  return groups.flatMap((group) =>
+    group.rows.map((row) => ({ ...row, level1: group.level1 })),
+  );
+}
+
+export const BUDGET_PLAN_FLAT_ROWS = flattenBudgetPlanRows();
+export const BUDGET_PLAN_TOTAL_COUNT = BUDGET_PLAN_FLAT_ROWS.length;
+
+/**
+ * Slice flat rows for a page, then rebuild Level 1 groups so banners
+ * only show for categories that appear on this page.
+ */
+export function getBudgetPlanPageGroups(
+  page: number,
+  pageSize: number = BUDGET_PLAN_PAGE_SIZE,
+): BudgetPlanGroup[] {
+  const start = (page - 1) * pageSize;
+  const slice = BUDGET_PLAN_FLAT_ROWS.slice(start, start + pageSize);
+  const map = new Map<string, BudgetPlanLeafRow[]>();
+
+  for (const row of slice) {
+    const { level1, ...leaf } = row;
+    const list = map.get(level1) ?? [];
+    list.push(leaf);
+    map.set(level1, list);
+  }
+
+  return Array.from(map.entries()).map(([level1, rows]) => ({ level1, rows }));
+}

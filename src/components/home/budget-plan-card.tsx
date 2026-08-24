@@ -1,6 +1,9 @@
 "use client";
 
 import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Download,
   EllipsisVertical,
   Filter,
@@ -17,9 +20,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  BUDGET_PLAN_GROUPS,
+  BUDGET_PLAN_PAGE_SIZE,
+  BUDGET_PLAN_TOTAL_COUNT,
   BUDGET_PLAN_TOTAL_ROW,
   formatPlanUsd,
+  getBudgetPlanPageGroups,
   type BudgetPlanLeafRow,
 } from "@/lib/home/budget-plan-data";
 import { usePacingDashboardStore } from "@/lib/home/pacing-dashboard-store";
@@ -42,10 +47,22 @@ type BudgetViewMode = "absolute" | "cumulative";
  */
 export function BudgetPlanCard() {
   const [viewMode, setViewMode] = useState<BudgetViewMode>("absolute");
+  const [page, setPage] = useState(1);
   const periodDatePreset = usePacingDashboardStore((s) => s.periodDatePreset);
   const setPeriodDatePreset = usePacingDashboardStore(
     (s) => s.setPeriodDatePreset,
   );
+
+  const pageSize = BUDGET_PLAN_PAGE_SIZE;
+  const totalCount = BUDGET_PLAN_TOTAL_COUNT;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const pageGroups = useMemo(
+    () => getBudgetPlanPageGroups(page, pageSize),
+    [page, pageSize],
+  );
+
+  const rangeStart = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeEnd = Math.min(page * pageSize, totalCount);
 
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200/90 bg-white">
@@ -163,7 +180,7 @@ export function BudgetPlanCard() {
           </thead>
           <tbody>
             <ConsolidatedTotalRow />
-            {BUDGET_PLAN_GROUPS.map((group) => (
+            {pageGroups.map((group) => (
               <GroupRows
                 key={group.level1}
                 group={group}
@@ -173,6 +190,80 @@ export function BudgetPlanCard() {
           </tbody>
         </table>
       </div>
+
+      {/* Product-style pagination footer */}
+      <footer className="flex flex-wrap items-center justify-end gap-4 border-t border-slate-200 px-4 py-2.5 text-xs text-slate-600">
+        <div className="inline-flex items-center gap-1.5">
+          <span>Rows per page:</span>
+          <button
+            type="button"
+            className="inline-flex items-center gap-0.5 font-medium text-slate-800"
+            aria-label="Rows per page"
+          >
+            {pageSize}
+            <ChevronDown className="size-3.5 text-slate-400" />
+          </button>
+        </div>
+
+        <span className="tabular-nums text-slate-700">
+          {rangeStart} - {rangeEnd} / {totalCount}
+        </span>
+
+        <nav
+          className="inline-flex items-center gap-1"
+          aria-label="Budget Plan pagination"
+        >
+          <PageIconButton
+            label="Previous page"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            <ChevronLeft className="size-4" />
+          </PageIconButton>
+
+          <PageNumberButton
+            active={page === 1}
+            onClick={() => setPage(1)}
+            label="Page 1"
+          >
+            1
+          </PageNumberButton>
+
+          {totalPages >= 2 ? (
+            <PageNumberButton
+              active={page === 2}
+              onClick={() => setPage(2)}
+              label="Page 2"
+            >
+              2
+            </PageNumberButton>
+          ) : null}
+
+          {totalPages > 3 ? (
+            <span className="px-1 text-slate-400" aria-hidden>
+              ...
+            </span>
+          ) : null}
+
+          {totalPages > 2 ? (
+            <PageNumberButton
+              active={page === totalPages}
+              onClick={() => setPage(totalPages)}
+              label={`Page ${totalPages}`}
+            >
+              {totalPages}
+            </PageNumberButton>
+          ) : null}
+
+          <PageIconButton
+            label="Next page"
+            disabled={page >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          >
+            <ChevronRight className="size-4" />
+          </PageIconButton>
+        </nav>
+      </footer>
     </section>
   );
 }
@@ -197,6 +288,7 @@ function BudgetViewToggle({
       <button
         type="button"
         onClick={() => onChange("cumulative")}
+        aria-label="Cumulative"
         className={cn(
           "h-full rounded px-2.5 text-xs font-medium transition-colors",
           value === "cumulative"
@@ -204,11 +296,12 @@ function BudgetViewToggle({
             : "text-slate-500 hover:text-slate-700",
         )}
       >
-        Cumulative
+        Cum.
       </button>
       <button
         type="button"
         onClick={() => onChange("absolute")}
+        aria-label="Absolute"
         className={cn(
           "h-full rounded px-2.5 text-xs font-medium transition-colors",
           value === "absolute"
@@ -216,7 +309,7 @@ function BudgetViewToggle({
             : "text-slate-500 hover:text-slate-700",
         )}
       >
-        Absolute
+        Abs.
       </button>
     </div>
   );
@@ -354,6 +447,62 @@ function PlanRow({ row }: { row: BudgetPlanLeafRow }) {
           : `${row.percentTimeInBudget.toFixed(1)}%`}
       </td>
     </tr>
+  );
+}
+
+function PageNumberButton({
+  active,
+  onClick,
+  label,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-current={active ? "page" : undefined}
+      onClick={onClick}
+      className={cn(
+        "flex size-7 items-center justify-center rounded-md text-xs font-medium tabular-nums transition-colors",
+        active ? "text-brand-500" : "text-slate-600 hover:bg-slate-100",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function PageIconButton({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "flex size-7 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition-colors",
+        disabled
+          ? "cursor-not-allowed opacity-40"
+          : "hover:bg-slate-50 hover:text-slate-900",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
