@@ -84,7 +84,7 @@ export function BudgetPlanCard() {
               <p className="text-sm font-semibold text-slate-900">Budget Plan</p>
               <p className="text-xs font-normal leading-relaxed text-slate-600">
                 MTD pacing by Level 1 / Level 2 — On Plan at 97–102%. Switch
-                Cumulative to see running totals within each Level 1 group.
+                Cum. to see running totals within each Level 1 group.
               </p>
             </TooltipContent>
           </Tooltip>
@@ -296,7 +296,7 @@ function BudgetViewToggle({
             : "text-slate-500 hover:text-slate-700",
         )}
       >
-        Cum.
+        Cumulative
       </button>
       <button
         type="button"
