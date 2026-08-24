@@ -1,10 +1,6 @@
 "use client";
 
 import {
-  ArrowDown,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Download,
   EllipsisVertical,
   Filter,
@@ -21,36 +17,38 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  BUDGET_PLAN_PAGE_SIZE,
-  BUDGET_PLAN_TOTAL_COUNT,
+  BUDGET_PLAN_GROUPS,
   BUDGET_PLAN_TOTAL_ROW,
-  formatPlanMetric,
   formatPlanUsd,
-  getBudgetPlanPage,
-  type BudgetPlanRow,
+  type BudgetPlanLeafRow,
 } from "@/lib/home/budget-plan-data";
 import { usePacingDashboardStore } from "@/lib/home/pacing-dashboard-store";
+import {
+  formatPacingPercent,
+  getPacingBandStatus,
+  pacingStatusLabel,
+  ratioToPercent,
+  type PacingBandStatus,
+} from "@/lib/home/pacing-status";
 import { cn } from "@/lib/utils";
 
+const COL_COUNT = 11;
+
+type BudgetViewMode = "absolute" | "cumulative";
+
 /**
- * Budget Plan table widget — matches the product reference below Budget Pacing.
+ * Budget Plan table — Level 1 groups + Level 2 rows with pacing / iROAS colors.
+ * Includes product Consolidated Total row + Current Budget column.
  */
 export function BudgetPlanCard() {
-  const [page, setPage] = useState(1);
+  const [viewMode, setViewMode] = useState<BudgetViewMode>("absolute");
   const periodDatePreset = usePacingDashboardStore((s) => s.periodDatePreset);
   const setPeriodDatePreset = usePacingDashboardStore(
     (s) => s.setPeriodDatePreset,
   );
-  const pageSize = BUDGET_PLAN_PAGE_SIZE;
-  const totalPages = Math.ceil(BUDGET_PLAN_TOTAL_COUNT / pageSize);
-  const pageRows = useMemo(() => getBudgetPlanPage(page, pageSize), [page]);
-
-  const rangeStart = (page - 1) * pageSize + 1;
-  const rangeEnd = Math.min(page * pageSize, BUDGET_PLAN_TOTAL_COUNT);
 
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200/90 bg-white">
-      {/* Header — same chrome as Budget Pacing */}
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-slate-900">Budget Plan</h2>
@@ -68,8 +66,8 @@ export function BudgetPlanCard() {
             >
               <p className="text-sm font-semibold text-slate-900">Budget Plan</p>
               <p className="text-xs font-normal leading-relaxed text-slate-600">
-                See budget allocated and plan vs spend, as inputted in Budget
-                Optimizer
+                MTD pacing by Level 1 / Level 2 — On Plan at 97–102%. Switch
+                Cumulative to see running totals within each Level 1 group.
               </p>
             </TooltipContent>
           </Tooltip>
@@ -87,6 +85,9 @@ export function BudgetPlanCard() {
               0
             </span>
           </Button>
+
+          {/* Same control pattern as Budget Optimizer BudgetModeToggle */}
+          <BudgetViewToggle value={viewMode} onChange={setViewMode} />
 
           <PeriodDatePresetPicker
             value={periodDatePreset}
@@ -122,237 +123,250 @@ export function BudgetPlanCard() {
       </header>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[920px] border-collapse text-sm [&_td]:border-r [&_td]:border-slate-200 [&_td:last-child]:border-r-0 [&_th]:border-r [&_th]:border-slate-200 [&_th:last-child]:border-r-0">
+        <table className="w-full min-w-[1180px] border-collapse text-left text-sm [&_td]:border-r [&_td]:border-slate-200 [&_td:last-child]:border-r-0 [&_th]:border-r [&_th]:border-slate-200 [&_th:last-child]:border-r-0">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50/80">
-              <th className="px-4 py-2.5 text-left text-2xs font-semibold uppercase tracking-wide text-slate-500">
-                Budget Category - CIQ
+              <th className="px-3 py-2.5 text-2xs font-semibold uppercase tracking-wide text-slate-500">
+                Level 1
               </th>
-              <th className="px-3 py-2.5 text-right text-2xs font-semibold uppercase tracking-wide text-slate-500">
-                <span className="inline-flex items-center justify-end gap-1">
-                  Goal
-                  <span className="inline-flex size-4 items-center justify-center rounded-full border border-slate-300 text-slate-400">
-                    <ArrowDown className="size-2.5" aria-hidden />
-                  </span>
-                </span>
-              </th>
-              <th className="px-3 py-2.5 text-right text-2xs font-semibold uppercase tracking-wide text-slate-500">
-                Value
-              </th>
-              <th className="px-3 py-2.5 text-right text-2xs font-semibold uppercase tracking-wide text-slate-500">
-                Actual
+              <th className="px-3 py-2.5 text-2xs font-semibold uppercase tracking-wide text-slate-500">
+                Level 2
               </th>
               <th className="px-3 py-2.5 text-right text-2xs font-semibold uppercase tracking-wide text-slate-500">
                 Current Budget
               </th>
               <th className="px-3 py-2.5 text-right text-2xs font-semibold uppercase tracking-wide text-slate-500">
-                Planned budget till date
+                Planned MTD
               </th>
-              <th className="px-4 py-2.5 text-right text-2xs font-semibold uppercase tracking-wide text-slate-500">
-                Actual Spend till date
+              <th className="px-3 py-2.5 text-right text-2xs font-semibold uppercase tracking-wide text-slate-500">
+                Actual MTD
+              </th>
+              <th className="px-3 py-2.5 text-right text-2xs font-semibold uppercase tracking-wide text-slate-500">
+                Pacing %
+              </th>
+              <th className="px-3 py-2.5 text-2xs font-semibold uppercase tracking-wide text-slate-500">
+                Goal
+              </th>
+              <th className="px-3 py-2.5 text-right text-2xs font-semibold uppercase tracking-wide text-slate-500">
+                Goal Value
+              </th>
+              <th className="px-3 py-2.5 text-right text-2xs font-semibold uppercase tracking-wide text-slate-500">
+                iROAS
+              </th>
+              <th className="px-3 py-2.5 text-2xs font-semibold uppercase tracking-wide text-slate-500">
+                Budget/Bid Opt
+              </th>
+              <th className="px-3 py-2.5 text-right text-2xs font-semibold uppercase tracking-wide text-slate-500">
+                % Time in Budget
               </th>
             </tr>
           </thead>
           <tbody>
-            <PlanRow row={BUDGET_PLAN_TOTAL_ROW} emphasize />
-            {pageRows.map((row) => (
-              <PlanRow key={row.id} row={row} />
+            <ConsolidatedTotalRow />
+            {BUDGET_PLAN_GROUPS.map((group) => (
+              <GroupRows
+                key={group.level1}
+                group={group}
+                viewMode={viewMode}
+              />
             ))}
           </tbody>
         </table>
       </div>
-
-      {/* Footer pagination */}
-      <footer className="flex flex-wrap items-center justify-end gap-4 border-t border-slate-200 px-4 py-2.5 text-xs text-slate-600">
-        <div className="inline-flex items-center gap-1.5">
-          <span>Rows per page:</span>
-          <button
-            type="button"
-            className="inline-flex items-center gap-0.5 font-medium text-slate-800"
-            aria-label="Rows per page"
-          >
-            {pageSize}
-            <ChevronDown className="size-3.5 text-slate-400" />
-          </button>
-        </div>
-
-        <span className="tabular-nums text-slate-700">
-          {rangeStart} - {rangeEnd} / {BUDGET_PLAN_TOTAL_COUNT}
-        </span>
-
-        <nav
-          className="inline-flex items-center gap-1"
-          aria-label="Budget Plan pagination"
-        >
-          <PageIconButton
-            label="Previous page"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            <ChevronLeft className="size-4" />
-          </PageIconButton>
-
-          <PageNumberButton
-            active={page === 1}
-            onClick={() => setPage(1)}
-            label="Page 1"
-          >
-            1
-          </PageNumberButton>
-
-          {totalPages >= 2 ? (
-            <PageNumberButton
-              active={page === 2}
-              onClick={() => setPage(2)}
-              label="Page 2"
-            >
-              2
-            </PageNumberButton>
-          ) : null}
-
-          {totalPages > 3 ? (
-            <span className="px-1 text-slate-400" aria-hidden>
-              ...
-            </span>
-          ) : null}
-
-          {totalPages > 2 ? (
-            <PageNumberButton
-              active={page === totalPages}
-              onClick={() => setPage(totalPages)}
-              label={`Page ${totalPages}`}
-            >
-              {totalPages}
-            </PageNumberButton>
-          ) : null}
-
-          <PageIconButton
-            label="Next page"
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          >
-            <ChevronRight className="size-4" />
-          </PageIconButton>
-        </nav>
-      </footer>
     </section>
   );
 }
 
-function PlanRow({
-  row,
-  emphasize = false,
+/**
+ * Segmented control — same chrome as Budget Optimizer BudgetModeToggle.
+ * Absolute = each row’s own dollars; Cumulative = running total in the group.
+ */
+function BudgetViewToggle({
+  value,
+  onChange,
 }: {
-  row: BudgetPlanRow;
-  emphasize?: boolean;
+  value: BudgetViewMode;
+  onChange: (mode: BudgetViewMode) => void;
 }) {
   return (
-    <tr
-      className={cn(
-        "border-b border-slate-100 last:border-b-0",
-        emphasize && "bg-white",
-      )}
+    <div
+      className="inline-flex h-8 shrink-0 rounded-md border border-slate-200 bg-slate-50 p-0.5"
+      role="group"
+      aria-label="Budget view mode"
     >
-      <td
+      <button
+        type="button"
+        onClick={() => onChange("cumulative")}
         className={cn(
-          "max-w-[240px] truncate px-4 py-2.5 text-slate-800",
-          emphasize ? "font-semibold text-slate-900" : "font-medium",
-        )}
-        title={row.category}
-      >
-        {row.category}
-      </td>
-      <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">
-        {row.goal ?? "NA"}
-      </td>
-      <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">
-        {formatPlanMetric(row.value)}
-      </td>
-      <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">
-        {formatPlanMetric(row.actual)}
-      </td>
-      <td
-        className={cn(
-          "px-3 py-2.5 text-right tabular-nums text-slate-800",
-          emphasize && "font-semibold",
+          "h-full rounded px-2.5 text-xs font-medium transition-colors",
+          value === "cumulative"
+            ? "bg-white text-brand-500 shadow-sm"
+            : "text-slate-500 hover:text-slate-700",
         )}
       >
+        Cumulative
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("absolute")}
+        className={cn(
+          "h-full rounded px-2.5 text-xs font-medium transition-colors",
+          value === "absolute"
+            ? "bg-white text-brand-500 shadow-sm"
+            : "text-slate-500 hover:text-slate-700",
+        )}
+      >
+        Absolute
+      </button>
+    </div>
+  );
+}
+
+/** Product rollup row — money columns filled; goal / opt columns show NA. */
+function ConsolidatedTotalRow() {
+  const total = BUDGET_PLAN_TOTAL_ROW;
+
+  return (
+    <tr className="border-b border-slate-100 bg-white">
+      <td
+        colSpan={2}
+        className="max-w-[240px] truncate px-3 py-2.5 font-semibold text-slate-900"
+        title={total.label}
+      >
+        {total.label}
+      </td>
+      <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-slate-900">
+        {formatPlanUsd(total.currentBudget)}
+      </td>
+      <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-slate-900">
+        {formatPlanUsd(total.plannedMtd)}
+      </td>
+      <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-slate-900">
+        {formatPlanUsd(total.actualMtd)}
+      </td>
+      <td className="px-3 py-2.5 text-right text-slate-400">NA</td>
+      <td className="px-3 py-2.5 text-slate-400">NA</td>
+      <td className="px-3 py-2.5 text-right text-slate-400">NA</td>
+      <td className="px-3 py-2.5 text-right text-slate-400">NA</td>
+      <td className="px-3 py-2.5 text-slate-400">NA</td>
+      <td className="px-3 py-2.5 text-right text-slate-400">NA</td>
+    </tr>
+  );
+}
+
+function GroupRows({
+  group,
+  viewMode,
+}: {
+  group: { level1: string; rows: BudgetPlanLeafRow[] };
+  viewMode: BudgetViewMode;
+}) {
+  // Running totals within this Level 1 group when Cumulative is on
+  const displayRows = useMemo(() => {
+    if (viewMode === "absolute") return group.rows;
+
+    let runBudget = 0;
+    let runPlanned = 0;
+    let runActual = 0;
+    return group.rows.map((row) => {
+      runBudget += row.currentBudget;
+      runPlanned += row.plannedMtd;
+      runActual += row.actualMtd;
+      return {
+        ...row,
+        currentBudget: runBudget,
+        plannedMtd: runPlanned,
+        actualMtd: runActual,
+      };
+    });
+  }, [group.rows, viewMode]);
+
+  return (
+    <>
+      {/* Level 1 banner — light blue bar like the reference */}
+      <tr className="bg-brand-50">
+        <td
+          colSpan={COL_COUNT}
+          className="border-b border-slate-200 px-3 py-2 text-sm font-semibold text-brand-800"
+        >
+          {group.level1}
+        </td>
+      </tr>
+      {displayRows.map((row) => (
+        <PlanRow key={row.id} row={row} />
+      ))}
+    </>
+  );
+}
+
+function PlanRow({ row }: { row: BudgetPlanLeafRow }) {
+  const pct = ratioToPercent(row.actualMtd, row.plannedMtd);
+  const status = pct === null ? null : getPacingBandStatus(pct);
+  const pacingTone =
+    pct === null || status === null ? null : planPacingTone(pct, status);
+
+  // Green when iROAS meets/beats goal; red when under goal
+  const metricTone =
+    row.actualMetricValue >= row.goalValue
+      ? "text-success-700"
+      : "text-error-600";
+
+  return (
+    <tr className="border-b border-slate-100 last:border-b-0 bg-white">
+      <td className="px-3 py-2.5 text-slate-800" />
+      <td className="px-3 py-2.5 text-slate-800">{row.level2}</td>
+      <td className="px-3 py-2.5 text-right tabular-nums text-slate-800">
         {formatPlanUsd(row.currentBudget)}
       </td>
-      <td
-        className={cn(
-          "px-3 py-2.5 text-right tabular-nums text-slate-800",
-          emphasize && "font-semibold",
+      <td className="px-3 py-2.5 text-right tabular-nums text-slate-800">
+        {formatPlanUsd(row.plannedMtd)}
+      </td>
+      <td className="px-3 py-2.5 text-right tabular-nums text-slate-800">
+        {formatPlanUsd(row.actualMtd)}
+      </td>
+      <td className="px-3 py-2.5 text-right">
+        {pct === null || status === null ? (
+          <span className="text-slate-400">—</span>
+        ) : (
+          <span className={cn("font-semibold tabular-nums", pacingTone)}>
+            {pacingStatusLabel(status)} ({formatPacingPercent(pct)})
+          </span>
         )}
-      >
-        {formatPlanUsd(row.plannedTillDate)}
+      </td>
+      <td className="px-3 py-2.5 text-slate-700">{row.goalMetric}</td>
+      <td className="px-3 py-2.5 text-right tabular-nums text-slate-800">
+        {row.goalValue.toFixed(2)}
       </td>
       <td
         className={cn(
-          "px-4 py-2.5 text-right tabular-nums text-slate-800",
-          emphasize && "font-semibold",
+          "px-3 py-2.5 text-right font-semibold tabular-nums",
+          metricTone,
         )}
       >
-        {formatPlanUsd(row.actualSpendTillDate)}
+        {row.actualMetricValue.toFixed(2)}
+      </td>
+      <td className="px-3 py-2.5 text-slate-800">
+        {row.budgetOpt} / {row.bidOpt}
+      </td>
+      <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">
+        {row.percentTimeInBudget === null
+          ? "—"
+          : `${row.percentTimeInBudget.toFixed(1)}%`}
       </td>
     </tr>
   );
 }
 
-function PageNumberButton({
-  active,
-  onClick,
-  label,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      aria-current={active ? "page" : undefined}
-      onClick={onClick}
-      className={cn(
-        "flex size-7 items-center justify-center rounded-md text-xs font-medium tabular-nums transition-colors",
-        active
-          ? "text-brand-500"
-          : "text-slate-600 hover:bg-slate-100",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-function PageIconButton({
-  label,
-  disabled,
-  onClick,
-  children,
-}: {
-  label: string;
-  disabled?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      disabled={disabled}
-      onClick={onClick}
-      className={cn(
-        "flex size-7 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition-colors",
-        disabled
-          ? "cursor-not-allowed opacity-40"
-          : "hover:bg-slate-50 hover:text-slate-900",
-      )}
-    >
-      {children}
-    </button>
-  );
+/**
+ * Color coding from the reference screenshot:
+ * - On Plan → green
+ * - Ahead → orange
+ * - Behind (mild, ≥85%) → orange
+ * - Behind (severe, <85%) → red
+ */
+function planPacingTone(pct: number, status: PacingBandStatus): string {
+  if (status === "on-plan") return "text-success-700";
+  if (status === "ahead") return "text-warning-600";
+  if (pct >= 85) return "text-warning-600";
+  return "text-error-600";
 }

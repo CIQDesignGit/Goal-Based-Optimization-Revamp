@@ -1,23 +1,43 @@
 /**
- * Demo rows for the Budget Plan table widget on Executive Summary.
- * Values mirror the product reference layout (prototype only).
+ * Demo rows for the Budget Plan table on Analytics.
+ * Layout matches the Level 1 / Level 2 pacing reference (prototype only).
  */
 
-export type BudgetPlanRow = {
+export type BudgetPlanLeafRow = {
   id: string;
-  category: string;
-  goal: string | null;
-  value: number | null;
-  actual: number | null;
-  currentBudget: number | null;
-  plannedTillDate: number | null;
-  actualSpendTillDate: number | null;
+  level2: string;
+  /** Full-month allocated budget (product “Current Budget” column). */
+  currentBudget: number;
+  plannedMtd: number;
+  actualMtd: number;
+  goalMetric: string;
+  goalValue: number;
+  actualMetricValue: number;
+  budgetOpt: string;
+  bidOpt: string;
+  /** Spend-weighted % time in budget; null shows as — */
+  percentTimeInBudget: number | null;
 };
 
-/** Matches the product table: $1.13M, $438.11K, $5.63K, $0 */
-export function formatPlanUsd(value: number | null): string {
-  if (value === null) return "NA";
-  if (value === 0) return "$0";
+export type BudgetPlanGroup = {
+  level1: string;
+  rows: BudgetPlanLeafRow[];
+};
+
+/**
+ * Sticky rollup — same as product Budget Plan:
+ * Consolidated Total | NA | NA | NA | $1.13M | $438.11K | $396.35K …
+ */
+export const BUDGET_PLAN_TOTAL_ROW = {
+  id: "bp-total",
+  label: "Consolidated Total",
+  currentBudget: 1_130_000,
+  plannedMtd: 438_110,
+  actualMtd: 396_350,
+} as const;
+
+/** Matches the product table: $1.13M, $438.11K, $278.98k */
+export function formatPlanUsd(value: number): string {
   const abs = Math.abs(value);
   const sign = value < 0 ? "-" : "";
   if (abs >= 1_000_000) {
@@ -29,174 +49,200 @@ export function formatPlanUsd(value: number | null): string {
   return `${sign}$${abs.toFixed(2)}`;
 }
 
-export function formatPlanMetric(value: number | null): string {
-  if (value === null) return "NA";
-  return value.toFixed(2);
-}
-
-/** Sticky rollup row — not included in paginated count. */
-export const BUDGET_PLAN_TOTAL_ROW: BudgetPlanRow = {
-  id: "bp-total",
-  category: "Consolidated Total",
-  goal: null,
-  value: null,
-  actual: null,
-  currentBudget: 1_130_000,
-  plannedTillDate: 438_110,
-  actualSpendTillDate: 396_350,
-};
-
-const FIRST_PAGE_SEED: Omit<BudgetPlanRow, "id">[] = [
+/**
+ * Groups shown in Budget Plan — values tuned to the product screenshot
+ * so pacing % and iROAS colors match the reference.
+ */
+export const BUDGET_PLAN_GROUPS: BudgetPlanGroup[] = [
   {
-    category: "17 x 24 disposable underpads",
-    goal: "iRoAS",
-    value: 4,
-    actual: 1.33,
-    currentBudget: 21_120,
-    plannedTillDate: 8_160,
-    actualSpendTillDate: 4_540,
+    level1: "veterinary supplements",
+    rows: [
+      {
+        id: "bp-vs-1",
+        level2: "dog - ppvs - fortiflora",
+        currentBudget: 368_013,
+        plannedMtd: 278_980,
+        actualMtd: 217_350,
+        goalMetric: "iROAS",
+        goalValue: 0.9,
+        actualMetricValue: 0.76,
+        budgetOpt: "Ally AI",
+        bidOpt: "Ally AI",
+        percentTimeInBudget: null,
+      },
+      {
+        id: "bp-vs-2",
+        level2: "dog - ppvs - fortiflora soft chews",
+        currentBudget: 686,
+        plannedMtd: 520,
+        actualMtd: 450,
+        goalMetric: "iROAS",
+        goalValue: 1.75,
+        actualMetricValue: 1.21,
+        budgetOpt: "Ally AI",
+        bidOpt: "Ally AI",
+        percentTimeInBudget: null,
+      },
+      {
+        id: "bp-vs-3",
+        level2: "dog - puppy food",
+        currentBudget: 1_187,
+        plannedMtd: 900,
+        actualMtd: 983,
+        goalMetric: "iROAS",
+        goalValue: 1.0,
+        actualMetricValue: 1.82,
+        budgetOpt: "Ally AI",
+        bidOpt: "Ally AI",
+        percentTimeInBudget: null,
+      },
+      {
+        id: "bp-vs-4",
+        level2: "cat - ppvs - fortiflora soft chews",
+        // ~97.1% → On Plan (97–102% band)
+        currentBudget: 726,
+        plannedMtd: 550,
+        actualMtd: 534,
+        goalMetric: "iROAS",
+        goalValue: 1.5,
+        actualMetricValue: 1.16,
+        budgetOpt: "Ally AI",
+        bidOpt: "Ally AI",
+        percentTimeInBudget: null,
+      },
+    ],
   },
   {
-    category: "23 x 36 disposable underpads dc",
-    goal: "iRoAS",
-    value: 4,
-    actual: 1.54,
-    currentBudget: 5_630,
-    plannedTillDate: 2_170,
-    actualSpendTillDate: 3_850,
+    level1: "dry dog",
+    rows: [
+      {
+        id: "bp-dd-1",
+        level2: "pro plan",
+        currentBudget: 363_581,
+        plannedMtd: 275_620,
+        actualMtd: 261_600,
+        goalMetric: "iROAS",
+        goalValue: 1.75,
+        actualMetricValue: 2.06,
+        budgetOpt: "Ally AI",
+        bidOpt: "Ally AI",
+        percentTimeInBudget: null,
+      },
+      {
+        id: "bp-dd-2",
+        level2: "beyond",
+        currentBudget: 51_565,
+        plannedMtd: 39_090,
+        actualMtd: 33_260,
+        goalMetric: "iROAS",
+        goalValue: 1.0,
+        actualMetricValue: 0.81,
+        budgetOpt: "Ally AI",
+        bidOpt: "Ally AI",
+        percentTimeInBudget: null,
+      },
+      {
+        id: "bp-dd-3",
+        level2: "one",
+        currentBudget: 30_485,
+        plannedMtd: 23_110,
+        actualMtd: 17_990,
+        goalMetric: "iROAS",
+        goalValue: 1.0,
+        actualMetricValue: 1.24,
+        budgetOpt: "Ally AI",
+        bidOpt: "Ally AI",
+        percentTimeInBudget: null,
+      },
+      {
+        id: "bp-dd-4",
+        level2: "true instinct",
+        currentBudget: 16_648,
+        plannedMtd: 12_620,
+        actualMtd: 7_430,
+        goalMetric: "iROAS",
+        goalValue: 0.8,
+        actualMetricValue: 0.78,
+        budgetOpt: "Ally AI",
+        bidOpt: "Ally AI",
+        percentTimeInBudget: null,
+      },
+    ],
   },
   {
-    category: "adult diapers",
-    goal: "iRoAS",
-    value: 3.5,
-    actual: 1.12,
-    currentBudget: 48_200,
-    plannedTillDate: 18_640,
-    actualSpendTillDate: 16_910,
-  },
-  {
-    category: "baby wipes multipack",
-    goal: "iRoAS",
-    value: 4,
-    actual: 2.08,
-    currentBudget: 12_450,
-    plannedTillDate: 4_810,
-    actualSpendTillDate: 5_220,
-  },
-  {
-    category: "bed pads absorbent",
-    goal: "iRoAS",
-    value: 3.75,
-    actual: 0.94,
-    currentBudget: 9_880,
-    plannedTillDate: 3_820,
-    actualSpendTillDate: 2_110,
-  },
-  {
-    category: "briefs - overnight",
-    goal: "iRoAS",
-    value: 4,
-    actual: 1.67,
-    currentBudget: 33_400,
-    plannedTillDate: 12_910,
-    actualSpendTillDate: 11_050,
-  },
-  {
-    category: "catheter supplies bundle",
-    goal: "iRoAS",
-    value: 3.25,
-    actual: null,
-    currentBudget: 7_200,
-    plannedTillDate: 2_780,
-    actualSpendTillDate: 0,
-  },
-  {
-    category: "gloves nitrile exam",
-    goal: "iRoAS",
-    value: 4,
-    actual: 2.41,
-    currentBudget: 15_670,
-    plannedTillDate: 6_050,
-    actualSpendTillDate: 6_480,
-  },
-  {
-    category: "incontinence pads max",
-    goal: "iRoAS",
-    value: 4,
-    actual: 1.19,
-    currentBudget: 27_900,
-    plannedTillDate: 10_780,
-    actualSpendTillDate: 8_340,
-  },
-  {
-    category: "washable underpads",
-    goal: "iRoAS",
-    value: 3.5,
-    actual: 1.88,
-    currentBudget: 4_150,
-    plannedTillDate: 1_600,
-    actualSpendTillDate: 1_920,
+    level1: "wet cat",
+    rows: [
+      {
+        id: "bp-wc-1",
+        level2: "fancy feast food",
+        currentBudget: 157_782,
+        plannedMtd: 119_610,
+        actualMtd: 117_990,
+        goalMetric: "iROAS",
+        goalValue: 3.0,
+        actualMetricValue: 5.41,
+        budgetOpt: "Ally AI",
+        bidOpt: "Ally AI",
+        percentTimeInBudget: null,
+      },
+      {
+        id: "bp-wc-2",
+        level2: "fancy feast appetizers",
+        // ~98.0% → On Plan
+        currentBudget: 83_805,
+        plannedMtd: 63_530,
+        actualMtd: 62_260,
+        goalMetric: "iROAS",
+        goalValue: 3.0,
+        actualMetricValue: 3.12,
+        budgetOpt: "Ally AI",
+        bidOpt: "Ally AI",
+        percentTimeInBudget: null,
+      },
+      {
+        id: "bp-wc-3",
+        level2: "friskies",
+        currentBudget: 42_898,
+        plannedMtd: 32_520,
+        actualMtd: 32_080,
+        goalMetric: "iROAS",
+        goalValue: 2.0,
+        actualMetricValue: 2.97,
+        budgetOpt: "Ally AI",
+        bidOpt: "Ally AI",
+        percentTimeInBudget: null,
+      },
+      {
+        id: "bp-wc-4",
+        level2: "fancy feast broths",
+        // ~98.0% → On Plan
+        currentBudget: 7_585,
+        plannedMtd: 5_750,
+        actualMtd: 5_635,
+        goalMetric: "iROAS",
+        goalValue: 1.5,
+        actualMetricValue: 1.64,
+        budgetOpt: "Ally AI",
+        bidOpt: "Ally AI",
+        percentTimeInBudget: null,
+      },
+      {
+        id: "bp-wc-5",
+        level2: "gourmet",
+        // ~97.9% → On Plan
+        currentBudget: 5_039,
+        plannedMtd: 3_820,
+        actualMtd: 3_740,
+        goalMetric: "iROAS",
+        goalValue: 1.0,
+        actualMetricValue: 2.56,
+        budgetOpt: "Ally AI",
+        bidOpt: "Ally AI",
+        percentTimeInBudget: null,
+      },
+    ],
   },
 ];
-
-const EXTRA_CATEGORY_NAMES = [
-  "training pants toddler",
-  "pull-ups overnight",
-  "swabs sterile cotton",
-  "mask surgical disposable",
-  "gauze pads sterile",
-  "bandage adhesive assortment",
-  "ointment barrier cream",
-  "wipes disinfectant",
-  "syringe oral disposable",
-  "thermometer digital",
-];
-
-/** Paginated category count in the product reference. */
-export const BUDGET_PLAN_TOTAL_COUNT = 373;
-
-export const BUDGET_PLAN_PAGE_SIZE = 10;
 
 export type { PeriodDatePresetId as BudgetPlanDatePresetId } from "@/lib/home/period-date-presets";
 export { PERIOD_DATE_PRESETS as BUDGET_PLAN_DATE_PRESETS } from "@/lib/home/period-date-presets";
-
-export const BUDGET_PLAN_DATE_LABEL =
-  "Current Month (Aug 01 - Aug 12, 2026)";
-
-function buildCategoryRows(): BudgetPlanRow[] {
-  const rows: BudgetPlanRow[] = FIRST_PAGE_SEED.map((row, index) => ({
-    ...row,
-    id: `bp-${index + 1}`,
-  }));
-
-  let i = rows.length;
-  while (i < BUDGET_PLAN_TOTAL_COUNT) {
-    const name =
-      EXTRA_CATEGORY_NAMES[i % EXTRA_CATEGORY_NAMES.length] ?? `category ${i}`;
-    const seed = (i * 17) % 97;
-    rows.push({
-      id: `bp-${i + 1}`,
-      category: `${name} ${Math.floor(i / EXTRA_CATEGORY_NAMES.length) + 1}`,
-      goal: "iRoAS",
-      value: 3 + (seed % 10) / 10,
-      actual:
-        seed % 7 === 0 ? null : Number((0.8 + (seed % 20) / 10).toFixed(2)),
-      currentBudget: 2_000 + seed * 180,
-      plannedTillDate: 800 + seed * 70,
-      actualSpendTillDate: seed % 5 === 0 ? 0 : 600 + seed * 55,
-    });
-    i += 1;
-  }
-
-  return rows;
-}
-
-export const BUDGET_PLAN_ROWS = buildCategoryRows();
-
-export function getBudgetPlanPage(
-  page: number,
-  pageSize: number = BUDGET_PLAN_PAGE_SIZE,
-): BudgetPlanRow[] {
-  const start = (page - 1) * pageSize;
-  return BUDGET_PLAN_ROWS.slice(start, start + pageSize);
-}
