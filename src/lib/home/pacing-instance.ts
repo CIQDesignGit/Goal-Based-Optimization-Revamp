@@ -3,6 +3,8 @@
  * Every Executive Summary number and Pacing A–E figure must come from here.
  */
 
+import { CONSTRAINT_GAPS } from "@/lib/home/constraint-gaps-data";
+
 export type OptimizerLever = "Ally AI" | "Rule Based" | "None";
 
 export type PacingRow = {
@@ -251,53 +253,7 @@ export const PACING_INSTANCE: PacingInstance = {
       brandId: "pilgrims-core",
     },
   ],
-  constraints: [
-    {
-      id: "c-competitor",
-      alert: "High Deviation",
-      level1: "Pilgrims Core",
-      level2: "None",
-      group: "Targeting Type",
-      constraintType: "Competitor",
-      constraintPercent: 30,
-      spendSharePercent: 10.7,
-      deviationPoints: 19.3,
-      deviationRelativePercent: 64,
-      plainLanguage:
-        "At the Pilgrims Core level, the Targeting Type constraint for Competitor is set at 30%, but observed spend share is only 10.7% (gap 19.3 points). This under-delivery can leave competitor conquest volume on the table while Generic absorbs excess share.",
-      brandId: "pilgrims-core",
-    },
-    {
-      id: "c-generic",
-      alert: "High Deviation",
-      level1: "Pilgrims Core",
-      level2: "None",
-      group: "Targeting Type",
-      constraintType: "Generic",
-      constraintPercent: 70,
-      spendSharePercent: 89.3,
-      deviationPoints: 19.3,
-      deviationRelativePercent: 28,
-      plainLanguage:
-        "At the same level, the Targeting Type constraint for Generic is set at 70%, while actual spend share is 89.3% (19.3 points over). Because Generic is already above 60 (set at 70), no additional generic-share increase is advisable right now.",
-      brandId: "pilgrims-core",
-    },
-    {
-      id: "c-sb-share",
-      alert: "High Deviation",
-      level1: "JBC Fresh",
-      level2: "Sponsored Brands",
-      group: "Campaign Type",
-      constraintType: "Sponsored Brands",
-      constraintPercent: 30,
-      spendSharePercent: 8.4,
-      deviationPoints: 21.6,
-      deviationRelativePercent: 72,
-      plainLanguage:
-        "For JBC Fresh – Sponsored Brands, the campaign-type constraint is set at 30% share, but actual SB spend share is only 8.4% (deviation 21.6 points, 72% relative). This large gap can cause underpacing as GBO repeatedly tries to push more budget into SB than the structure supports.",
-      brandId: "jbc-fresh",
-    },
-  ],
+  constraints: CONSTRAINT_GAPS,
   changeDrivers: [
     {
       id: "d1",

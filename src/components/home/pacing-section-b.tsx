@@ -1,8 +1,15 @@
 "use client";
 
+import { ChevronDown } from "lucide-react";
+import { useState } from "react";
+
 import { PacingAccordionSection } from "@/components/home/pacing-accordion-section";
+import { Button } from "@/components/ui/button";
 import type { ConstraintAlert, PacingInstance } from "@/lib/home/pacing-instance";
 import { cn } from "@/lib/utils";
+
+/** How many constraint gap cards to show before the user expands the list. */
+const INITIAL_VISIBLE_COUNT = 4;
 
 type PacingSectionBProps = {
   instance: PacingInstance;
@@ -14,21 +21,55 @@ type PacingSectionBProps = {
  */
 export function PacingSectionB({ instance }: PacingSectionBProps) {
   const { constraints } = instance;
+  const [expanded, setExpanded] = useState(false);
+
+  const hasMore = constraints.length > INITIAL_VISIBLE_COUNT;
+  const visibleConstraints = expanded
+    ? constraints
+    : constraints.slice(0, INITIAL_VISIBLE_COUNT);
 
   return (
     <PacingAccordionSection
       title="Constraint gaps"
       description="Configured share vs actual spend share"
     >
-      <div className="p-4">
+      <div>
         {constraints.length === 0 ? (
-          <p className="text-sm text-slate-500">No constraints set.</p>
+          <p className="p-4 text-sm text-slate-500">No constraints set.</p>
         ) : (
-          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-            {constraints.map((c) => (
-              <ConstraintGapCard key={c.id} constraint={c} />
-            ))}
-          </div>
+          <>
+            <div className="grid gap-3 p-4 lg:grid-cols-2 xl:grid-cols-3">
+              {visibleConstraints.map((c) => (
+                <ConstraintGapCard key={c.id} constraint={c} />
+              ))}
+            </div>
+
+            {hasMore ? (
+              <div className="border-t border-slate-100">
+                <div className="flex justify-start px-4 py-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-brand-500 bg-background text-brand-500 hover:bg-brand-50 hover:text-brand-600 aria-expanded:bg-background aria-expanded:text-brand-500 dark:aria-expanded:bg-background"
+                    onClick={() => setExpanded((value) => !value)}
+                    aria-expanded={expanded}
+                  >
+                    {expanded
+                      ? "Show less"
+                      : `View all ${constraints.length} constraint gaps`}
+                    <ChevronDown
+                      className={cn(
+                        "transition-transform",
+                        expanded && "rotate-180",
+                      )}
+                      aria-hidden
+                    />
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </>
         )}
       </div>
     </PacingAccordionSection>
