@@ -1,15 +1,11 @@
 "use client";
 
-import { format } from "date-fns";
-import { ChevronDown } from "lucide-react";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
-import { BudgetPacingDateRangePicker } from "@/components/home/budget-pacing-date-range-picker";
-import { formatFilterDateRange } from "@/lib/home/dashboard-filters";
 import { buildExecutiveSummary } from "@/lib/home/executive-summary";
 import type { PacingInstance } from "@/lib/home/pacing-instance";
 import { usePacingDashboardStore } from "@/lib/home/pacing-dashboard-store";
-import { cn } from "@/lib/utils";
 
 type PerformanceOverviewProps = {
   instance: PacingInstance;
@@ -28,12 +24,9 @@ export function PerformanceOverview({
 
 function AllyBrief({ instance }: { instance: PacingInstance }) {
   const [ready, setReady] = useState(false);
-  const [open, setOpen] = useState(true);
   const simulateLlmDown = usePacingDashboardStore((s) => s.simulateLlmDown);
   const lastSummary = usePacingDashboardStore((s) => s.lastSummary);
   const setLastSummary = usePacingDashboardStore((s) => s.setLastSummary);
-  const filters = usePacingDashboardStore((s) => s.filters);
-  const setFilters = usePacingDashboardStore((s) => s.setFilters);
 
   const liveSummary = useMemo(
     () => buildExecutiveSummary(instance),
@@ -62,44 +55,25 @@ function AllyBrief({ instance }: { instance: PacingInstance }) {
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-label={open ? "Collapse overview" : "Expand overview"}
-          onClick={() => setOpen((v) => !v)}
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
-        >
-          <ChevronDown
-            className={cn(
-              "size-4 shrink-0 text-slate-400 transition-transform",
-              open && "rotate-180",
-            )}
-            aria-hidden
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <Image
+            src="/icons/ally-ai.png"
+            alt=""
+            width={22}
+            height={22}
+            className="size-5.5 shrink-0 object-cover"
           />
           <h2 className="min-w-0 text-sm font-semibold text-slate-900">
             Performance Overview
           </h2>
-        </button>
+        </div>
 
-        {/* Same date picker as Budget Pacing, but without compare window */}
-        <BudgetPacingDateRangePicker
-          showCompare={false}
-          range={{
-            from: parseIsoDate(filters.dateFrom),
-            to: parseIsoDate(filters.dateTo),
-          }}
-          triggerLabel={formatFilterDateRange(filters)}
-          onApply={(next) =>
-            setFilters({
-              dateFrom: format(next.from, "yyyy-MM-dd"),
-              dateTo: format(next.to, "yyyy-MM-dd"),
-            })
-          }
-        />
+        <p className="shrink-0 text-xs text-slate-500">
+          This is MTD till yesterday
+        </p>
       </header>
 
-      {open ? (
-        <div className="space-y-8 p-4">
+      <div className="space-y-8 p-4">
           <div className="space-y-4">
             {!ready ? (
               <BriefSkeleton />
@@ -173,7 +147,6 @@ function AllyBrief({ instance }: { instance: PacingInstance }) {
             )}
           </div>
         </div>
-      ) : null}
     </section>
   );
 }
@@ -205,10 +178,4 @@ function BriefSkeleton() {
       <div className="h-4 w-3/4 rounded bg-slate-100" />
     </div>
   );
-}
-
-/** Parse YYYY-MM-DD as a local calendar date (avoids UTC shift). */
-function parseIsoDate(iso: string): Date {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y!, (m ?? 1) - 1, d ?? 1);
 }
