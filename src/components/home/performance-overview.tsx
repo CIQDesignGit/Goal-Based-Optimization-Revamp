@@ -69,7 +69,7 @@ function AllyBrief({ instance }: { instance: PacingInstance }) {
         </div>
 
         <p className="shrink-0 text-xs text-slate-500">
-          This is MTD till yesterday
+          MTD till yesterday
         </p>
       </header>
 
