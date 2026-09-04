@@ -21,12 +21,13 @@ import {
 } from "date-fns";
 import {
   CalendarDays,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Info,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -36,9 +37,10 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-const DATA_MIN = new Date(2026, 0, 1); // Jan 01, 2026
-const DATA_MAX = new Date(2026, 7, 12); // Aug 12, 2026
+const DATA_MIN_DAY = new Date(2026, 0, 1); // Jan 01, 2026
+const DATA_MAX = new Date(2026, 7, 12, 23, 30, 0, 0); // Aug 12, 2026 11:30 PM
 const TODAY = new Date(2026, 7, 14); // Aug 14, 2026 (underline in product)
+const DATA_MAX_DAY = new Date(2026, 7, 12);
 
 const DATE_PRESETS = [
   "Month to Date",
@@ -53,6 +55,18 @@ const COMPARE_PRESETS = [
   "Previous Month",
   "None",
 ] as const;
+
+/** One dropdown of clock times every 30 minutes (12:00 AM … 11:30 PM). */
+const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
+  const totalMinutes = i * 30;
+  const hour24 = Math.floor(totalMinutes / 60);
+  const minute = totalMinutes % 60;
+  const period = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  const label = `${hour12}:${String(minute).padStart(2, "0")} ${period}`;
+  const value = `${String(hour24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  return { label, value, hour24, minute };
+});
 
 type DatePreset = (typeof DATE_PRESETS)[number];
 type ComparePreset = (typeof COMPARE_PRESETS)[number];
@@ -71,31 +85,100 @@ type BudgetPacingDateRangePickerProps = {
   showCompare?: boolean;
 };
 
+/** Keep the calendar day, force 12:00 AM. */
+function atStartOfDay(date: Date): Date {
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    0,
+    0,
+    0,
+    0,
+  );
+}
+
+/** Keep the calendar day, force 11:30 PM (last 30-min slot). */
+function atEndOfDay(date: Date): Date {
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    23,
+    30,
+    0,
+    0,
+  );
+}
+
+/** Copy hour/minute from `timeSource` onto `day`'s calendar date. */
+function copyClockTime(day: Date, timeSource: Date): Date {
+  return new Date(
+    day.getFullYear(),
+    day.getMonth(),
+    day.getDate(),
+    timeSource.getHours(),
+    timeSource.getMinutes(),
+    0,
+    0,
+  );
+}
+
+/** Apply a `HH:mm` time string onto a calendar date. */
+function applyClockTime(date: Date, timeValue: string): Date {
+  const [hh, mm] = timeValue.split(":").map(Number);
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    hh ?? 0,
+    mm ?? 0,
+    0,
+    0,
+  );
+}
+
+/** Nearest 30-minute slot for the select value (handles legacy :59 times). */
+function nearestTimeOptionValue(date: Date): string {
+  const total = date.getHours() * 60 + date.getMinutes();
+  let snapped = Math.round(total / 30) * 30;
+  // 11:45+ would round to 24:00 — clamp to last slot 11:30 PM
+  if (snapped >= 24 * 60) snapped = 23 * 60 + 30;
+  const hour24 = Math.floor(snapped / 60);
+  const minute = snapped % 60;
+  return `${String(hour24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
 function clampDate(date: Date): Date {
-  if (isBefore(date, DATA_MIN)) return DATA_MIN;
-  if (isAfter(date, DATA_MAX)) return DATA_MAX;
+  const day = atStartOfDay(date);
+  if (isBefore(day, DATA_MIN_DAY)) return copyClockTime(DATA_MIN_DAY, date);
+  if (isAfter(day, DATA_MAX_DAY)) return copyClockTime(DATA_MAX_DAY, date);
   return date;
 }
 
 function previousPeriod(range: DateRangeValue): DateRangeValue {
   const days = differenceInCalendarDays(range.to, range.from) + 1;
-  const to = clampDate(subDays(range.from, 1));
-  const from = clampDate(subDays(to, days - 1));
-  return { from, to };
+  const toDay = clampDate(subDays(atStartOfDay(range.from), 1));
+  const fromDay = clampDate(subDays(toDay, days - 1));
+  return {
+    from: copyClockTime(fromDay, range.from),
+    to: copyClockTime(toDay, range.to),
+  };
 }
 
 function monthToDate(): DateRangeValue {
   const to = DATA_MAX;
-  const from = startOfMonth(to);
+  const from = atStartOfDay(startOfMonth(to));
   return { from: clampDate(from), to };
 }
 
 function lastNDays(n: number): DateRangeValue {
   const to = DATA_MAX;
-  const from = clampDate(subDays(to, n - 1));
+  const from = clampDate(atStartOfDay(subDays(atStartOfDay(to), n - 1)));
   return { from, to };
 }
 
+/** Date-only label for the text fields (time is picked separately). */
 function formatShort(date: Date): string {
   return format(date, "MMM dd, yyyy");
 }
@@ -180,8 +263,8 @@ export function BudgetPacingDateRangePicker({
       setCompareToText(formatShort(prev.to));
     }
     if (preset === "Previous Month") {
-      const from = clampDate(subMonths(draft.from, 1));
-      const to = clampDate(subMonths(draft.to, 1));
+      const from = clampDate(copyClockTime(subMonths(draft.from, 1), draft.from));
+      const to = clampDate(copyClockTime(subMonths(draft.to, 1), draft.to));
       setCompare({ from, to });
       setCompareFromText(formatShort(from));
       setCompareToText(formatShort(to));
@@ -189,9 +272,14 @@ export function BudgetPacingDateRangePicker({
   }
 
   function selectDay(day: Date) {
-    if (isAfter(day, DATA_MAX) || isBefore(day, DATA_MIN)) return;
-    if (activeField === "from" || isAfter(draft.from, day)) {
-      const next = { from: day, to: isBefore(day, draft.to) ? draft.to : day };
+    if (isAfter(day, DATA_MAX_DAY) || isBefore(day, DATA_MIN_DAY)) return;
+    if (activeField === "from" || isAfter(atStartOfDay(draft.from), day)) {
+      // Keep existing start time when picking a new from-day (default 12:00 AM).
+      const from = copyClockTime(day, draft.from);
+      const to = isBefore(day, atStartOfDay(draft.to))
+        ? draft.to
+        : copyClockTime(day, draft.to);
+      const next = { from, to };
       setDraft(next);
       setFromText(formatShort(next.from));
       setToText(formatShort(next.to));
@@ -204,7 +292,8 @@ export function BudgetPacingDateRangePicker({
       }
       return;
     }
-    const next = { from: draft.from, to: day };
+    // Keep existing end time when picking a new to-day (default 11:30 PM).
+    const next = { from: draft.from, to: copyClockTime(day, draft.to) };
     setDraft(next);
     setToText(formatShort(day));
     setDatePreset("Custom");
@@ -217,7 +306,10 @@ export function BudgetPacingDateRangePicker({
   }
 
   function handleReset() {
-    const defaults = { from: new Date(2026, 6, 15), to: new Date(2026, 6, 28) };
+    const defaults = {
+      from: new Date(2026, 6, 15, 0, 0, 0, 0),
+      to: new Date(2026, 6, 28, 23, 30, 0, 0),
+    };
     setDraft(defaults);
     setFromText(formatShort(defaults.from));
     setToText(formatShort(defaults.to));
@@ -228,6 +320,31 @@ export function BudgetPacingDateRangePicker({
     setDatePreset("Custom");
     setComparePreset("Previous Period");
     setLeftMonth(startOfMonth(defaults.from));
+  }
+
+  function updateDraftTime(field: "from" | "to", nextDate: Date) {
+    const next = { ...draft, [field]: nextDate };
+    // Keep from ≤ to on the same timeline when times collide oddly.
+    if (field === "from" && isAfter(next.from, next.to)) {
+      next.to = next.from;
+      setToText(formatShort(next.to));
+    }
+    if (field === "to" && isBefore(next.to, next.from)) {
+      next.from = next.to;
+      setFromText(formatShort(next.from));
+    }
+    setDraft(next);
+    setDatePreset("Custom");
+    if (comparePreset === "Previous Period") {
+      const prev = previousPeriod(next);
+      setCompare(prev);
+      setCompareFromText(formatShort(prev.from));
+      setCompareToText(formatShort(prev.to));
+    }
+  }
+
+  function updateCompareTime(field: "from" | "to", nextDate: Date) {
+    setCompare((c) => ({ ...c, [field]: nextDate }));
   }
 
   function handleApply() {
@@ -319,7 +436,7 @@ export function BudgetPacingDateRangePicker({
           </div>
 
           {/* Sidebar — matches reference proportions */}
-          <aside className="flex w-full shrink-0 flex-col gap-5 border-t border-slate-200 px-4 py-4 lg:w-[17.5rem] lg:border-l lg:border-t-0">
+          <aside className="flex w-full shrink-0 flex-col gap-5 border-t border-slate-200 px-4 py-4 lg:w-[19rem] lg:border-l lg:border-t-0">
             <div className="space-y-2">
               <p className="flex items-center gap-2 text-sm font-medium text-slate-800">
                 <span
@@ -333,52 +450,72 @@ export function BudgetPacingDateRangePicker({
                 options={DATE_PRESETS}
                 onChange={(v) => applyDatePreset(v as DatePreset)}
               />
-              <div className="flex items-center gap-1.5">
-                <DateInput
-                  value={fromText}
-                  active={activeField === "from"}
-                  tone="primary"
-                  onFocus={() => setActiveField("from")}
-                  onChange={setFromText}
-                  onBlur={() => {
-                    const parsed = parseShort(fromText);
-                    if (!parsed) {
-                      setFromText(formatShort(draft.from));
-                      return;
-                    }
-                    const next = {
-                      from: parsed,
-                      to: isBefore(parsed, draft.to) ? draft.to : parsed,
-                    };
-                    setDraft(next);
-                    setFromText(formatShort(next.from));
-                    setToText(formatShort(next.to));
-                    setDatePreset("Custom");
-                  }}
-                />
-                <span className="shrink-0 text-slate-400">–</span>
-                <DateInput
-                  value={toText}
-                  active={activeField === "to"}
-                  tone="primary"
-                  onFocus={() => setActiveField("to")}
-                  onChange={setToText}
-                  onBlur={() => {
-                    const parsed = parseShort(toText);
-                    if (!parsed) {
-                      setToText(formatShort(draft.to));
-                      return;
-                    }
-                    const next = {
-                      from: isAfter(parsed, draft.from) ? draft.from : parsed,
-                      to: parsed,
-                    };
-                    setDraft(next);
-                    setFromText(formatShort(next.from));
-                    setToText(formatShort(next.to));
-                    setDatePreset("Custom");
-                  }}
-                />
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <DateInput
+                    value={fromText}
+                    active={activeField === "from"}
+                    tone="primary"
+                    onFocus={() => setActiveField("from")}
+                    onChange={setFromText}
+                    onBlur={() => {
+                      const parsed = parseShort(fromText);
+                      if (!parsed) {
+                        setFromText(formatShort(draft.from));
+                        return;
+                      }
+                      const from = copyClockTime(parsed, draft.from);
+                      const next = {
+                        from,
+                        to: isBefore(from, draft.to) ? draft.to : from,
+                      };
+                      setDraft(next);
+                      setFromText(formatShort(next.from));
+                      setToText(formatShort(next.to));
+                      setDatePreset("Custom");
+                    }}
+                  />
+                  <span className="shrink-0 text-slate-400">–</span>
+                  <DateInput
+                    value={toText}
+                    active={activeField === "to"}
+                    tone="primary"
+                    onFocus={() => setActiveField("to")}
+                    onChange={setToText}
+                    onBlur={() => {
+                      const parsed = parseShort(toText);
+                      if (!parsed) {
+                        setToText(formatShort(draft.to));
+                        return;
+                      }
+                      const to = copyClockTime(parsed, draft.to);
+                      const next = {
+                        from: isAfter(to, draft.from) ? draft.from : to,
+                        to,
+                      };
+                      setDraft(next);
+                      setFromText(formatShort(next.from));
+                      setToText(formatShort(next.to));
+                      setDatePreset("Custom");
+                    }}
+                  />
+                </div>
+                {/* Time row — hour : minute AM/PM for start and end */}
+                <div className="flex items-center gap-1.5">
+                  <TimeSelect
+                    value={draft.from}
+                    tone="primary"
+                    ariaLabel="Start time"
+                    onChange={(next) => updateDraftTime("from", next)}
+                  />
+                  <span className="shrink-0 text-slate-400">–</span>
+                  <TimeSelect
+                    value={draft.to}
+                    tone="primary"
+                    ariaLabel="End time"
+                    onChange={(next) => updateDraftTime("to", next)}
+                  />
+                </div>
               </div>
             </div>
 
@@ -397,36 +534,55 @@ export function BudgetPacingDateRangePicker({
                   onChange={(v) => applyComparePreset(v as ComparePreset)}
                 />
                 {comparePreset !== "None" ? (
-                  <div className="flex items-center gap-1.5">
-                    <DateInput
-                      value={compareFromText}
-                      tone="compare"
-                      onChange={setCompareFromText}
-                      onBlur={() => {
-                        const parsed = parseShort(compareFromText);
-                        if (!parsed) {
-                          setCompareFromText(formatShort(compare.from));
-                          return;
-                        }
-                        setCompare((c) => ({ ...c, from: parsed }));
-                        setCompareFromText(formatShort(parsed));
-                      }}
-                    />
-                    <span className="shrink-0 text-slate-400">–</span>
-                    <DateInput
-                      value={compareToText}
-                      tone="compare"
-                      onChange={setCompareToText}
-                      onBlur={() => {
-                        const parsed = parseShort(compareToText);
-                        if (!parsed) {
-                          setCompareToText(formatShort(compare.to));
-                          return;
-                        }
-                        setCompare((c) => ({ ...c, to: parsed }));
-                        setCompareToText(formatShort(parsed));
-                      }}
-                    />
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <DateInput
+                        value={compareFromText}
+                        tone="compare"
+                        onChange={setCompareFromText}
+                        onBlur={() => {
+                          const parsed = parseShort(compareFromText);
+                          if (!parsed) {
+                            setCompareFromText(formatShort(compare.from));
+                            return;
+                          }
+                          const from = copyClockTime(parsed, compare.from);
+                          setCompare((c) => ({ ...c, from }));
+                          setCompareFromText(formatShort(from));
+                        }}
+                      />
+                      <span className="shrink-0 text-slate-400">–</span>
+                      <DateInput
+                        value={compareToText}
+                        tone="compare"
+                        onChange={setCompareToText}
+                        onBlur={() => {
+                          const parsed = parseShort(compareToText);
+                          if (!parsed) {
+                            setCompareToText(formatShort(compare.to));
+                            return;
+                          }
+                          const to = copyClockTime(parsed, compare.to);
+                          setCompare((c) => ({ ...c, to }));
+                          setCompareToText(formatShort(to));
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <TimeSelect
+                        value={compare.from}
+                        tone="compare"
+                        ariaLabel="Compare start time"
+                        onChange={(next) => updateCompareTime("from", next)}
+                      />
+                      <span className="shrink-0 text-slate-400">–</span>
+                      <TimeSelect
+                        value={compare.to}
+                        tone="compare"
+                        ariaLabel="Compare end time"
+                        onChange={(next) => updateCompareTime("to", next)}
+                      />
+                    </div>
                   </div>
                 ) : null}
               </div>
@@ -533,6 +689,106 @@ function DateInput({
   );
 }
 
+/**
+ * Themed time dropdown (30-min slots). Fixed height + scroll — not the OS native menu.
+ * Renders in-place (not a portal) so it stays inside the date-range Popover.
+ */
+function TimeSelect({
+  value,
+  onChange,
+  tone = "primary",
+  ariaLabel,
+}: {
+  value: Date;
+  onChange: (next: Date) => void;
+  tone?: "primary" | "compare";
+  ariaLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const listId = useId();
+  const selected = nearestTimeOptionValue(value);
+  const selectedLabel =
+    TIME_OPTIONS.find((opt) => opt.value === selected)?.label ?? selected;
+
+  const borderClass =
+    tone === "compare"
+      ? "border-slate-200 focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
+      : "border-slate-200 focus-visible:border-brand-500 focus-visible:ring-brand-500/20";
+
+  // Close when clicking outside this control (still inside the date popover).
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative min-w-0 flex-1">
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        className={cn(
+          "flex h-8 w-full items-center justify-between gap-1 rounded-md border bg-white px-2 text-2xs text-slate-800 outline-none select-none focus-visible:ring-2",
+          borderClass,
+        )}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span className="min-w-0 truncate">{selectedLabel}</span>
+        <ChevronDown
+          className={cn(
+            "size-3.5 shrink-0 text-slate-400 transition-transform",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+
+      {open ? (
+        <ul
+          id={listId}
+          role="listbox"
+          aria-label={ariaLabel}
+          className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-48 overflow-y-auto rounded-md border border-slate-200 bg-white p-1 shadow-md ring-1 ring-foreground/10"
+        >
+          {TIME_OPTIONS.map((opt) => {
+            const isSelected = opt.value === selected;
+            return (
+              <li key={opt.value} role="presentation">
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-2xs text-slate-800 outline-none select-none hover:bg-slate-100 focus:bg-slate-100",
+                    isSelected && "bg-brand-50 font-medium text-brand-700",
+                  )}
+                  onClick={() => {
+                    onChange(applyClockTime(value, opt.value));
+                    setOpen(false);
+                  }}
+                >
+                  <span>{opt.label}</span>
+                  {isSelected ? (
+                    <Check className="size-3.5 shrink-0 text-brand-600" />
+                  ) : null}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 function MonthGrid({
   month,
   primary,
@@ -586,7 +842,7 @@ function MonthGrid({
               {week.map((day) => {
                 const inMonth = isSameMonth(day, month);
                 const outOfData =
-                  isBefore(day, DATA_MIN) || isAfter(day, DATA_MAX);
+                  isBefore(day, DATA_MIN_DAY) || isAfter(day, DATA_MAX_DAY);
                 const disabled = !inMonth || outOfData;
                 const isToday = isSameDay(day, TODAY);
                 const role = inMonth

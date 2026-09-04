@@ -3,6 +3,7 @@
  * Derived from the canonical pacing instance so cards / table / chart agree.
  */
 
+import { parseFilterDateTime } from "@/lib/home/dashboard-filters";
 import {
   formatUsd,
   PACING_INSTANCE,
@@ -85,27 +86,43 @@ export function formatComparisonDateRange(
   dateFrom: string,
   dateTo: string,
 ): string {
-  const from = parseIso(dateFrom);
-  const to = parseIso(dateTo);
-  if (!from || !to) return "";
+  const from = parseFilterDateTime(dateFrom, false);
+  const to = parseFilterDateTime(dateTo, true);
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return "";
   const days = Math.max(
     1,
-    Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1,
+    Math.round(
+      (startOfLocalDay(to).getTime() - startOfLocalDay(from).getTime()) /
+        86_400_000,
+    ) + 1,
   );
-  const prevTo = new Date(from);
-  prevTo.setDate(prevTo.getDate() - 1);
-  const prevFrom = new Date(prevTo);
-  prevFrom.setDate(prevFrom.getDate() - (days - 1));
-  return `vs. ${formatShortDate(prevFrom)} - ${formatShortDate(prevTo)}`;
+  const prevToDay = new Date(startOfLocalDay(from));
+  prevToDay.setDate(prevToDay.getDate() - 1);
+  const prevFromDay = new Date(prevToDay);
+  prevFromDay.setDate(prevFromDay.getDate() - (days - 1));
+  // Keep the same clock times as the primary range on the compare window.
+  const prevFrom = copyClockTime(prevFromDay, from);
+  const prevTo = copyClockTime(prevToDay, to);
+  return `vs. ${formatShortDateTime(prevFrom)} - ${formatShortDateTime(prevTo)}`;
 }
 
-function parseIso(iso: string): Date | null {
-  const [y, m, d] = iso.split("-").map(Number);
-  if (!y || !m || !d) return null;
-  return new Date(y, m - 1, d);
+function startOfLocalDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
-function formatShortDate(date: Date): string {
+function copyClockTime(day: Date, timeSource: Date): Date {
+  return new Date(
+    day.getFullYear(),
+    day.getMonth(),
+    day.getDate(),
+    timeSource.getHours(),
+    timeSource.getMinutes(),
+    0,
+    0,
+  );
+}
+
+function formatShortDateTime(date: Date): string {
   const months = [
     "Jan",
     "Feb",
@@ -120,5 +137,9 @@ function formatShortDate(date: Date): string {
     "Nov",
     "Dec",
   ];
-  return `${months[date.getMonth()]} ${String(date.getDate()).padStart(2, "0")}, ${date.getFullYear()}`;
+  const hour24 = date.getHours();
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  const period = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  return `${months[date.getMonth()]} ${String(date.getDate()).padStart(2, "0")}, ${date.getFullYear()} ${hour12}:${minute} ${period}`;
 }

@@ -39,12 +39,15 @@ import {
   formatSpendAxis,
   getChartData,
 } from "@/lib/home/budget-pacing-data";
-import { formatFilterDateRange } from "@/lib/home/dashboard-filters";
+import {
+  formatFilterDateRange,
+  formatFilterDateTimeValue,
+  parseFilterDateTime,
+} from "@/lib/home/dashboard-filters";
 import type { DashboardFilters } from "@/lib/home/dashboard-filters";
 import { usePacingDashboardStore } from "@/lib/home/pacing-dashboard-store";
 import type { PacingInstance } from "@/lib/home/pacing-instance";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
 
 /** Teal used in the live Budget Pacing product chart. */
 const TEAL = "hsl(174 58% 39%)";
@@ -97,8 +100,8 @@ export function BudgetPacingCard({ instance, filters }: BudgetPacingCardProps) {
   );
 
   const selectedRange = {
-    from: parseIsoDate(filters.dateFrom),
-    to: parseIsoDate(filters.dateTo),
+    from: parseFilterDateTime(filters.dateFrom, false),
+    to: parseFilterDateTime(filters.dateTo, true),
   };
 
   const [selectedMetric, setSelectedMetric] =
@@ -191,8 +194,8 @@ export function BudgetPacingCard({ instance, filters }: BudgetPacingCardProps) {
             comparisonLabel={comparisonRange || undefined}
             onApply={(next) =>
               setFilters({
-                dateFrom: format(next.from, "yyyy-MM-dd"),
-                dateTo: format(next.to, "yyyy-MM-dd"),
+                dateFrom: formatFilterDateTimeValue(next.from),
+                dateTo: formatFilterDateTimeValue(next.to),
               })
             }
           />
@@ -475,8 +478,5 @@ function CompareDeltaChip({ delta }: { delta: string }) {
   );
 }
 
-/** Parse YYYY-MM-DD as a local calendar date (avoids UTC shift). */
-function parseIsoDate(iso: string): Date {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y!, (m ?? 1) - 1, d ?? 1);
-}
+
+
