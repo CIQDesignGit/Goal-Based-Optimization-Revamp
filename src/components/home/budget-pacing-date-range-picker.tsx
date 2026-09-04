@@ -27,7 +27,8 @@ import {
   ChevronRight,
   Info,
 } from "lucide-react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -353,7 +354,22 @@ export function BudgetPacingDateRangePicker({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next, details) => {
+        // Keep the date picker open while interacting with a portaled time menu.
+        if (
+          !next &&
+          details.reason === "outside-press" &&
+          details.event.target instanceof Element &&
+          details.event.target.closest("[data-time-select-menu]")
+        ) {
+          details.cancel();
+          return;
+        }
+        setOpen(next);
+      }}
+    >
       <PopoverTrigger
         render={
           <Button
@@ -374,7 +390,7 @@ export function BudgetPacingDateRangePicker({
           <ChevronDown className="size-3 text-slate-400" />
         </span>
         {showCompare && comparisonLabel ? (
-          <span className="pl-4 text-2xs font-normal leading-none text-slate-400">
+          <span className="pl-4 text-2xs font-normal leading-none text-slate-600">
             {comparisonLabel}
           </span>
         ) : null}
@@ -450,8 +466,9 @@ export function BudgetPacingDateRangePicker({
                 options={DATE_PRESETS}
                 onChange={(v) => applyDatePreset(v as DatePreset)}
               />
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5">
+              <div className="flex items-start gap-1.5">
+                {/* Start: date + its time stacked together */}
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <DateInput
                     value={fromText}
                     active={activeField === "from"}
@@ -475,7 +492,21 @@ export function BudgetPacingDateRangePicker({
                       setDatePreset("Custom");
                     }}
                   />
-                  <span className="shrink-0 text-slate-400">–</span>
+                  <TimeSelect
+                    value={draft.from}
+                    tone="primary"
+                    ariaLabel="Start time"
+                    onChange={(next) => updateDraftTime("from", next)}
+                  />
+                </div>
+                <span
+                  className="mt-2 shrink-0 self-start text-slate-400"
+                  aria-hidden
+                >
+                  –
+                </span>
+                {/* End: date + its time stacked together */}
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <DateInput
                     value={toText}
                     active={activeField === "to"}
@@ -499,16 +530,6 @@ export function BudgetPacingDateRangePicker({
                       setDatePreset("Custom");
                     }}
                   />
-                </div>
-                {/* Time row — hour : minute AM/PM for start and end */}
-                <div className="flex items-center gap-1.5">
-                  <TimeSelect
-                    value={draft.from}
-                    tone="primary"
-                    ariaLabel="Start time"
-                    onChange={(next) => updateDraftTime("from", next)}
-                  />
-                  <span className="shrink-0 text-slate-400">–</span>
                   <TimeSelect
                     value={draft.to}
                     tone="primary"
@@ -534,8 +555,9 @@ export function BudgetPacingDateRangePicker({
                   onChange={(v) => applyComparePreset(v as ComparePreset)}
                 />
                 {comparePreset !== "None" ? (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-1.5">
+                  <div className="flex items-start gap-1.5">
+                    {/* Compare start: date + time */}
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
                       <DateInput
                         value={compareFromText}
                         tone="compare"
@@ -551,7 +573,21 @@ export function BudgetPacingDateRangePicker({
                           setCompareFromText(formatShort(from));
                         }}
                       />
-                      <span className="shrink-0 text-slate-400">–</span>
+                      <TimeSelect
+                        value={compare.from}
+                        tone="compare"
+                        ariaLabel="Compare start time"
+                        onChange={(next) => updateCompareTime("from", next)}
+                      />
+                    </div>
+                    <span
+                      className="mt-2 shrink-0 self-start text-slate-400"
+                      aria-hidden
+                    >
+                      –
+                    </span>
+                    {/* Compare end: date + time */}
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
                       <DateInput
                         value={compareToText}
                         tone="compare"
@@ -567,15 +603,6 @@ export function BudgetPacingDateRangePicker({
                           setCompareToText(formatShort(to));
                         }}
                       />
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <TimeSelect
-                        value={compare.from}
-                        tone="compare"
-                        ariaLabel="Compare start time"
-                        onChange={(next) => updateCompareTime("from", next)}
-                      />
-                      <span className="shrink-0 text-slate-400">–</span>
                       <TimeSelect
                         value={compare.to}
                         tone="compare"
@@ -690,8 +717,8 @@ function DateInput({
 }
 
 /**
- * Themed time dropdown (30-min slots). Fixed height + scroll — not the OS native menu.
- * Renders in-place (not a portal) so it stays inside the date-range Popover.
+ * Themed time dropdown (30-min slots). Fixed height + internal scroll.
+ * Portaled so it isn’t clipped by the date-range popover’s overflow.
  */
 function TimeSelect({
   value,
@@ -704,8 +731,15 @@ function TimeSelect({
   tone?: "primary" | "compare";
   ariaLabel: string;
 }) {
-  const [open, setOpen] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
   const listId = useId();
   const selected = nearestTimeOptionValue(value);
   const selectedLabel =
@@ -716,75 +750,117 @@ function TimeSelect({
       ? "border-slate-200 focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
       : "border-slate-200 focus-visible:border-brand-500 focus-visible:ring-brand-500/20";
 
-  // Close when clicking outside this control (still inside the date popover).
+  // Anchor the menu under the trigger (fixed coords for the portal).
+  useLayoutEffect(() => {
+    if (!listOpen || !triggerRef.current) {
+      setMenuPosition(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setMenuPosition({
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: Math.max(rect.width, 112),
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [listOpen]);
+
+  // Close when clicking outside this control / its menu.
   useEffect(() => {
-    if (!open) return;
+    if (!listOpen) return;
     const handlePointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
+      const target = event.target as Node;
+      if (
+        !rootRef.current?.contains(target) &&
+        !menuRef.current?.contains(target)
+      ) {
+        setListOpen(false);
       }
     };
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [open]);
+  }, [listOpen]);
 
   return (
     <div ref={rootRef} className="relative min-w-0 flex-1">
       <button
+        ref={triggerRef}
         type="button"
         aria-label={ariaLabel}
         aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={open ? listId : undefined}
+        aria-expanded={listOpen}
+        aria-controls={listOpen ? listId : undefined}
         className={cn(
           "flex h-8 w-full items-center justify-between gap-1 rounded-md border bg-white px-2 text-2xs text-slate-800 outline-none select-none focus-visible:ring-2",
           borderClass,
         )}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => setListOpen((current) => !current)}
       >
         <span className="min-w-0 truncate">{selectedLabel}</span>
         <ChevronDown
           className={cn(
             "size-3.5 shrink-0 text-slate-400 transition-transform",
-            open && "rotate-180",
+            listOpen && "rotate-180",
           )}
         />
       </button>
 
-      {open ? (
-        <ul
-          id={listId}
-          role="listbox"
-          aria-label={ariaLabel}
-          className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-48 overflow-y-auto rounded-md border border-slate-200 bg-white p-1 shadow-md ring-1 ring-foreground/10"
-        >
-          {TIME_OPTIONS.map((opt) => {
-            const isSelected = opt.value === selected;
-            return (
-              <li key={opt.value} role="presentation">
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={isSelected}
-                  className={cn(
-                    "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-2xs text-slate-800 outline-none select-none hover:bg-slate-100 focus:bg-slate-100",
-                    isSelected && "bg-brand-50 font-medium text-brand-700",
-                  )}
-                  onClick={() => {
-                    onChange(applyClockTime(value, opt.value));
-                    setOpen(false);
-                  }}
-                >
-                  <span>{opt.label}</span>
-                  {isSelected ? (
-                    <Check className="size-3.5 shrink-0 text-brand-600" />
-                  ) : null}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
+      {listOpen && menuPosition
+        ? createPortal(
+            <ul
+              ref={menuRef}
+              id={listId}
+              role="listbox"
+              aria-label={ariaLabel}
+              data-time-select-menu=""
+              style={{
+                position: "fixed",
+                top: menuPosition.top,
+                left: menuPosition.left,
+                width: menuPosition.width,
+              }}
+              className="z-[60] max-h-48 overflow-y-auto rounded-md border border-slate-200 bg-white p-1 shadow-md ring-1 ring-foreground/10"
+            >
+              {TIME_OPTIONS.map((opt) => {
+                const isSelected = opt.value === selected;
+                return (
+                  <li key={opt.value} role="presentation">
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-2xs text-slate-800 outline-none select-none hover:bg-slate-100 focus:bg-slate-100",
+                        isSelected && "bg-brand-50 font-medium text-brand-700",
+                      )}
+                      onClick={() => {
+                        onChange(applyClockTime(value, opt.value));
+                        setListOpen(false);
+                      }}
+                    >
+                      <span>{opt.label}</span>
+                      {isSelected ? (
+                        <Check className="size-3.5 shrink-0 text-brand-600" />
+                      ) : null}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
